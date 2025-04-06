@@ -10,5 +10,24 @@
     "element": "water",
     "color": "#aaddee",
     "ritual": "Sit in a stream and release the memory"
+  },
+  "Law of Origin Consciousness": {
+    "symbol": "spiral_seed.svg",
+    "element": "memory",
+    "color": "#7765E3",
+    "ritual": "Enter the Hall of First Light, kneel before the mirror, and remember your name."
+  },
+  "Law of Emotional Flow": {
+    "symbol": "river_tear.svg",
+    "element": "water",
+    "color": "#4db0ff",
+    "ritual": "Enter the Chamber of Waters. Speak the name of the feeling you buried. Let it rise and pass through you."
+  },
+  "Law of Death and Rebirth": {
+    "symbol": "phoenix_dust.svg",
+    "element": "fire",
+    "color": "#e25822",
+    "ritual": "Stand at the edge of the Ash Garden. Speak the name of what must die. Burn it. Step into new light."
   }
+
 }

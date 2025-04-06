@@ -4,7 +4,7 @@ from modules.emotional_safety import EmotionalSafetyModule
 from modules.evolution import UserEvolution
 from modules.exploration import ExplorationModule, ExplorationZone
 from modules.laws import PhilosophicalLawbook
-from modules.momory_integration import MemoryIntegrationModule, Memory
+from modules.memory_integration import MemoryIntegrationModule, Memory
 from modules.physics import PhysicsZoneRegistry, PhysicsProfile
 from modules.population import WorldPopulation
 from modules.reality_bridge import RealityBridgeModule
@@ -27,7 +27,8 @@ class EternaInterface:
         self.runtime = EternaRuntime(self)
         self.lawbook = PhilosophicalLawbook()
         self.senses = SensoryProfile()
-        self.physics_registry = PhysicsZoneRegistry
+        self.physics_registry = PhysicsZoneRegistry()
+        self.exploration = ExplorationModule(user_intellect=self.evolution.intellect, eterna_interface=self)
 
 
 
@@ -162,3 +163,11 @@ class EternaInterface:
 
     def explore_random_area(self):
         self.exploration.explore_random_zone()
+
+
+    def runtime_report(self):
+        state = self.runtime.state
+        print("\n📘 Runtime Report")
+        print(f"  🧠 Final Intellect: {state.intellect_level}")
+        print(f"  🔄 Last Mode: {state.mode}")
+        print(f"  ⚖️ Final Cognitive Load: {state.cognitive_load}")

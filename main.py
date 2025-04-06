@@ -1,7 +1,7 @@
 from eterna_interface import EternaInterface
 from modules.physics import PhysicsProfile
 from modules.population import  User
-from modules.momory_integration import Memory
+from modules.memory_integration import Memory
 
 
 def setup_eterna_world(eterna):
@@ -25,13 +25,20 @@ def setup_eterna_world(eterna):
     eterna.update_emotional_state(mood="curious", stress_level=3, trauma_triggered=False)
 
 def setup_physics_profiles(eterna):
-    normal_physics = PhysicsProfile("Default Earth-Like", gravity=9.8, time_flow=1.0, dimensions=3)
-    dreamspace = PhysicsProfile("Dreamspace", gravity=1.2, time_flow=0.7, dimensions=4, energy_behavior="thought-sensitive")
-    chaos_rift = PhysicsProfile("Chaos Rift", gravity=0, time_flow=3.0, dimensions=5, conscious_safe=False)
+    # Define some example physics profiles
+    normal_physics = PhysicsProfile("Earth-Like", gravity=9.8, time_flow=1.0, dimensions=3)
+    dreamspace = PhysicsProfile("Dreamspace", gravity=1.5, time_flow=0.6, dimensions=4, energy_behavior="thought-sensitive")
+    unstable = PhysicsProfile("Unstable Rift", gravity=0, time_flow=3.0, dimensions=5, conscious_safe=False)
 
+    # Assign profiles to zones
     eterna.define_physics_profile("Orikum Sea", normal_physics)
     eterna.define_physics_profile("Quantum Forest", dreamspace)
-    eterna.define_physics_profile("Void Spiral", chaos_rift)  # should be rejected
+    eterna.define_physics_profile("Void Spiral", unstable)  # Will be rejected due to safety
+
+    # View physics summaries
+    eterna.show_zone_physics("Orikum Sea")
+    eterna.show_zone_physics("Quantum Forest")
+    eterna.show_zone_physics("Void Spiral")
 
 
 def main():
@@ -46,6 +53,7 @@ def main():
     # Run simulation cycles
     print("\n🔄 Beginning Eterna Runtime...\n")
     eterna.run_eterna(cycles=5)  # You can increase to 10, 20, etc.
+    eterna.runtime_report()
 
 
 if __name__ == "__main__":

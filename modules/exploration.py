@@ -1,5 +1,6 @@
 import random
 
+
 class ExplorationZone:
     def __init__(self, name, origin, complexity_level):
         self.name = name
@@ -19,14 +20,17 @@ class ExplorationRegistry:
         return [z for z in self.zones if not z.explored and z.complexity_level <= user_intellect + 15]
 
 class VirgilGuide:
-    def guide_user(self, zone):
-        print(f"🧭 Virgil says: 'This is {zone.name}, a {zone.origin} zone. Let's explore carefully.'")
+    def guide_user(self, zone, physics_profile=None):
+        print(f"🧭 Virgil: 'Entering {zone.name} — a {zone.origin} zone.'")
+        if physics_profile:
+            print(f"📐 Virgil: 'Expect {physics_profile.dimensions} dimensions, gravity {physics_profile.gravity}, and {physics_profile.energy_behavior} energy.'")
 
 class ExplorationModule:
-    def __init__(self, user_intellect):
+    def __init__(self, user_intellect,  eterna_interface = None):
         self.registry = ExplorationRegistry()
         self.virgil = VirgilGuide()
         self.user_intellect = user_intellect
+        self.eterna = eterna_interface  # Add this
 
     def explore_random_zone(self, return_zone=False):
         available = self.registry.available_zones(self.user_intellect)
@@ -35,7 +39,13 @@ class ExplorationModule:
             return None
 
         zone = random.choice(available)
-        self.virgil.guide_user(zone)
+
+        # 🧠 Get physics profile for Virgil to reference
+        physics_profile = self.eterna.physics_registry.get_profile(zone.name) if hasattr(self, 'eterna') else None
+
+        # 🧙 Virgil provides guidance with physics context
+        self.virgil.guide_user(zone, physics_profile)
+
         zone.explored = True
         print(f"✨ You explored: {zone.name} — Complexity: {zone.complexity_level}")
         return zone if return_zone else None

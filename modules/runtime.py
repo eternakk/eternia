@@ -38,15 +38,20 @@ class EternaRuntime:
         profile = self.eterna.physics_registry.get_profile(zone_name)
         if profile:
             print(f"🧪 Applying physics profile for '{zone_name}': {profile.summary()}")
-            # simulate a brain/body adaptation load
+
+            # 🔄 Cognitive load affected by physics
             self.state.cognitive_load += int(abs(profile.gravity - 9.8) * 2)
-            self.eterna.adapt_senses(profile)
+
+            # 🧠 Evolve intellect for dimensional complexity
             if profile.dimensions > 3:
                 self.eterna.evolve_user(3, 2)
                 print("🌀 Spatial awareness expanded due to high-dimension zone.")
-        else:
-            print(f"⚠️ No physics profile found for zone '{zone_name}'.")
 
+            # 🧬 Adapt sensory systems to the zone's physics
+            self.eterna.adapt_senses(profile)
+
+        else:
+            print(f"⚠️ No physics profile found for zone: {zone_name}")
     def handle_exploration(self):
         if random.random() < 0.5:
             print("🌌 Triggering spontaneous exploration...")

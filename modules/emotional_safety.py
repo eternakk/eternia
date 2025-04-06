@@ -1,3 +1,6 @@
+from modules.emotions import EmotionalState as CircuitEmotion, EmotionalCircuitSystem
+
+
 class EmotionalState:
     def __init__(self, mood="calm", stress_level=0, trauma_triggered=False):
         self.mood = mood
@@ -33,23 +36,21 @@ class TherapeuticInterventionSystem:
         return intervention
 
 class EmotionalSafetyModule:
-    def __init__(self):
+    def __init__(self, eterna_interface=None):
         self.ems = EmotionalMonitoringSystem()
         self.ptis = TherapeuticInterventionSystem()
+        self.circuits = EmotionalCircuitSystem(eterna_interface)
 
     def monitor_and_manage_emotions(self):
         if self.ems.detect_negative_emotions():
-            return self.provide_therapy()
+            # Map internal emotional state to new emotion circuit model
+            mapped_emotion = CircuitEmotion(
+                name=self.ems.state.mood,
+                intensity=self.ems.state.stress_level,
+                direction="locked" if self.ems.state.trauma_triggered else "flowing"
+            )
+            self.circuits.process_emotion(mapped_emotion)
+            return "Emotion Processed via Circuit"
+
         print("✅ Emotional state stable.")
         return "Stable"
-
-    def provide_therapy(self):
-        intervention = self.ptis.offer_intervention()
-        user_accepts = True  # Simulate user's manual control
-        if user_accepts:
-            print(f"🧘 User accepted therapy: {intervention}. Therapy initiated.")
-            self.ems.update_emotional_state("calm", stress_level=2)
-            return "Therapy Successful"
-        else:
-            print("🚧 User declined therapy. Offering alternate options.")
-            return "Therapy Declined"

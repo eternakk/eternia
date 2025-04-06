@@ -1,6 +1,7 @@
 from modules.awareness import MultidimensionalAwareness
 from modules.consciousness_replica import ConsciousnessReplica
 from modules.emotional_safety import EmotionalSafetyModule
+from modules.emotions import EmotionalCircuitSystem
 from modules.evolution import UserEvolution
 from modules.exploration import ExplorationModule, ExplorationZone
 from modules.laws import PhilosophicalLawbook
@@ -8,9 +9,11 @@ from modules.memory_integration import MemoryIntegrationModule, Memory
 from modules.physics import PhysicsZoneRegistry, PhysicsProfile
 from modules.population import WorldPopulation
 from modules.reality_bridge import RealityBridgeModule
+from modules.rituals import RitualSystem
 from modules.runtime import EternaRuntime
 from modules.sensory import SensoryProfile
 from modules.social_interaction import SocialInteractionModule
+from modules.social_presence import SoulInvitationSystem, SoulPresenceRegistry
 
 
 class EternaInterface:
@@ -29,6 +32,10 @@ class EternaInterface:
         self.senses = SensoryProfile()
         self.physics_registry = PhysicsZoneRegistry()
         self.exploration = ExplorationModule(user_intellect=self.evolution.intellect, eterna_interface=self)
+        self.rituals = RitualSystem()
+        self.emotion_circuits = EmotionalCircuitSystem(eterna_interface=self)
+        self.soul_invitations = SoulInvitationSystem()
+        self.soul_presence = SoulPresenceRegistry()
 
 
 

@@ -1,7 +1,9 @@
 from eterna_interface import EternaInterface
+from modules.emotions import EmotionalState
 from modules.physics import PhysicsProfile
 from modules.population import  User
 from modules.memory_integration import Memory
+from modules.rituals import Ritual
 
 
 def setup_eterna_world(eterna):
@@ -40,6 +42,23 @@ def setup_physics_profiles(eterna):
     eterna.show_zone_physics("Quantum Forest")
     eterna.show_zone_physics("Void Spiral")
 
+def setup_rituals(eterna):
+    rebirth_ritual = Ritual(
+        name="Ash Garden Rebirth",
+        purpose="Letting go of a former self or identity.",
+        steps=[
+            "Enter the Ash Garden in silence.",
+            "Speak the name of the part of you that must end.",
+            "Place it into the fire altar.",
+            "Watch it burn. Do not look away.",
+            "Step into the circle of light.",
+            "Speak your new name, or remain silent to evolve without identity."
+        ],
+        symbolic_elements=["fire", "ashes", "circle of light"]
+    )
+
+    eterna.rituals.register(rebirth_ritual)
+
 
 def main():
     # Initialize your world
@@ -54,7 +73,13 @@ def main():
     print("\n🔄 Beginning Eterna Runtime...\n")
     eterna.run_eterna(cycles=5)  # You can increase to 10, 20, etc.
     eterna.runtime_report()
-
+    setup_rituals(eterna)
+    emotion = EmotionalState("grief", intensity=9, direction="locked")
+    eterna.emotion_circuits.process_emotion(emotion)
+    eterna.soul_invitations.invite("Lira")
+    eterna.soul_invitations.receive_response("Lira", accepted=True)
+    eterna.soul_presence.register_presence("Lira")
+    eterna.soul_presence.list_present_souls()
 
 if __name__ == "__main__":
     main()

@@ -1,3 +1,5 @@
+from contextlib import nullcontext
+
 from modules.awareness import MultidimensionalAwareness
 from modules.companion_ecology import CompanionManager
 from modules.consciousness_replica import ConsciousnessReplica
@@ -180,8 +182,8 @@ class EternaInterface:
         result = self.memory_integration.process_memory(memory)
         return result
 
-    def register_zone(self, name, origin, complexity):
-        zone = ExplorationZone(name, origin, complexity)
+    def register_zone(self, name, origin, complexity,emotion_tag=None):
+        zone = ExplorationZone(name, origin, complexity, emotion_tag)
         self.exploration.registry.register_zone(zone)
 
     def explore_random_area(self):

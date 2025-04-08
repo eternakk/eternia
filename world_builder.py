@@ -20,13 +20,12 @@ def setup_symbolic_modifiers(eterna):
             "ambient cello music plays from the mist"
         ]
     )
-    eterna.zone_modifiers.register_modifier(shroud)
+    eterna.modifiers.register_modifier(shroud)
 
 def setup_eterna_world(eterna):
-    eterna.register_zone("Orikum Sea", origin="user", complexity=80)
     eterna.register_zone("Quantum Forest", origin="AGI", complexity=120)
-    eterna.register_zone("Library of Shared Minds", origin="shared", complexity=100)
-
+    eterna.register_zone("Orikum Sea", origin="user", complexity=80, emotion_tag="grief")
+    eterna.register_zone("Library of Shared Minds", origin="shared", complexity=100, emotion_tag="awe")
     alice = User("Alice", intellect=115, emotional_maturity=115, consent=True)
     bob = User("Bob", intellect=120, emotional_maturity=118, consent=True)
     eterna.invite_social_user(alice)
@@ -64,7 +63,20 @@ def setup_rituals(eterna):
         ],
         symbolic_elements=["fire", "ashes", "circle of light"]
     )
+    chamber = Ritual(
+        name="Chamber of Waters",
+        purpose="Processing grief, sorrow, and emotional blockages.",
+        steps=[
+            "Enter the chamber barefoot.",
+            "Let water rise to your knees.",
+            "Whisper your grief into the water.",
+            "Submerge your hands and close your eyes.",
+            "Feel the weight dissolve into the stream."
+        ],
+        symbolic_elements=["water", "echoes", "soft light"]
+    )
     eterna.rituals.register(ritual)
+    eterna.rituals.register(chamber)
 
 def setup_companions(eterna):
     lira = MemoryEcho("Lira", "Your mother holding your hand near the sea during a golden sunrise in Orikum.")

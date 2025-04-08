@@ -30,4 +30,12 @@ eterna_project/
 │   ├── __init__.py
 │   └── test_modules.py
 │
-└── README.md                               # Project purpose, architecture, module links
+└── ├── docs/
+│   ├── README.md               ← Overview of the vision
+│   ├── module_map.md           ← Summary of each code module
+│   ├── symbolic_laws.md        ← List of symbolic & philosophical laws
+│   ├── evolution_logic.md      ← How growth, learning & experience evolve you
+│   ├── companion_ecology.md    ← Daily life, social systems, Virgil, mythic beings
+│   ├── memory_integration.md   ← How your memories shape your world
+│   ├── runtime_cycle.md        ← Simulation behavior across cycles
+│   └── dev_log.md              ← Personal updates, like a development journal

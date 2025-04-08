@@ -1,3 +1,4 @@
+# modules/social_presence.py
 
 class SoulInvitation:
     def __init__(self, name, message=None):

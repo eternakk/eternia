@@ -17,10 +17,10 @@ class RitualSystem:
         self.rituals = {}
 
     def register(self, ritual: Ritual):
-        self.rituals[ritual.name] = ritual
+        self.rituals[ritual.name.strip().lower()] = ritual
 
     def perform(self, name):
-        ritual = self.rituals.get(name)
+        ritual = self.rituals.get(name.strip().lower())
         if ritual:
             ritual.perform()
         else:

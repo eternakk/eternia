@@ -10,6 +10,12 @@ class EternaState:
         self.intellect_level = 100  # evolves over time
         self.last_cycle_summary = None
 
+    def report(self):
+        print("\n🧠 Eterna State Report:")
+        print(f"  • Intellect Level     : {self.intellect_level}")
+        print(f"  • Cognitive Load      : {self.cognitive_load}")
+        print(f"  • Current Mode        : {self.mode}")
+
 class EternaRuntime:
     def __init__(self, eterna_interface):
         self.state = EternaState()
@@ -88,3 +94,5 @@ class EternaRuntime:
     def introspect(self):
         print(f"🔍 Current mode: {self.state.mode}, Intellect: {self.state.intellect_level}, Load: {self.state.cognitive_load}")
 
+    def migrate_to_eternal_shell(self):
+        print("🧬 Consciousness container stabilized. Physical shell abandoned. Eterna becomes primary substrate.")

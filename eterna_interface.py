@@ -1,4 +1,5 @@
 from modules.awareness import MultidimensionalAwareness
+from modules.companion_ecology import CompanionManager
 from modules.consciousness_replica import ConsciousnessReplica
 from modules.emotional_safety import EmotionalSafetyModule
 from modules.emotions import EmotionalCircuitSystem
@@ -8,9 +9,10 @@ from modules.laws import PhilosophicalLawbook
 from modules.memory_integration import MemoryIntegrationModule, Memory
 from modules.physics import PhysicsZoneRegistry, PhysicsProfile
 from modules.population import WorldPopulation
+from modules.protection import ShellVitals, ThreatAnalyzer, DefenseSystem
 from modules.reality_bridge import RealityBridgeModule
 from modules.rituals import RitualSystem
-from modules.runtime import EternaRuntime
+from modules.runtime import EternaRuntime, EternaState
 from modules.sensory import SensoryProfile
 from modules.social_interaction import SocialInteractionModule
 from modules.social_presence import SoulInvitationSystem, SoulPresenceRegistry
@@ -36,6 +38,11 @@ class EternaInterface:
         self.emotion_circuits = EmotionalCircuitSystem(eterna_interface=self)
         self.soul_invitations = SoulInvitationSystem()
         self.soul_presence = SoulPresenceRegistry()
+        self.vitals = ShellVitals()
+        self.threats = ThreatAnalyzer()
+        self.defense = DefenseSystem(self)
+        self.state = EternaState()
+        self.companions = CompanionManager()
 
 
 
@@ -51,6 +58,7 @@ class EternaInterface:
 
     def define_physics_profile(self, zone_name, profile: PhysicsProfile):
         self.physics_registry.assign_profile(zone_name, profile)
+
 
     def show_zone_physics(self, zone_name):
         profile = self.physics_registry.get_profile(zone_name)
@@ -91,6 +99,12 @@ class EternaInterface:
             print("⚠️ Negative emotion detected. Pausing for refinement.")
             return False
         return True
+
+    def spawn_companion(self, companion):
+        self.companions.spawn(companion)
+
+    def interact_with_companion(self, name):
+        self.companions.interact_with(name)
 
     def therapeutic_refinement(self, thought):
         print("🛠️ Therapeutic refinement mode activated.")

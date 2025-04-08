@@ -19,6 +19,15 @@ class ExplorationRegistry:
     def available_zones(self, user_intellect):
         return [z for z in self.zones if not z.explored and z.complexity_level <= user_intellect + 15]
 
+    def list_zones(self):
+        if not self.zones:
+            print("🌌 No zones registered.")
+        else:
+            print("🌌 Registered Exploration Zones:")
+            for zone in self.zones:
+                explored_status = "✅" if zone.explored else "🟣"
+                print(f" - {zone.name} ({zone.origin}, complexity: {zone.complexity_level}) {explored_status}")
+
 class VirgilGuide:
     def guide_user(self, zone, physics_profile=None):
         print(f"🧭 Virgil: 'Entering {zone.name} — a {zone.origin} zone.'")
@@ -49,6 +58,17 @@ class ExplorationModule:
         zone.explored = True
         print(f"✨ You explored: {zone.name} — Complexity: {zone.complexity_level}")
         return zone if return_zone else None
+
+    def manual_explore(self, zone_name):
+        zone = next((z for z in self.registry.zones if z.name.lower() == zone_name.lower()), None)
+        if zone:
+            physics_profile = self.eterna.physics_registry.get_profile(zone.name) if self.eterna else None
+            self.virgil.guide_user(zone, physics_profile)
+            zone.explored = True
+            print(f"✨ Manually explored: {zone.name} — Complexity: {zone.complexity_level}")
+        else:
+            print(f"⚠️ Zone '{zone_name}' doesn't exist.")
+
 
     def mark_zone_as_explored(self, zone_name):
         for zone in self.registry.zones:

@@ -16,6 +16,8 @@ Available commands:
   invite <name>        - Send a soul invitation
   rituals              - List all rituals
   perform <name>       - Perform a ritual
+  companions           - List companions in your world
+  interact <name>      - Interact with a named companion
   exit                 - Leave Eterna
 """)
 

@@ -16,6 +16,7 @@ from modules.runtime import EternaRuntime, EternaState
 from modules.sensory import SensoryProfile
 from modules.social_interaction import SocialInteractionModule
 from modules.social_presence import SoulInvitationSystem, SoulPresenceRegistry
+from modules.zone_modifiers import SymbolicModifierRegistry
 
 
 class EternaInterface:
@@ -43,6 +44,7 @@ class EternaInterface:
         self.defense = DefenseSystem(self)
         self.state = EternaState()
         self.companions = CompanionManager()
+        self.modifiers = SymbolicModifierRegistry()
 
 
 

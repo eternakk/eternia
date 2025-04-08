@@ -7,6 +7,21 @@ from modules.physics import PhysicsProfile
 from modules.emotions import EmotionalState
 from modules.companion_ecology import MemoryEcho, LocalAgent, SymbolicBeing
 
+from modules.zone_modifiers import SymbolicModifier
+
+def setup_symbolic_modifiers(eterna):
+    shroud = SymbolicModifier(
+        name="Shroud of Memory",
+        trigger_emotion="grief",
+        effects=[
+            "colors desaturate",
+            "fog rolls in from the sea",
+            "sorrow altar emerges from the rocks",
+            "ambient cello music plays from the mist"
+        ]
+    )
+    eterna.zone_modifiers.register_modifier(shroud)
+
 def setup_eterna_world(eterna):
     eterna.register_zone("Orikum Sea", origin="user", complexity=80)
     eterna.register_zone("Quantum Forest", origin="AGI", complexity=120)

@@ -7,7 +7,7 @@ from world_builder import (
     setup_rituals,
     setup_companions,
     setup_protection,
-    simulate_emotional_events
+    simulate_emotional_events, setup_symbolic_modifiers
 )
 
 def main():
@@ -20,7 +20,7 @@ def main():
     setup_companions(eterna)
     simulate_emotional_events(eterna)
     setup_protection(eterna)
-
+    setup_symbolic_modifiers(eterna)
     print("\n🔄 Beginning Eterna Runtime...\n")
     eterna.run_eterna(cycles=5)
     eterna.runtime_report()

@@ -2,11 +2,26 @@ import random
 
 
 class ExplorationZone:
-    def __init__(self, name, origin, complexity_level):
+    def __init__(self, name, origin, complexity_level, emotion_tag=None):
         self.name = name
         self.origin = origin  # 'user', 'AGI', 'shared'
         self.complexity_level = complexity_level
         self.explored = False
+        self.emotion_tag = emotion_tag  # New symbolic emotional link
+        self.modifiers = []  # To store symbolic overlays
+
+    def add_modifier(self, modifier_name):
+        if modifier_name not in self.modifiers:
+            self.modifiers.append(modifier_name)
+            print(f"🌗 Zone '{self.name}' was symbolically modified with '{modifier_name}'.")
+
+    def show_modifiers(self):
+        if self.modifiers:
+            print(f"🎨 Symbolic Layers for '{self.name}':")
+            for m in self.modifiers:
+                print(f" - {m}")
+        else:
+            print(f"➖ No symbolic modifiers in '{self.name}'.")
 
 class ExplorationRegistry:
     def __init__(self):
@@ -27,6 +42,9 @@ class ExplorationRegistry:
             for zone in self.zones:
                 explored_status = "✅" if zone.explored else "🟣"
                 print(f" - {zone.name} ({zone.origin}, complexity: {zone.complexity_level}) {explored_status}")
+
+    def get_zones_by_emotion(self, emotion_name):
+        return [z for z in self.zones if z.emotion_tag == emotion_name]
 
 class VirgilGuide:
     def guide_user(self, zone, physics_profile=None):

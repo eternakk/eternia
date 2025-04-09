@@ -3,6 +3,9 @@
 import time
 import random
 
+from modules.resonance_engine import ResonanceEngine
+
+
 class EternaState:
     def __init__(self):
         self.mode = "idle"  # options: 'exploration', 'creation', 'healing', 'social', etc.
@@ -22,6 +25,7 @@ class EternaRuntime:
         self.eterna = eterna_interface
         self.cycle_count = 0
         self.max_cognitive_load = 100
+        self.resonance = ResonanceEngine()
 
     def run_cycle(self):
         self.cycle_count += 1
@@ -34,11 +38,23 @@ class EternaRuntime:
         if current_emotion:
             print(f"🪞 Reflecting current emotional field: {current_emotion.describe()}")
             self.eterna.emotion_circuits.process_emotion(current_emotion)
+            if current_emotion:
+                # 🌌 Dynamically tune resonance based on emotional state
+                self.resonance.tune_zone(
+                    zone_name=self.eterna.state_tracker.last_zone_explored(),
+                    frequency_hz=100 + current_emotion.intensity * 5,
+                    waveform="sine" if current_emotion.direction == "flowing" else "square",
+                    emotional_resonance=current_emotion.name
+                )
 
         self.handle_exploration()
         self.refresh_reality_bridge()
         self.manage_social_interactions()
         self.apply_self_evolution()
+        # 🔊 Apply zone resonance if last explored zone is known
+        last_zone = self.eterna.state_tracker.last_zone_explored()
+        if last_zone:
+            self.resonance.apply_resonance_effects(last_zone)
         self.save_persistent_states()
         self.introspect()
 

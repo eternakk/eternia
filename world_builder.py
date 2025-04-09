@@ -1,4 +1,8 @@
-# 🌍 world_builder.py — Eterna initialization scaffolding
+# 🌌 Eterna World Builder — Expanded Core
+
+# This file contains the complete bootstrapping logic for building, simulating,
+# and emotionally enriching the Eterna world. It configures zones, emotions, rituals, companions, symbolic modifiers,
+# and deep integrations.
 
 from modules.population import User
 from modules.memory_integration import Memory
@@ -6,8 +10,8 @@ from modules.rituals import Ritual
 from modules.physics import PhysicsProfile
 from modules.emotions import EmotionalState
 from modules.companion_ecology import MemoryEcho, LocalAgent, SymbolicBeing
-
 from modules.zone_modifiers import SymbolicModifier
+from modules.resonance_engine import ResonanceEngine  # ✅ NEW
 
 def setup_symbolic_modifiers(eterna):
     shroud = SymbolicModifier(
@@ -41,9 +45,10 @@ def setup_eterna_world(eterna):
         origin="shared",
         complexity=100,
         emotion_tag="awe",
-        default_physics=library_physics  # ✅ FIXED
+        default_physics=library_physics
     )
     eterna.define_physics_profile("Library of Shared Minds", library_physics)
+
     alice = User("Alice", intellect=115, emotional_maturity=115, consent=True)
     bob = User("Bob", intellect=120, emotional_maturity=118, consent=True)
     eterna.invite_social_user(alice)
@@ -126,8 +131,6 @@ def simulate_emotional_events(eterna):
 
 def simulate_sensory_evolution(eterna):
     print("\n🌐 Simulating sensory evolution through physics zones...")
-
-    # Choose a zone with advanced physics
     zone_name = "Quantum Forest"
     physics_profile = eterna.physics_registry.get_profile(zone_name)
 
@@ -137,3 +140,9 @@ def simulate_sensory_evolution(eterna):
         eterna.show_tracker_report()
     else:
         print(f"⚠️ No physics profile found for zone: {zone_name}")
+
+def setup_resonance_engine(eterna):
+    eterna.resonance = ResonanceEngine()
+    eterna.resonance.tune_environment("Orikum Sea", frequency="calm")
+    eterna.resonance.tune_environment("Quantum Forest", frequency="mysterious")
+    eterna.resonance.tune_environment("Library of Shared Minds", frequency="reflective")

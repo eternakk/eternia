@@ -28,17 +28,28 @@ class EternaRuntime:
         print(f"🌀 Runtime Cycle {self.cycle_count}")
 
         self.check_emotional_safety()
+
+        # 🌌 Reflect symbolic emotional overlays
+        current_emotion = self.eterna.emotion_circuits.current_emotion
+        if current_emotion:
+            print(f"🪞 Reflecting current emotional field: {current_emotion.describe()}")
+            self.eterna.emotion_circuits.process_emotion(current_emotion)
+
         self.handle_exploration()
         self.refresh_reality_bridge()
         self.manage_social_interactions()
         self.apply_self_evolution()
         self.save_persistent_states()
-
         self.introspect()
 
     def check_emotional_safety(self):
         self.state.cognitive_load += 10
         self.eterna.check_emotional_safety()
+        # 👇 Add this right after check_emotional_safety()
+        current_emotion = self.eterna.emotion_circuits.current_emotion
+        if current_emotion:
+            print(f"🪞 Reflecting current emotional field: {current_emotion.describe()}")
+            self.eterna.emotion_circuits.process_emotion(current_emotion)
 
     def apply_zone_physics(self, zone_name):
         profile = self.eterna.physics_registry.get_profile(zone_name)

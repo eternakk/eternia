@@ -23,9 +23,27 @@ def setup_symbolic_modifiers(eterna):
     eterna.modifiers.register_modifier(shroud)
 
 def setup_eterna_world(eterna):
-    eterna.register_zone("Quantum Forest", origin="AGI", complexity=120)
+    eterna.register_zone("Quantum Forest", origin="AGI", complexity=120, emotion_tag="")
+    dreamspace = PhysicsProfile("Dreamspace", gravity=1.5, time_flow=0.6, dimensions=4, energy_behavior="thought-sensitive")
+    eterna.define_physics_profile("Quantum Forest", dreamspace)
     eterna.register_zone("Orikum Sea", origin="user", complexity=80, emotion_tag="grief")
-    eterna.register_zone("Library of Shared Minds", origin="shared", complexity=100, emotion_tag="awe")
+
+    library_physics = PhysicsProfile(
+        name="Shared Cognition",
+        gravity=5.5,
+        time_flow=0.8,
+        dimensions=4,
+        energy_behavior="emotion-mirroring"
+    )
+
+    eterna.register_zone(
+        "Library of Shared Minds",
+        origin="shared",
+        complexity=100,
+        emotion_tag="awe",
+        default_physics=library_physics  # ✅ FIXED
+    )
+    eterna.define_physics_profile("Library of Shared Minds", library_physics)
     alice = User("Alice", intellect=115, emotional_maturity=115, consent=True)
     bob = User("Bob", intellect=120, emotional_maturity=118, consent=True)
     eterna.invite_social_user(alice)
@@ -105,3 +123,17 @@ def simulate_emotional_events(eterna):
     eterna.soul_invitations.receive_response("Lira", accepted=True)
     eterna.soul_presence.register_presence("Lira")
     eterna.soul_presence.list_present_souls()
+
+def simulate_sensory_evolution(eterna):
+    print("\n🌐 Simulating sensory evolution through physics zones...")
+
+    # Choose a zone with advanced physics
+    zone_name = "Quantum Forest"
+    physics_profile = eterna.physics_registry.get_profile(zone_name)
+
+    if physics_profile:
+        eterna.adapt_senses(physics_profile)
+        eterna.update_evolution_stats()
+        eterna.show_tracker_report()
+    else:
+        print(f"⚠️ No physics profile found for zone: {zone_name}")

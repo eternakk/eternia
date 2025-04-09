@@ -60,6 +60,8 @@ class EmotionalCircuitSystem:
 
     def process_emotion(self, emotion: EmotionalState):
         self.current_emotion = emotion
+        if self.eterna:
+            self.eterna.log_emotion(emotion)  # ✅ Logs emotional state to the tracker
         print(f"🧠 Processing emotion: {emotion.describe()}")
 
         mapping = self.symbolic_map.get_mapping(emotion.name)

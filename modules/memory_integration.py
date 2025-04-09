@@ -38,12 +38,15 @@ class MemoryManifestationEngine:
             return "Integration Paused"
 
 class MemoryIntegrationModule:
-    def __init__(self):
+    def __init__(self, eterna=None):
         self.mss = MemorySelectionSystem()
         self.mrs = MemoryRefinementSystem()
         self.mme = MemoryManifestationEngine()
+        self.eterna = eterna
 
     def process_memory(self, memory):
         self.mss.add_memory(memory)
         self.mrs.refine_memory(memory)
+        if self.eterna:
+            self.eterna.log_memory(memory)
         return self.mme.manifest_memory(memory)

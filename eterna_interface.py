@@ -18,6 +18,7 @@ from modules.runtime import EternaRuntime, EternaState
 from modules.sensory import SensoryProfile
 from modules.social_interaction import SocialInteractionModule
 from modules.social_presence import SoulInvitationSystem, SoulPresenceRegistry
+from modules.state_tracker import EternaStateTracker
 from modules.zone_modifiers import SymbolicModifierRegistry
 
 
@@ -46,13 +47,57 @@ class EternaInterface:
         self.defense = DefenseSystem(self)
         self.state = EternaState()
         self.companions = CompanionManager()
+        self.state_tracker = EternaStateTracker()
         self.modifiers = SymbolicModifierRegistry()
 
+    # 🧠 Emotion Tracking
+    def log_emotion(self, emotion):
+        self.state_tracker.update_emotion(emotion)
+
+    # 🎭 Modifier Logging
+    def log_modifier(self, zone, modifier):
+        self.state_tracker.add_modifier(zone, modifier)
+        print(f"🌗 Zone '{zone}' was symbolically modified with '{modifier}'.")
 
 
+    # 📚 Memory Tracking
+    def log_memory(self, memory):
+        self.state_tracker.add_memory({
+            "description": memory.description,
+            "clarity": memory.clarity,
+            "emotional_quality": memory.emotional_quality
+        })
+
+    def show_tracker_report(self):
+        self.state_tracker.report()
+
+    # 🔍 Discovery Tracking
+    def log_discovery(self, discovery):
+        self.state_tracker.record_discovery(discovery)
+        print(f"🧭 New discovery logged: {discovery}")
+
+    # 🗺️ Exploration Zone Logging
+    def mark_explored_zone(self, zone_name):
+        self.state_tracker.mark_zone_explored(zone_name)
+
+    # 📈 Evolution Progress
+    def update_evolution_stats(self):
+        sense_score = 0
+        if self.senses.visual_range == "multiplanar":
+            sense_score += 1
+        if self.senses.hearing == "resonant":
+            sense_score += 1
+        if self.senses.balance == "stabilized":
+            sense_score += 1
+
+        self.state_tracker.update_evolution(
+            intellect=self.evolution.intellect,
+            senses=100 + sense_score * 5  # scale senses evolution with enhancements
+        )
     def run_eterna(self, cycles=1):
         for _ in range(cycles):
             self.runtime.run_cycle()
+            self.state_tracker.save()
 
     def show_laws(self):
         self.lawbook = PhilosophicalLawbook
@@ -182,9 +227,14 @@ class EternaInterface:
         result = self.memory_integration.process_memory(memory)
         return result
 
-    def register_zone(self, name, origin, complexity,emotion_tag=None):
-        zone = ExplorationZone(name, origin, complexity, emotion_tag)
+    def register_zone(self, name, origin, complexity, emotion_tag="", default_physics=None):
+        zone = ExplorationZone(name, origin, complexity)
+        zone.emotion_tag = emotion_tag
         self.exploration.registry.register_zone(zone)
+
+        # Optional: assign a default physics profile
+        if default_physics:
+            self.define_physics_profile(name, default_physics)
 
     def explore_random_area(self):
         self.exploration.explore_random_zone()

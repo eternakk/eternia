@@ -1,5 +1,3 @@
-
-
 import json
 import os
 
@@ -79,3 +77,8 @@ class EternaStateTracker:
         print("Discoveries:")
         for disc in self.discoveries:
             print(f"  • {disc}")
+
+    def last_zone_explored(self):
+        if self.explored_zones:
+            return self.explored_zones[-1]
+        return None

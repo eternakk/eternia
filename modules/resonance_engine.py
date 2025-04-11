@@ -15,13 +15,13 @@ class ResonanceEngine:
     def get_resonance(self, zone_name):
         return self.zone_resonance.get(zone_name, None)
 
-    def apply_resonance_effects(self, zone_name):
+    def apply_resonance_effects(self, zone_name, frequency_hz=None, waveform="sine", emotional_resonance=None):
         profile = self.get_resonance(zone_name)
         if not profile:
             print(f"❓ No resonance profile set for zone: {zone_name}")
             return
 
-        print(f"🔊 Applying Resonance to {zone_name}: {profile['frequency_hz']}Hz {profile['waveform']}")
+        print(f"🔊 Applying resonance to {zone_name} — Frequency: {frequency_hz}Hz, Waveform: {waveform}, Emotion: {emotional_resonance}")
         if profile['emotional_resonance']:
             print(f"💓 Emotional tones: {', '.join(profile['emotional_resonance'])}")
         else:

@@ -4,6 +4,7 @@ import time
 import random
 
 from modules.resonance_engine import ResonanceEngine
+from modules.emotions import EmotionalState
 
 
 class EternaState:
@@ -18,6 +19,7 @@ class EternaState:
         print(f"  • Intellect Level     : {self.intellect_level}")
         print(f"  • Cognitive Load      : {self.cognitive_load}")
         print(f"  • Current Mode        : {self.mode}")
+
 
 class EternaRuntime:
     def __init__(self, eterna_interface):
@@ -38,30 +40,47 @@ class EternaRuntime:
         if current_emotion:
             print(f"🪞 Reflecting current emotional field: {current_emotion.describe()}")
             self.eterna.emotion_circuits.process_emotion(current_emotion)
-            if current_emotion:
-                # 🌌 Dynamically tune resonance based on emotional state
-                self.resonance.tune_zone(
-                    zone_name=self.eterna.state_tracker.last_zone_explored(),
-                    frequency_hz=100 + current_emotion.intensity * 5,
-                    waveform="sine" if current_emotion.direction == "flowing" else "square",
-                    emotional_resonance=current_emotion.name
-                )
 
         self.handle_exploration()
         self.refresh_reality_bridge()
         self.manage_social_interactions()
         self.apply_self_evolution()
+
         # 🔊 Apply zone resonance if last explored zone is known
         last_zone = self.eterna.state_tracker.last_zone_explored()
         if last_zone:
-            self.resonance.apply_resonance_effects(last_zone)
+            self.resonance.apply_resonance_effects(
+                zone_name=last_zone,
+                frequency_hz=self.estimate_resonance_frequency(current_emotion),
+                waveform="sine",
+                emotional_resonance=current_emotion.name if current_emotion else None
+            )
+
+        # **New Integrations:**
+        self.eterna.synchronize_time()
+
+        external_conditions = {'hazard_level': 7}  # Example conditions
+        self.eterna.deploy_reality_agent(external_conditions)
+
+        # Persist and introspect
         self.save_persistent_states()
         self.introspect()
+
+    def estimate_resonance_frequency(self, emotion):
+        if not emotion:
+            return 2.5  # default baseline
+        emotion_map = {
+            "grief": 0.5,
+            "anger": 1.2,
+            "curious": 2.5,
+            "joy": 3.8,
+            "awe": 5.1
+        }
+        return emotion_map.get(emotion.name, 2.5)
 
     def check_emotional_safety(self):
         self.state.cognitive_load += 10
         self.eterna.check_emotional_safety()
-        # 👇 Add this right after check_emotional_safety()
         current_emotion = self.eterna.emotion_circuits.current_emotion
         if current_emotion:
             print(f"🪞 Reflecting current emotional field: {current_emotion.describe()}")
@@ -71,20 +90,14 @@ class EternaRuntime:
         profile = self.eterna.physics_registry.get_profile(zone_name)
         if profile:
             print(f"🧪 Applying physics profile for '{zone_name}': {profile.summary()}")
-
-            # 🔄 Cognitive load affected by physics
             self.state.cognitive_load += int(abs(profile.gravity - 9.8) * 2)
-
-            # 🧠 Evolve intellect for dimensional complexity
             if profile.dimensions > 3:
                 self.eterna.evolve_user(3, 2)
                 print("🌀 Spatial awareness expanded due to high-dimension zone.")
-
-            # 🧬 Adapt sensory systems to the zone's physics
             self.eterna.adapt_senses(profile)
-
         else:
             print(f"⚠️ No physics profile found for zone: {zone_name}")
+
     def handle_exploration(self):
         if random.random() < 0.5:
             print("🌌 Triggering spontaneous exploration...")
@@ -109,12 +122,11 @@ class EternaRuntime:
             print("🧠 High load — triggering self-evolution...")
             self.eterna.evolve_user(5, 3)
             self.state.intellect_level += 5
-            self.state.cognitive_load = 30  # cool down
+            self.state.cognitive_load = 30
 
     def save_persistent_states(self):
         summary = f"Cycle {self.cycle_count} | Mode: {self.state.mode} | Intellect: {self.state.intellect_level} | Load: {self.state.cognitive_load}\n"
         print(f"💾 Saving to log: {summary.strip()}")
-
         with open("logs/eterna_cycles.log", "a") as log_file:
             log_file.write(summary)
 

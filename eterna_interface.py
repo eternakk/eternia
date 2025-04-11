@@ -12,13 +12,14 @@ from modules.memory_integration import MemoryIntegrationModule, Memory
 from modules.physics import PhysicsZoneRegistry, PhysicsProfile
 from modules.population import WorldPopulation
 from modules.protection import ShellVitals, ThreatAnalyzer, DefenseSystem
-from modules.reality_bridge import RealityBridgeModule
+from modules.reality_bridge import RealityBridgeModule, AgentCommunicationProtocol
 from modules.rituals import RitualSystem
 from modules.runtime import EternaRuntime, EternaState
 from modules.sensory import SensoryProfile
 from modules.social_interaction import SocialInteractionModule
 from modules.social_presence import SoulInvitationSystem, SoulPresenceRegistry
 from modules.state_tracker import EternaStateTracker
+from modules.time_dilation import TimeSynchronizer
 from modules.zone_modifiers import SymbolicModifierRegistry
 
 
@@ -49,6 +50,18 @@ class EternaInterface:
         self.companions = CompanionManager()
         self.state_tracker = EternaStateTracker()
         self.modifiers = SymbolicModifierRegistry()
+        self.time_sync = TimeSynchronizer(self)
+        self.agent_comm = AgentCommunicationProtocol(self)
+
+    def synchronize_time(self):
+        self.time_sync.adjust_time_flow(self.senses)
+        self.time_sync.synchronize()
+
+    def deploy_reality_agent(self, environment_conditions):
+        self.agent_comm.deploy_agent(environment_conditions)
+
+    def recall_reality_agent(self):
+        self.agent_comm.recall_agent()
 
     # 🧠 Emotion Tracking
     def log_emotion(self, emotion):

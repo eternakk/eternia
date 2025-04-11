@@ -146,3 +146,11 @@ def setup_resonance_engine(eterna):
     eterna.resonance.tune_environment("Orikum Sea", frequency="calm")
     eterna.resonance.tune_environment("Quantum Forest", frequency="mysterious")
     eterna.resonance.tune_environment("Library of Shared Minds", frequency="reflective")
+
+def setup_time_and_agents(eterna):
+    print("⏱️ Initializing time synchronization...")
+    eterna.synchronize_time()
+
+    print("🤖 Preparing reality agent...")
+    environment_conditions = {'hazard_level': 3}
+    eterna.deploy_reality_agent(environment_conditions)

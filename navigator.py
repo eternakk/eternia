@@ -84,6 +84,7 @@ Available commands:
 
         elif cmd == "evolve":
             eterna.evolve_user(intellect_inc=5, senses_inc=3)
+            eterna.synchronize_evolution_state()
             print("🧠 Mind expanded, senses sharpened.")
 
         elif cmd.startswith("simulate senses"):

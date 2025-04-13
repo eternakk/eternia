@@ -121,6 +121,12 @@ class EternaInterface:
     def define_physics_profile(self, zone_name, profile: PhysicsProfile):
         self.physics_registry.assign_profile(zone_name, profile)
 
+    # Inside eterna_interface.py
+    def synchronize_evolution_state(self):
+        self.state_tracker.update_evolution(
+            intellect=self.evolution.intellect,
+            senses=self.senses.score()
+        )
 
     def show_zone_physics(self, zone_name):
         profile = self.physics_registry.get_profile(zone_name)

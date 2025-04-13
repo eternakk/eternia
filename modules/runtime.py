@@ -41,6 +41,12 @@ class EternaRuntime:
             print(f"🪞 Reflecting current emotional field: {current_emotion.describe()}")
             self.eterna.emotion_circuits.process_emotion(current_emotion)
 
+            # 📈 Hook for updating evolution stats after sensory/emotional response
+            self.eterna.state_tracker.update_evolution(
+                intellect=self.eterna.evolution.intellect,
+                senses=self.eterna.senses.score()  # Make sure you added .score() to SensoryProfile
+            )
+
         self.handle_exploration()
         self.refresh_reality_bridge()
         self.manage_social_interactions()

@@ -13,3 +13,9 @@ class SensoryProfile:
         if physics_profile.energy_behavior == "thought-sensitive":
             self.hearing = "resonant"
         print(f"👁 Visual: {self.visual_range}, 🎧 Hearing: {self.hearing}, ⚖️ Balance: {self.balance}")
+
+    def score(self):
+        score_map = {"normal": 100, "multiplanar": 120, "resonant": 110, "stabilized": 105, "standard": 100}
+        return (score_map.get(self.visual_range, 100) +
+                score_map.get(self.hearing, 100) +
+                score_map.get(self.balance, 100)) // 3

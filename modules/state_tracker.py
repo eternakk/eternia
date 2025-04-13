@@ -81,4 +81,11 @@ class EternaStateTracker:
     def last_zone_explored(self):
         if self.explored_zones:
             return self.explored_zones[-1]
+        if self.applied_modifiers:
+            print("🔮 Symbolic Modifiers Applied:")
+            for zone, mods in self.applied_modifiers.items():
+                print(f"  • {zone}: {mods}")
+        if self.applied_modifiers:
+            last_modified_zone = list(self.applied_modifiers.keys())[-1]
+            print(f"🔮 Last modified zone: {last_modified_zone}")
         return None

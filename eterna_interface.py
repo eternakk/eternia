@@ -46,7 +46,7 @@ class EternaInterface:
         self.vitals = ShellVitals()
         self.threats = ThreatAnalyzer()
         self.defense = DefenseSystem(self)
-        self.state = EternaState()
+        self.state = EternaState(self)
         self.companions = CompanionManager()
         self.state_tracker = EternaStateTracker()
         self.modifiers = SymbolicModifierRegistry()
@@ -258,6 +258,13 @@ class EternaInterface:
 
     def explore_random_area(self):
         self.exploration.explore_random_zone()
+
+    # In eterna_interface.py
+    def list_companions(self):
+        self.companions.list_companions()
+
+    def list_rituals(self):
+        self.rituals.list_rituals()
 
 
     def runtime_report(self):

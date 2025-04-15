@@ -20,6 +20,7 @@ def eterna_cli(eterna):
     setup_protection(eterna)
     setup_symbolic_modifiers(eterna)
 
+
     print("\n🔄 Beginning Eterna Runtime...\n")
     eterna.run_eterna(cycles=5)
     eterna.runtime_report()

@@ -8,23 +8,23 @@ from modules.emotions import EmotionalState
 
 
 class EternaState:
-    def __init__(self):
+    def __init__(self, eterna_interface):
+        self.eterna = eterna_interface
         self.mode = "idle"  # options: 'exploration', 'creation', 'healing', 'social', etc.
         self.cognitive_load = 0  # 0 to 100
-        self.intellect_level = 100  # evolves over time
         self.last_cycle_summary = None
 
     def report(self):
         print("\n🧠 Eterna State Report:")
-        print(f"  • Intellect Level     : {self.intellect_level}")
+        print(f"  • Intellect Level     : {self.eterna.evolution.intellect}")
         print(f"  • Cognitive Load      : {self.cognitive_load}")
         print(f"  • Current Mode        : {self.mode}")
 
 
 class EternaRuntime:
     def __init__(self, eterna_interface):
-        self.state = EternaState()
         self.eterna = eterna_interface
+        self.state = EternaState(eterna_interface)
         self.cycle_count = 0
         self.max_cognitive_load = 100
         self.resonance = ResonanceEngine()
@@ -32,19 +32,16 @@ class EternaRuntime:
     def run_cycle(self):
         self.cycle_count += 1
         print(f"🌀 Runtime Cycle {self.cycle_count}")
-
         self.check_emotional_safety()
 
-        # 🌌 Reflect symbolic emotional overlays
         current_emotion = self.eterna.emotion_circuits.current_emotion
         if current_emotion:
             print(f"🪞 Reflecting current emotional field: {current_emotion.describe()}")
             self.eterna.emotion_circuits.process_emotion(current_emotion)
 
-            # 📈 Hook for updating evolution stats after sensory/emotional response
             self.eterna.state_tracker.update_evolution(
                 intellect=self.eterna.evolution.intellect,
-                senses=self.eterna.senses.score()  # Make sure you added .score() to SensoryProfile
+                senses=self.eterna.senses.score()
             )
 
         self.handle_exploration()
@@ -52,7 +49,6 @@ class EternaRuntime:
         self.manage_social_interactions()
         self.apply_self_evolution()
 
-        # 🔊 Apply zone resonance if last explored zone is known
         last_zone = self.eterna.state_tracker.last_zone_explored()
         if last_zone:
             self.resonance.apply_resonance_effects(
@@ -62,19 +58,16 @@ class EternaRuntime:
                 emotional_resonance=current_emotion.name if current_emotion else None
             )
 
-        # **New Integrations:**
         self.eterna.synchronize_time()
-
-        external_conditions = {'hazard_level': 7}  # Example conditions
+        external_conditions = {'hazard_level': 7}
         self.eterna.deploy_reality_agent(external_conditions)
 
-        # Persist and introspect
         self.save_persistent_states()
         self.introspect()
 
     def estimate_resonance_frequency(self, emotion):
         if not emotion:
-            return 2.5  # default baseline
+            return 2.5
         emotion_map = {
             "grief": 0.5,
             "anger": 1.2,
@@ -93,7 +86,11 @@ class EternaRuntime:
             self.eterna.emotion_circuits.process_emotion(current_emotion)
 
     def apply_zone_physics(self, zone_name):
-        profile = self.eterna.physics_registry.get_profile(zone_name)
+        zone_name = zone_name.strip().lower()
+        profile = next(
+            (p for z, p in self.eterna.physics_registry.zone_profiles.items() if z.lower() == zone_name),
+            None
+        )
         if profile:
             print(f"🧪 Applying physics profile for '{zone_name}': {profile.summary()}")
             self.state.cognitive_load += int(abs(profile.gravity - 9.8) * 2)
@@ -127,17 +124,16 @@ class EternaRuntime:
         if self.state.cognitive_load > 80:
             print("🧠 High load — triggering self-evolution...")
             self.eterna.evolve_user(5, 3)
-            self.state.intellect_level += 5
             self.state.cognitive_load = 30
 
     def save_persistent_states(self):
-        summary = f"Cycle {self.cycle_count} | Mode: {self.state.mode} | Intellect: {self.state.intellect_level} | Load: {self.state.cognitive_load}\n"
+        summary = f"Cycle {self.cycle_count} | Mode: {self.state.mode} | Intellect: {self.eterna.evolution.intellect} | Load: {self.state.cognitive_load}\n"
         print(f"💾 Saving to log: {summary.strip()}")
         with open("logs/eterna_cycles.log", "a") as log_file:
             log_file.write(summary)
 
     def introspect(self):
-        print(f"🔍 Current mode: {self.state.mode}, Intellect: {self.state.intellect_level}, Load: {self.state.cognitive_load}")
+        print(f"🔍 Current mode: {self.state.mode}, Intellect: {self.eterna.evolution.intellect}, Load: {self.state.cognitive_load}")
 
     def migrate_to_eternal_shell(self):
         print("🧬 Consciousness container stabilized. Physical shell abandoned. Eterna becomes primary substrate.")

@@ -195,6 +195,7 @@ class EternaInterface:
 
     def evolve_user(self, intellect_inc, senses_inc):
         self.evolution.evolve(intellect_inc, senses_inc)
+        self.runtime.state.intellect_level = self.evolution.intellect  # <--- Sync
 
     def calibrate_replica(self, feedback):
         self.replica.calibrate(feedback)

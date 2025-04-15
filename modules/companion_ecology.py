@@ -75,3 +75,11 @@ class CompanionManager:
             match.interact()
         else:
             print(f"❌ No companion named '{name}' found.")
+
+    def list_companions(self):
+        if not self.companions:
+            print("👥 No companions currently in the world.")
+        else:
+            print("👥 Companions in the world:")
+            for c in self.companions:
+                print(f" - {c.name} ({c.role})")

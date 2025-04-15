@@ -25,3 +25,11 @@ class RitualSystem:
             ritual.perform()
         else:
             print(f"❌ Ritual '{name}' not found.")
+
+    def list_rituals(self):
+        if not self.rituals:
+            print("📭 No rituals have been registered.")
+        else:
+            print("📜 Available Rituals:")
+            for name in self.rituals:
+                print(f" - {name.capitalize()}")

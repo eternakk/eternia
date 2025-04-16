@@ -266,6 +266,14 @@ class EternaInterface:
     def list_rituals(self):
         self.rituals.list_rituals()
 
+    def mark_zone_explored(self, zone_name):
+        self.state_tracker.mark_zone(zone_name)
+
+    def track_modifier(self, zone_name, modifier):
+        self.state_tracker.track_modifier(zone_name, modifier)
+
+    def register_discovery(self, discovery):
+        self.state_tracker.track_discovery(discovery)
 
     def runtime_report(self):
         state = self.runtime.state

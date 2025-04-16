@@ -10,6 +10,21 @@ class EternaStateTracker:
         self.evolution_stats = {"intellect": 100, "senses": 100}
         self.discoveries = []
         self.explored_zones = []
+        self.last_zone = None
+        self.explored_zones = []
+        self.modifiers = []
+        self.discoveries = []
+
+    def mark_zone(self, zone_name):
+        self.last_zone = zone_name
+        if zone_name not in self.explored_zones:
+            self.explored_zones.append(zone_name)
+
+    def track_modifier(self, zone_name, modifier):
+        self.modifiers.append((zone_name, modifier))
+
+    def track_discovery(self, discovery):
+        self.discoveries.append(discovery)
 
     def update_emotion(self, emotion):
         self.last_emotion = {
@@ -67,8 +82,9 @@ class EternaStateTracker:
         print("🧾 Eterna State Report:")
         print("Last Emotion:", self.last_emotion)
         print("Evolution Stats:", self.evolution_stats)
-        print("Explored Zones:", self.explored_zones)
-        print("Applied Modifiers:")
+        print(f"Explored Zones: {self.explored_zones}")
+        print(f"Applied Modifiers: {self.modifiers}")
+        print(f"Discoveries: {self.discoveries}")
         for zone, mods in self.applied_modifiers.items():
             print(f"  • {zone}: {mods}")
         print("Memories:")

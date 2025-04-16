@@ -74,6 +74,8 @@ class ExplorationModule:
         self.virgil.guide_user(zone, physics_profile)
 
         zone.explored = True
+        if self.eterna:
+            self.eterna.state_tracker.mark_zone(zone.name)
         print(f"✨ You explored: {zone.name} — Complexity: {zone.complexity_level}")
         return zone if return_zone else None
 
@@ -83,6 +85,8 @@ class ExplorationModule:
             physics_profile = self.eterna.physics_registry.get_profile(zone.name) if self.eterna else None
             self.virgil.guide_user(zone, physics_profile)
             zone.explored = True
+            if self.eterna:
+                self.eterna.state_tracker.mark_zone(zone.name)
             print(f"✨ Manually explored: {zone.name} — Complexity: {zone.complexity_level}")
         else:
             print(f"⚠️ Zone '{zone_name}' doesn't exist.")

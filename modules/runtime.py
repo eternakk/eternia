@@ -1,11 +1,8 @@
-# modules/runtime.py
-
 import time
 import random
 
 from modules.resonance_engine import ResonanceEngine
 from modules.emotions import EmotionalState
-
 
 class EternaState:
     def __init__(self, eterna_interface):
@@ -20,7 +17,6 @@ class EternaState:
         print(f"  • Cognitive Load      : {self.cognitive_load}")
         print(f"  • Current Mode        : {self.mode}")
 
-
 class EternaRuntime:
     def __init__(self, eterna_interface):
         self.eterna = eterna_interface
@@ -32,6 +28,7 @@ class EternaRuntime:
     def run_cycle(self):
         self.cycle_count += 1
         print(f"🌀 Runtime Cycle {self.cycle_count}")
+
         self.check_emotional_safety()
 
         current_emotion = self.eterna.emotion_circuits.current_emotion
@@ -41,7 +38,7 @@ class EternaRuntime:
 
             self.eterna.state_tracker.update_evolution(
                 intellect=self.eterna.evolution.intellect,
-                senses=self.eterna.senses.score()
+                senses=self.eterna.senses.score()  # Make sure SensoryProfile has .score()
             )
 
         self.handle_exploration()
@@ -59,6 +56,7 @@ class EternaRuntime:
             )
 
         self.eterna.synchronize_time()
+
         external_conditions = {'hazard_level': 7}
         self.eterna.deploy_reality_agent(external_conditions)
 
@@ -86,11 +84,7 @@ class EternaRuntime:
             self.eterna.emotion_circuits.process_emotion(current_emotion)
 
     def apply_zone_physics(self, zone_name):
-        zone_name = zone_name.strip().lower()
-        profile = next(
-            (p for z, p in self.eterna.physics_registry.zone_profiles.items() if z.lower() == zone_name),
-            None
-        )
+        profile = self.eterna.physics_registry.get_profile(zone_name)
         if profile:
             print(f"🧪 Applying physics profile for '{zone_name}': {profile.summary()}")
             self.state.cognitive_load += int(abs(profile.gravity - 9.8) * 2)

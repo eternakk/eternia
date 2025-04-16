@@ -85,6 +85,10 @@ Available commands:
 
         elif cmd == "evolve":
             eterna.evolve_user(intellect_inc=5, senses_inc=3)
+            eterna.state_tracker.update_evolution(
+                intellect=eterna.evolution.intellect,
+                senses=eterna.senses.score()
+            )
             eterna.synchronize_evolution_state()
             print("🧠 Mind expanded, senses sharpened.")
 

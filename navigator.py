@@ -105,6 +105,20 @@ Available commands:
             else:
                 print("⚠️ Usage: simulate senses <zone name>")
 
+
+        elif cmd == "reflect sample":
+            from modules.emotion_data_loader import load_goemotions_sample, get_label_names, label_to_emotion
+            from modules.emotional_agent import EmotionProcessor
+
+            dataset = load_goemotions_sample(limit=1)
+            label_names = get_label_names()
+            sample = dataset[0]
+
+            emotion = label_to_emotion(sample["labels"], label_names)
+            agent = EmotionProcessor()
+            score = agent(emotion.to_tensor())
+
+            print(f"💥 Sample Emotion: {emotion.name}, Impact Score: {score.item():.2f}")
         elif cmd.startswith("reflect"):
             try:
                 _, emotion = cmd.split(maxsplit=1)

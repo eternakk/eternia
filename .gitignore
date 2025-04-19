@@ -1,0 +1,21 @@
+# Byte‑code / metadata
+__pycache__/
+*.py[cod]
+*.so
+
+# macOS cruft
+.DS_Store
+.AppleDouble
+__MACOSX/
+
+# Logs & checkpoints
+logs/
+artifacts/
+*.ckpt
+*.pth
+
+# Env / editor
+.env
+*.swp
+.idea/
+.vscode/

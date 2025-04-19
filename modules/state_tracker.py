@@ -15,6 +15,14 @@ class EternaStateTracker:
         self.modifiers = []
         self.discoveries = []
 
+    def log_emotional_impact(self, emotion_name, score):
+        if not hasattr(self, "emotional_log"):
+            self.emotional_log = []
+
+        self.emotional_log.append((emotion_name, round(score, 2)))
+
+        print(f"📝 Logged emotional impact: {emotion_name} → {round(score, 2)}")
+
     def mark_zone(self, zone_name):
         self.last_zone = zone_name
         if zone_name not in self.explored_zones:

@@ -35,6 +35,14 @@ class EternaRuntime:
         if current_emotion:
             print(f"🪞 Reflecting current emotional field: {current_emotion.describe()}")
             self.eterna.emotion_circuits.process_emotion(current_emotion)
+            # Log emotional impact using EmotionProcessor
+            from modules.emotional_agent import EmotionProcessor, EmotionalState
+            if current_emotion:
+                agent = EmotionProcessor()
+                emotion_tensor = EmotionalState(current_emotion.name, current_emotion.intensity,
+                                                current_emotion.direction).to_tensor()
+                score = agent(emotion_tensor)
+                self.eterna.state_tracker.log_emotional_impact(current_emotion.name, score.item())
 
             self.eterna.state_tracker.update_evolution(
                 intellect=self.eterna.evolution.intellect,

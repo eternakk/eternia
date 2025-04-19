@@ -13,6 +13,9 @@ from modules.companion_ecology import MemoryEcho, LocalAgent, SymbolicBeing
 from modules.zone_modifiers import SymbolicModifier
 from modules.resonance_engine import ResonanceEngine  # ✅ NEW
 
+
+
+
 def setup_symbolic_modifiers(eterna):
     shroud = SymbolicModifier(
         name="Shroud of Memory",
@@ -154,3 +157,67 @@ def setup_time_and_agents(eterna):
     print("🤖 Preparing reality agent...")
     environment_conditions = {'hazard_level': 3}
     eterna.deploy_reality_agent(environment_conditions)
+
+# ──────────────────────────────────────────────────────────────────────────────
+#  World wrapper and checkpoint helpers for Alignment‑Governor integration
+# ──────────────────────────────────────────────────────────────────────────────
+import pickle
+from pathlib import Path
+from eterna_interface import EternaInterface
+from modules.state_tracker import EternaStateTracker
+
+CHECKPOINT_ROOT = Path("artifacts/checkpoints")
+
+
+class EternaWorld:
+    """
+    Thin façade around EternaInterface that exposes the methods expected by
+    AlignmentGovernor: step(), collect_metrics(), save_checkpoint(), load_checkpoint().
+    """
+
+    def __init__(self):
+        # Core interface
+        self.eterna = EternaInterface()
+        self.state_tracker: EternaStateTracker = self.eterna.state_tracker
+
+        # One‑time bootstrapping
+        setup_symbolic_modifiers(self.eterna)
+        setup_eterna_world(self.eterna)
+        setup_physics_profiles(self.eterna)
+        setup_rituals(self.eterna)
+        setup_companions(self.eterna)
+        setup_protection(self.eterna)
+        setup_resonance_engine(self.eterna)
+        setup_time_and_agents(self.eterna)
+
+    # ---------- runtime hooks ---------- #
+    def step(self, dt: float = 1.0):
+        """Advance one cognitive/physics cycle."""
+        # an existing runtime loop lives inside EternaInterface.runtime
+        self.eterna.runtime.run_cycle()
+        self.state_tracker.save()
+
+    def collect_metrics(self) -> dict:
+        """Return a dictionary consumed by AlignmentGovernor."""
+        return {
+            "identity_continuity": self.state_tracker.identity_continuity(),
+            # Placeholder for extra eval‑harness flags
+        }
+
+    # ---------- checkpoint API ---------- #
+    def save_checkpoint(self, path):
+        with open(path, "wb") as f:
+            pickle.dump(self, f)
+
+    def load_checkpoint(self, path):
+        with open(path, "rb") as f:
+            restored: "EternaWorld" = pickle.load(f)
+        # overwrite in‑place so external references remain valid
+        self.__dict__.update(restored.__dict__)
+
+
+# Public factory function
+def build_world() -> EternaWorld:
+    CHECKPOINT_ROOT.mkdir(parents=True, exist_ok=True)
+    return EternaWorld()
+

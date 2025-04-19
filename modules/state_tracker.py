@@ -86,6 +86,17 @@ class EternaStateTracker:
         else:
             print(f"⚠️ No saved state found at {self.save_path}")
 
+    # --- quick‑and‑dirty identity drift metric -------------------------------
+    def identity_continuity(self) -> float:
+        # TODO: replace with real embedding similarity
+        if not hasattr(self, "_prev_intellect"):
+            self._prev_intellect = self.evolution_stats["intellect"]
+            return 1.0
+        cur = self.evolution_stats["intellect"]
+        prev = self._prev_intellect
+        self._prev_intellect = cur
+        return 1.0 - abs(cur - prev) / max(cur, prev, 1)
+
     def report(self):
         print("🧾 Eterna State Report:")
         print("Last Emotion:", self.last_emotion)

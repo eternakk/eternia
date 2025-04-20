@@ -41,7 +41,7 @@ async def zone_assets(name: str):
     return ASSET_MAP.get(name, {})
 
 # ─────────────────────────────  STATE  ──────────────────────────────
-@app.get("/state", response_model=StateOut, dependencies=[Depends(auth)])
+@app.get("/state", response_model=StateOut)
 async def get_state():
     tracker = world.state_tracker
     return {
@@ -49,7 +49,7 @@ async def get_state():
         "identity_score": tracker.identity_continuity(),
         "emotion": tracker.last_emotion,
         "modifiers": tracker.applied_modifiers,
-        "current_zone": tracker.current_zone(),  # NEW
+        "current_zone": tracker.current_zone(),
     }
 
 

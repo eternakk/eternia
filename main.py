@@ -13,6 +13,7 @@ args = parser.parse_args()
 # ─── Init ─────────────────────────────────────────────────────────────────────
 world   = build_world()
 tracker = world.state_tracker
+tracker.mark_zone("Quantum Forest")
 governor = AlignmentGovernor(world, tracker, threshold=0.90)
 governor.register_policy(no_self_replication)
 

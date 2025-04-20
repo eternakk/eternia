@@ -49,6 +49,7 @@ class EternaInterface:
         self.state = EternaState(self)
         self.companions = CompanionManager()
         self.state_tracker = EternaStateTracker()
+        self.state_tracker.load()
         self.modifiers = SymbolicModifierRegistry()
         self.time_sync = TimeSynchronizer(self)
         self.agent_comm = AgentCommunicationProtocol(self)

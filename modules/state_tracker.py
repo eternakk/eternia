@@ -69,6 +69,8 @@ class EternaStateTracker:
             "evolution": self.evolution_stats,
             "explored_zones": self.explored_zones,
             "discoveries": self.discoveries,
+            "last_zone": self.last_zone  # Add this line
+
         }
         os.makedirs(os.path.dirname(self.save_path), exist_ok=True)
         with open(self.save_path, "w") as f:
@@ -85,6 +87,7 @@ class EternaStateTracker:
                 self.evolution_stats = snapshot.get("evolution", self.evolution_stats)
                 self.explored_zones = snapshot.get("explored_zones", [])
                 self.discoveries = snapshot.get("discoveries", [])
+                self.last_zone = snapshot.get("last_zone")  # Add this line
             print(f"📂 Loaded Eterna state from {self.save_path}")
         else:
             print(f"⚠️ No saved state found at {self.save_path}")
@@ -127,6 +130,8 @@ class EternaStateTracker:
             print(f"  • {disc}")
 
     def last_zone_explored(self):
+        if self.last_zone:
+            return self.last_zone
         if self.explored_zones:
             return self.explored_zones[-1]
         if self.applied_modifiers:

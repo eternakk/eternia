@@ -1,51 +1,76 @@
 import { Canvas } from "@react-three/fiber";
-import {OrbitControls, PerspectiveCamera, Stars} from "@react-three/drei";
+import { OrbitControls, Environment, useGLTF } from "@react-three/drei";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import axios from "axios";
 import useSWR from "swr";
 import { getState } from "../api";
-import { useMemo } from "react";
 
-function emotionToColor(emotion?: string, intensity = 0) {
-  // very rough mapping – tweak later
-  const map: Record<string, string> = {
-    joy: "#ffd700",
-    awe: "#8ec5ff",
-    grief: "#2f4f4f",
-    anger: "#ff4500",
-    fear: "#551a8b",
-    neutral: "#cccccc",
+function Scene({ zone, emotion, intensity }: { zone: string; emotion: string | null; intensity: number }) {
+  const [assets, setAssets] = useState<any | null>(null);
+
+  useEffect(() => {
+  if (!zone) return;                  // guard: don’t call without a name
+
+  console.log("Fetching assets for zone:", zone);   // ← see what React thinks
+  axios
+    .get(`http://localhost:8000/zone/assets`, {     // absolute URL avoids proxy issues
+      params: { name: zone },
+    })
+    .then(r => setAssets(r.data))
+    .catch(err => console.error("asset error", err));
+}, [zone]);
+
+  const tint = useMemo(() => {
+    const colors: Record<string, string> = {
+      grief: "#1e2024",
+      joy: "#ffd54f",
+      awe: "#8ec5ff",
+      anger: "#ff7043",
+      fear: "#4a148c",
+      neutral: "#999999",
+    };
+    return colors[emotion ?? "neutral"] || "#777777";
+  }, [emotion]);
+
+  if (!assets) return null;
+
+  const Model = () => {
+    /**
+     * useGLTF returns a GLTF result whose `.scene` can be passed
+     * directly to a <primitive>.  Casting to `any` bypasses the
+     * TS "Property 'scene' does not exist" complaint without
+     * disabling type‑checking for the whole file.
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const gltf: any = useGLTF(assets.model);
+    return <primitive object={gltf.scene} dispose={null} />;
   };
-  const base = map[emotion ?? "neutral"] || "#888888";
-  // darken or lighten by intensity (0‑10)
-  const factor = 0.3 + intensity / 20;         // 0.3‑0.8
-  return base + Math.round(factor * 255).toString(16).padStart(2, "0");
+
+  return (
+    <>
+      <ambientLight intensity={0.4 + intensity * 0.05} color={tint} />
+      <Suspense fallback={null}>
+        {assets.skybox && <Environment files={assets.skybox} background />}
+        {assets.model && <Model />}
+      </Suspense>
+    </>
+  );
 }
 
 export default function ZoneCanvas() {
-  const { data } = useSWR("state", getState, { refreshInterval: 1000 });
-
-  const bgColor = useMemo(() => {
-    if (!data) return "#000000";
-    return emotionToColor(data.emotion, data.identity_score * 10);
-  }, [data]);
-
-  if (!data) return <div className="h-96 bg-slate-300">Loading…</div>;
+const { data } = useSWR("state", getState, { refreshInterval: 1000 });
+useEffect(() => {
+  console.log("state.current_zone =", data?.current_zone);
+}, [data]);
+  if (!data) return <div className="h-96 bg-slate-300" />;
 
   return (
-    <Canvas className="h-96" style={{ background: bgColor }}>
-      {/* put camera 12 units back so we’re outside the sphere */}
-      <PerspectiveCamera makeDefault position={[0, 0, 12]} />
-
-      {/* softer ambient + key light */}
-      <ambientLight intensity={0.5} />
-      <directionalLight position={[4, 4, 4]} intensity={0.7} />
-
-      {/* smaller, brighter sphere so it pops */}
-      <mesh>
-        <sphereGeometry args={[2, 32, 32]} />
-        <meshStandardMaterial color="#8888ff" roughness={0.2} metalness={0.1} />
-      </mesh>
-
-      <Stars radius={50} factor={6} />
+    <Canvas className="h-96">
+      <Scene
+        zone={data.current_zone ?? ""}
+        emotion={data.emotion}
+        intensity={data.identity_score * 10}
+      />
       <OrbitControls enablePan={false} />
     </Canvas>
   );

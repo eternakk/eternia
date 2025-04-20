@@ -6,10 +6,13 @@ from fastapi.responses import FileResponse
 from sse_starlette.sse import EventSourceResponse
 from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-
+from fastapi import Query
+from pathlib import Path
 from .deps import world, governor, event_queue, DEV_TOKEN
 from .deps import run_world      # background sim loop
 from .schemas import StateOut, CommandOut
+from fastapi.staticfiles import StaticFiles
+import json
 
 LOG_PATH = "logs/eterna_runtime.log"
 
@@ -29,6 +32,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+ASSET_MAP = json.load(open("assets/zone_assets.json"))
+app.mount("/static", StaticFiles(directory="assets/static"), name="static")
+
+@app.get("/zone/assets")
+async def zone_assets(name: str):
+    return ASSET_MAP.get(name, {})
+
 # ─────────────────────────────  STATE  ──────────────────────────────
 @app.get("/state", response_model=StateOut, dependencies=[Depends(auth)])
 async def get_state():
@@ -38,10 +49,19 @@ async def get_state():
         "identity_score": tracker.identity_continuity(),
         "emotion": tracker.last_emotion,
         "modifiers": tracker.applied_modifiers,
+        "current_zone": tracker.current_zone(),  # NEW
     }
 
 
 # ───────────────────────────  COMMANDS  ─────────────────────────────
+
+# --- modified rollback route ----------------------------------------
+@app.post("/command/rollback", response_model=CommandOut, dependencies=[Depends(auth)])
+async def rollback(file: str | None = Query(default=None)):
+    target = Path(file) if file else None
+    governor.rollback(target)
+    return {"status": "rolled_back", "detail": str(target) if target else "latest"}
+
 @app.post("/command/{action}", response_model=CommandOut, dependencies=[Depends(auth)])
 async def command(action: str):
     match action.lower():
@@ -49,9 +69,6 @@ async def command(action: str):
             governor.pause();     status = "paused"
         case "resume":
             governor.resume();    status = "running"
-        case "rollback":
-            governor.rollback();  status = "rolled_back"
-            return {"status": status, "detail": "rolled to last checkpoint"}
         case "shutdown":
             governor.shutdown("user request"); status = "shutdown"
             return {"status": status, "detail": "server will stop world loop"}
@@ -89,6 +106,10 @@ async def websocket_endpoint(ws: WebSocket):
             _ = await ws.receive_text()  # ignore client msgs for now
     except WebSocketDisconnect:
         clients.remove(ws)
+# --- list checkpoints -----------------------------------------------
+@app.get("/checkpoints")
+async def list_checkpoints(dependencies=[Depends(auth)]):
+    return world.state_tracker.checkpoints[-10:]   # last 10
 
 # ───────── background broadcaster ──────────
 async def broadcaster():
@@ -111,3 +132,4 @@ async def broadcaster():
 async def startup_event():
     asyncio.create_task(broadcaster())
     asyncio.create_task(run_world())   # ← new line
+

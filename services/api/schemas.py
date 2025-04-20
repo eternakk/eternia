@@ -6,6 +6,7 @@ class StateOut(BaseModel):
     identity_score: float
     emotion:       str | None
     modifiers:     Dict[str, list[str]]
+    current_zone:          str | None
 
 class CommandOut(BaseModel):
     status: str

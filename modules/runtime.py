@@ -43,7 +43,9 @@ class EternaRuntime:
                                                 current_emotion.direction).to_tensor()
                 score = agent(emotion_tensor)
                 self.eterna.state_tracker.log_emotional_impact(current_emotion.name, score.item())
-
+                linked_zones = self.eterna.exploration.registry.get_zones_by_emotion(current_emotion.name)
+                for zone in linked_zones:
+                    self.eterna.state_tracker.mark_zone(zone.name)
             self.eterna.state_tracker.update_evolution(
                 intellect=self.eterna.evolution.intellect,
                 senses=self.eterna.senses.score()  # Make sure SensoryProfile has .score()

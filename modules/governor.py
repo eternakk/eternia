@@ -47,15 +47,16 @@ class AlignmentGovernor:
         self._log_event("shutdown", reason)
         self._shutdown = True
 
-    def rollback(self):
-        ckpt = self._latest_checkpoint()
+    def rollback(self, target: Path | None = None):
+        ckpt = target or self._latest_checkpoint()
         if not ckpt:
             self.shutdown("No safe checkpoint available")
+            return
         self.world.load_checkpoint(ckpt)
+        self.state_tracker.mark_rollback(ckpt)
+        # reset counters visible in UI
         self.world.eterna.runtime.cycle_count = 0
         self._log_event("rollback_complete", str(ckpt))
-        self.state_tracker.mark_rollback(ckpt)
-        self._log_event("rollback", f"to {ckpt}")
 
     # -------- runtime hook -------- #
     def tick(self, metrics: Dict) -> bool:

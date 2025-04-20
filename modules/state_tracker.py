@@ -149,3 +149,6 @@ class EternaStateTracker:
         # optional: reset any per‑run counters
         if hasattr(self, "current_cycle"):
             self.current_cycle = 0
+
+    def current_zone(self):
+        return self.last_zone or "Quantum Forest"

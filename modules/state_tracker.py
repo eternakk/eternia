@@ -137,4 +137,15 @@ class EternaStateTracker:
             last_modified_zone = list(self.applied_modifiers.keys())[-1]
             print(f"🔮 Last modified zone: {last_modified_zone}")
         return None
-
+    # ------------------------------------------------------------------
+    # Record that we just rolled back to a given checkpoint
+    # ------------------------------------------------------------------
+    def mark_rollback(self, path: str):
+        """
+        Update internal bookkeeping after a rollback so the UI and logs
+        can show which checkpoint is active.
+        """
+        self.checkpoints.append(f"ROLLED_BACK→{path}")
+        # optional: reset any per‑run counters
+        if hasattr(self, "current_cycle"):
+            self.current_cycle = 0

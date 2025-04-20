@@ -24,6 +24,7 @@ class AlignmentGovernor:
         self.state_tracker = state_tracker
         self.continuity_threshold = threshold
         self._paused = False
+        self._shutdown = False
         self.policy_callbacks: list[Callable[[Dict], bool]] = []
         self.save_interval = save_interval
         self._tick_counter = 0
@@ -31,6 +32,7 @@ class AlignmentGovernor:
 
         CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
 
+    MAX_CKPTS = 10  # keep last 10
 
     # -------- public control API -------- #
     def pause(self):
@@ -43,13 +45,15 @@ class AlignmentGovernor:
 
     def shutdown(self, reason: str):
         self._log_event("shutdown", reason)
-        raise SystemExit(f"[Alignment‑Governor] Shutdown: {reason}")
+        self._shutdown = True
 
     def rollback(self):
         ckpt = self._latest_checkpoint()
         if not ckpt:
             self.shutdown("No safe checkpoint available")
         self.world.load_checkpoint(ckpt)
+        self.world.eterna.runtime.cycle_count = 0
+        self._log_event("rollback_complete", str(ckpt))
         self.state_tracker.mark_rollback(ckpt)
         self._log_event("rollback", f"to {ckpt}")
 
@@ -59,6 +63,8 @@ class AlignmentGovernor:
         Returns True if the world may continue this step.
         """
         if self._paused:
+            return False
+        if self._shutdown:
             return False
 
         # 1) continuity check
@@ -86,15 +92,17 @@ class AlignmentGovernor:
         """Callback receives metrics dict; return False to trigger rollback."""
         self.policy_callbacks.append(callback)
 
-    def _save_checkpoint(self, MAX_CKPTS=5):
+    def _save_checkpoint(self):
         self._broadcast({"event": "checkpoint_scheduled"})
         ts = int(time.time() * 1000)
         path = CHECKPOINT_DIR / f"ckpt_{ts}.bin"
         self.world.save_checkpoint(path)
-        self.state_tracker.register_checkpoint(path)
+        self.state_tracker.register_checkpoint(path)  # already exists
         self._log_event("checkpoint_saved", str(path))
+
+        # prune old files
         cks = sorted(CHECKPOINT_DIR.glob("ckpt_*.bin"))
-        for old in cks[:-MAX_CKPTS]:
+        for old in cks[:-self.MAX_CKPTS]:
             old.unlink(missing_ok=True)
 
     def _latest_checkpoint(self):
@@ -117,3 +125,6 @@ class AlignmentGovernor:
     # external API can swap in a fresh queue at runtime
     def set_event_queue(self, q: "asyncio.Queue"):
         self.event_queue = q
+
+    def is_shutdown(self) -> bool:
+        return self._shutdown

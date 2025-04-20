@@ -1,18 +1,21 @@
 import asyncio
 import time
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException,Depends, Header
 from fastapi.responses import FileResponse
 from sse_starlette.sse import EventSourceResponse
 from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
-from .deps import world, governor, event_queue
+from .deps import world, governor, event_queue, DEV_TOKEN
 from .deps import run_world      # background sim loop
 from .schemas import StateOut, CommandOut
 
 LOG_PATH = "logs/eterna_runtime.log"
 
+def auth(bearer: str = Header(..., alias="Authorization")):
+    if bearer != f"Bearer {DEV_TOKEN}":
+        raise HTTPException(401, "Unauthorized")
 app = FastAPI(title="Eterna Control API", version="0.1.0")
 
 # Configure CORS
@@ -27,7 +30,7 @@ app.add_middleware(
 )
 
 # ─────────────────────────────  STATE  ──────────────────────────────
-@app.get("/state", response_model=StateOut)
+@app.get("/state", response_model=StateOut, dependencies=[Depends(auth)])
 async def get_state():
     tracker = world.state_tracker
     return {
@@ -39,7 +42,7 @@ async def get_state():
 
 
 # ───────────────────────────  COMMANDS  ─────────────────────────────
-@app.post("/command/{action}", response_model=CommandOut)
+@app.post("/command/{action}", response_model=CommandOut, dependencies=[Depends(auth)])
 async def command(action: str):
     match action.lower():
         case "pause":
@@ -48,8 +51,10 @@ async def command(action: str):
             governor.resume();    status = "running"
         case "rollback":
             governor.rollback();  status = "rolled_back"
+            return {"status": status, "detail": "rolled to last checkpoint"}
         case "shutdown":
             governor.shutdown("user request"); status = "shutdown"
+            return {"status": status, "detail": "server will stop world loop"}
         case _:
             raise HTTPException(404, "unknown action")
     return {"status": status, "detail": None}

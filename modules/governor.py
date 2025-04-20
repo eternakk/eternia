@@ -1,6 +1,7 @@
 # modules/governor.py
 import time
 import json
+import asyncio
 from pathlib import Path
 from typing import Dict, Callable
 
@@ -11,14 +12,25 @@ class AlignmentGovernor:
     Hard‑safety layer that can pause, rollback, or kill the simulation.
     """
 
-    def __init__(self, world, state_tracker, threshold: float = 0.90):
+    def __init__(
+        self,
+        world,
+        state_tracker,
+        threshold: float = 0.90,
+        save_interval: int = 10000,
+        event_queue: "asyncio.Queue | None" = None,
+    ):
         self.world = world
         self.state_tracker = state_tracker
         self.continuity_threshold = threshold
         self._paused = False
         self.policy_callbacks: list[Callable[[Dict], bool]] = []
+        self.save_interval = save_interval
+        self._tick_counter = 0
+        self.event_queue = event_queue  # used by API WebSocket
 
         CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
+
 
     # -------- public control API -------- #
     def pause(self):
@@ -62,8 +74,10 @@ class AlignmentGovernor:
                 return False
 
         # 3) record a safe checkpoint every N ticks or on request
-        if metrics.get("checkpoint"):
+        self._tick_counter += 1
+        if self._tick_counter >= self.save_interval:
             self._save_checkpoint()
+            self._tick_counter = 0
 
         return True
 
@@ -72,17 +86,34 @@ class AlignmentGovernor:
         """Callback receives metrics dict; return False to trigger rollback."""
         self.policy_callbacks.append(callback)
 
-    def _save_checkpoint(self):
+    def _save_checkpoint(self, MAX_CKPTS=5):
+        self._broadcast({"event": "checkpoint_scheduled"})
         ts = int(time.time() * 1000)
         path = CHECKPOINT_DIR / f"ckpt_{ts}.bin"
         self.world.save_checkpoint(path)
         self.state_tracker.register_checkpoint(path)
         self._log_event("checkpoint_saved", str(path))
+        cks = sorted(CHECKPOINT_DIR.glob("ckpt_*.bin"))
+        for old in cks[:-MAX_CKPTS]:
+            old.unlink(missing_ok=True)
 
     def _latest_checkpoint(self):
         cks = sorted(CHECKPOINT_DIR.glob("ckpt_*.bin"))
         return cks[-1] if cks else None
 
+    def _broadcast(self, payload: dict):
+        """Push log entries to an asyncio.Queue for the API WebSocket."""
+        if self.event_queue is not None:
+            try:
+                self.event_queue.put_nowait(payload)
+            except asyncio.QueueFull:
+                pass  # drop on overflow
+
     def _log_event(self, event: str, payload=None):
         entry = {"t": time.time(), "event": event, "payload": payload}
         (CHECKPOINT_DIR / "governor_log.jsonl").open("a").write(json.dumps(entry) + "\n")
+        self._broadcast(entry)
+
+    # external API can swap in a fresh queue at runtime
+    def set_event_queue(self, q: "asyncio.Queue"):
+        self.event_queue = q

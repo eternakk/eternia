@@ -9,11 +9,14 @@ class EternaStateTracker:
         self.memories = []
         self.evolution_stats = {"intellect": 100, "senses": 100}
         self.discoveries = []
+        # initialize previous intellect for identity_continuity()
+        self._prev_intellect = self.evolution_stats["intellect"]
         self.explored_zones = []
         self.last_zone = None
         self.explored_zones = []
         self.modifiers = []
         self.discoveries = []
+        self.checkpoints: list[str] = []
 
     def log_emotional_impact(self, emotion_name, score):
         if not hasattr(self, "emotional_log"):
@@ -87,6 +90,16 @@ class EternaStateTracker:
             print(f"⚠️ No saved state found at {self.save_path}")
 
     # --- quick‑and‑dirty identity drift metric -------------------------------
+    # ------------------------------------------------------------------
+    # Alignment‑Governor uses this to record saved checkpoints
+    # ------------------------------------------------------------------
+    def register_checkpoint(self, path: str):
+        """
+        Append a new checkpoint path to the internal list so the UI and
+        governor rollback logic can query available snapshots.
+        """
+        self.checkpoints.append(str(path))
+
     def identity_continuity(self) -> float:
         # TODO: replace with real embedding similarity
         if not hasattr(self, "_prev_intellect"):
@@ -124,3 +137,4 @@ class EternaStateTracker:
             last_modified_zone = list(self.applied_modifiers.keys())[-1]
             print(f"🔮 Last modified zone: {last_modified_zone}")
         return None
+

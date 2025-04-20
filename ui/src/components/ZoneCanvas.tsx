@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import useSWR from "swr";
 import { getState } from "../api";
+import { EffectComposer, Bloom } from "@react-three/postprocessing";
 
 function Scene({ zone, emotion, intensity }: { zone: string; emotion: string | null; intensity: number }) {
   const [assets, setAssets] = useState<any | null>(null);
@@ -49,7 +50,7 @@ function Scene({ zone, emotion, intensity }: { zone: string; emotion: string | n
   return (
     <>
       <ambientLight intensity={0.4 + intensity * 0.05} color={tint} />
-      <Suspense fallback={null}>
+      <Suspense fallback={null} >
         {assets.skybox && <Environment files={assets.skybox} background />}
         {assets.model && <Model />}
       </Suspense>
@@ -66,11 +67,22 @@ useEffect(() => {
 
   return (
     <Canvas className="h-96">
-      <Scene
-        zone={data.current_zone ?? ""}
-        emotion={data.emotion}
-        intensity={data.identity_score * 10}
-      />
+      <Suspense fallback={null}>
+        <Scene
+          zone={data.current_zone ?? ""}
+          emotion={data.emotion}
+          intensity={data.identity_score * 10}
+        />
+        {/* emotion‑driven bloom */}
+        <EffectComposer>
+          <Bloom
+            luminanceThreshold={0}
+            luminanceSmoothing={0.9}
+            intensity={0.1 + data.identity_score * 0.8}
+          />
+        </EffectComposer>
+      </Suspense>
+
       <OrbitControls enablePan={false} />
     </Canvas>
   );

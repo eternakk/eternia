@@ -1,0 +1,12 @@
+[meta]
+name = "Law of Joyful Presence"
+version = 1
+enabled = true
+description = "Periods of joy, awe, and rest are not luxuries — they are sacred rituals of being."
+
+[trigger]
+on_event = ["cycle"]
+
+conditions = []
+
+[effects]

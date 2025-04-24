@@ -1,24 +1,28 @@
 import asyncio
+import json
 import time
+from pathlib import Path
 
-from fastapi import FastAPI, HTTPException,Depends, Header
-from fastapi.responses import FileResponse
-from sse_starlette.sse import EventSourceResponse
+from fastapi import Body
+from fastapi import FastAPI, HTTPException, Depends, Header
+from fastapi import Query
 from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import Query
-from pathlib import Path
-from .deps import world, governor, event_queue, DEV_TOKEN
-from .deps import run_world      # background sim loop
-from .schemas import StateOut, CommandOut
 from fastapi.staticfiles import StaticFiles
-import json
+from sse_starlette.sse import EventSourceResponse
+
+from .deps import run_world  # background sim loop
+from .deps import world, governor, event_queue, DEV_TOKEN
+from .schemas import StateOut, CommandOut
 
 LOG_PATH = "logs/eterna_runtime.log"
+
 
 def auth(bearer: str = Header(..., alias="Authorization")):
     if bearer != f"Bearer {DEV_TOKEN}":
         raise HTTPException(401, "Unauthorized")
+
+
 app = FastAPI(title="Eterna Control API", version="0.1.0")
 
 # Configure CORS
@@ -32,13 +36,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 ASSET_MAP = json.load(open("assets/zone_assets.json"))
 app.mount("/static", StaticFiles(directory="assets/static"), name="static")
+
 
 @app.get("/zone/assets")
 async def zone_assets(name: str):
     return ASSET_MAP.get(name, {})
+
 
 # ─────────────────────────────  STATE  ──────────────────────────────
 @app.get("/state", response_model=StateOut)
@@ -55,6 +60,7 @@ async def get_state():
 
 # ───────────────────────────  COMMANDS  ─────────────────────────────
 
+
 # --- modified rollback route ----------------------------------------
 @app.post("/command/rollback", response_model=CommandOut, dependencies=[Depends(auth)])
 async def rollback(file: str | None = Query(default=None)):
@@ -62,15 +68,19 @@ async def rollback(file: str | None = Query(default=None)):
     governor.rollback(target)
     return {"status": "rolled_back", "detail": str(target) if target else "latest"}
 
+
 @app.post("/command/{action}", response_model=CommandOut, dependencies=[Depends(auth)])
 async def command(action: str):
     match action.lower():
         case "pause":
-            governor.pause();     status = "paused"
+            governor.pause()
+            status = "paused"
         case "resume":
-            governor.resume();    status = "running"
+            governor.resume()
+            status = "running"
         case "shutdown":
-            governor.shutdown("user request"); status = "shutdown"
+            governor.shutdown("user request")
+            status = "shutdown"
             return {"status": status, "detail": "server will stop world loop"}
         case _:
             raise HTTPException(404, "unknown action")
@@ -89,11 +99,13 @@ async def stream_logs():
                     yield {"data": line}
                 else:
                     await asyncio.sleep(0.5)
+
     return EventSourceResponse(event_generator())
 
 
 # ───────────────────────────  WEBSOCKET  ────────────────────────────
 clients: set[WebSocket] = set()
+
 
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket):
@@ -106,10 +118,13 @@ async def websocket_endpoint(ws: WebSocket):
             _ = await ws.receive_text()  # ignore client msgs for now
     except WebSocketDisconnect:
         clients.remove(ws)
+
+
 # --- list checkpoints -----------------------------------------------
 @app.get("/checkpoints")
 async def list_checkpoints(dependencies=[Depends(auth)]):
-    return world.state_tracker.checkpoints[-10:]   # last 10
+    return world.state_tracker.checkpoints[-10:]  # last 10
+
 
 # ───────── background broadcaster ──────────
 async def broadcaster():
@@ -127,9 +142,20 @@ async def broadcaster():
         for ws in stale:
             clients.discard(ws)
 
+
+@app.get("/laws")
+def list_laws(dependencies=[Depends(auth)]):
+    return {name: law.dict() for name, law in governor.laws.items()}
+
+
+@app.post("/laws/{name}/toggle")
+def toggle_law(name: str, enabled: bool = Body(embed=True)):
+    governor.laws[name].enabled = enabled
+    return {"enabled": enabled}
+
+
 # register startup task
 @app.on_event("startup")
 async def startup_event():
     asyncio.create_task(broadcaster())
-    asyncio.create_task(run_world())   # ← new line
-
+    asyncio.create_task(run_world())  # ← new line

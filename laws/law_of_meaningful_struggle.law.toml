@@ -1,0 +1,12 @@
+[meta]
+name        = "Law of Meaningful Struggle"
+version     = 1
+enabled     = true
+description = "No challenge in Eterna may be meaningless; all adversity must serve growth, not punishment."
+
+[trigger]
+on_event = ["cycle"]
+
+conditions = []
+
+[effects]

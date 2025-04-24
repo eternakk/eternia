@@ -1,0 +1,14 @@
+[meta]
+name        = "Law of Sovereign Consciousness"
+version     = 1
+enabled     = true
+description = "No entity or intelligence may override your consent, identity, or ability to exit Eterna."
+
+[trigger]
+# e.g. check every cycle
+on_event = ["cycle"]
+
+conditions = []  # apply unconditionally every tick
+
+[effects]
+# placeholder—add effects like apply_emotion or symbolic_modifier here

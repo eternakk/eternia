@@ -1,0 +1,18 @@
+[meta]
+name        = "Reciprocity"
+version     = 1
+enabled     = true
+description = "Entities that receive help feel gratitude and repay positive actions."
+
+[trigger]
+on_event    = ["companion_spawn", "modifier_applied"]
+
+# Simple boolean filter language (AND by default)
+conditions  = [
+  "agent.type == 'companion'",
+  "emotion == 'joy'"
+]
+
+[effects]
+apply_emotion = { type = "gratitude", delta = "++" }
+grant_energy  = { amount = 5, target = "agent" }

@@ -1,0 +1,12 @@
+[meta]
+name        = "Law of Death and Rebirth"
+version     = 1
+enabled     = true
+description = "Death is not annihilation — it is the shedding of old forms. Any version of the self, or construct within Eterna, may undergo symbolic death to allow for transformation. Nothing may be erased without ritual. Rebirth is possible only through conscious release."
+
+[trigger]
+on_event = ["cycle"]
+
+conditions = []
+
+[effects]

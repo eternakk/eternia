@@ -1,11 +1,15 @@
 # modules/governor.py
-import time
-import json
 import asyncio
+import json
+import re
+import time
 from pathlib import Path
 from typing import Dict, Callable
 
+from modules.law_parser import load_laws
+
 CHECKPOINT_DIR = Path("artifacts/checkpoints")
+
 
 class AlignmentGovernor:
     """
@@ -13,12 +17,12 @@ class AlignmentGovernor:
     """
 
     def __init__(
-        self,
-        world,
-        state_tracker,
-        threshold: float = 0.90,
-        save_interval: int = 10000,
-        event_queue: "asyncio.Queue | None" = None,
+            self,
+            world,
+            state_tracker,
+            threshold: float = 0.90,
+            save_interval: int = 10000,
+            event_queue: "asyncio.Queue | None" = None,
     ):
         self.world = world
         self.state_tracker = state_tracker
@@ -28,7 +32,9 @@ class AlignmentGovernor:
         self.policy_callbacks: list[Callable[[Dict], bool]] = []
         self.save_interval = save_interval
         self._tick_counter = 0
-        self.event_queue = event_queue  # used by API WebSocket
+        self.laws = load_laws()
+        self.event_queue = event_queue
+        # used by API WebSocket
 
         CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -103,7 +109,7 @@ class AlignmentGovernor:
 
         # prune old files
         cks = sorted(CHECKPOINT_DIR.glob("ckpt_*.bin"))
-        for old in cks[:-self.MAX_CKPTS]:
+        for old in cks[: -self.MAX_CKPTS]:
             old.unlink(missing_ok=True)
 
     def _latest_checkpoint(self):
@@ -120,7 +126,9 @@ class AlignmentGovernor:
 
     def _log_event(self, event: str, payload=None):
         entry = {"t": time.time(), "event": event, "payload": payload}
-        (CHECKPOINT_DIR / "governor_log.jsonl").open("a").write(json.dumps(entry) + "\n")
+        (CHECKPOINT_DIR / "governor_log.jsonl").open("a").write(
+            json.dumps(entry) + "\n"
+        )
         self._broadcast(entry)
 
     # external API can swap in a fresh queue at runtime
@@ -129,3 +137,29 @@ class AlignmentGovernor:
 
     def is_shutdown(self) -> bool:
         return self._shutdown
+
+    def _enforce_laws(self, event: str, payload: dict):
+        for law in self.laws.values():
+            if not law.enabled or event not in law.on_event:
+                continue
+            if not self._conditions_met(law.conditions, payload):
+                continue
+            for eff_name, eff in law.effects.items():
+                self._apply_effect(eff_name, eff.params, payload)
+
+    def _conditions_met(self, conds, payload):
+        # naïve evaluation – you can swap with tinyexpr or jmespath later
+        for c in conds:
+            key, op, val = re.split(r"\s*==\s*", c)
+            if str(payload.get(key.strip())) != val.strip("'\""):
+                return False
+        return True
+
+    def _apply_effect(self, name, params, payload):
+        if name == "apply_emotion":
+            self.world.eterna.apply_emotion(params["type"], params.get("delta", "+"))
+        elif name == "grant_energy":
+            target = params.get("target", "agent")
+            amt = params["amount"]
+            self.world.grant_energy(target, amt)
+        # add more handlers as needed

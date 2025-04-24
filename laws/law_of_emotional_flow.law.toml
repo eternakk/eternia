@@ -1,0 +1,12 @@
+[meta]
+name        = "Law of Emotional Flow"
+version     = 1
+enabled     = true
+description = "No emotional state may be eternally suppressed or denied expression. All emotions — joy, grief, anger, fear, love, sorrow, ecstasy — must be allowed to move through consciousness as part of the integrative process. Emotion must be processed, not avoided. Stagnation leads to distortion."
+
+[trigger]
+on_event = ["emotion_change"]
+
+conditions = []
+
+[effects]

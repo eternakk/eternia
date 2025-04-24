@@ -1,0 +1,12 @@
+[meta]
+name        = "Law of Harmonized Physics"
+version     = 1
+enabled     = true
+description = "The foundational laws of Eterna must support coherent embodiment and agency. Modifications to local physics are allowed only if they preserve conscious integrity and continuity."
+
+[trigger]
+on_event = ["physics_modify"]
+
+conditions = []
+
+[effects]

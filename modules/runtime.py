@@ -1,13 +1,14 @@
-import time
 import random
 
 from modules.resonance_engine import ResonanceEngine
-from modules.emotions import EmotionalState
+
 
 class EternaState:
     def __init__(self, eterna_interface):
         self.eterna = eterna_interface
-        self.mode = "idle"  # options: 'exploration', 'creation', 'healing', 'social', etc.
+        self.mode = (
+            "idle"  # options: 'exploration', 'creation', 'healing', 'social', etc.
+        )
         self.cognitive_load = 0  # 0 to 100
         self.last_cycle_summary = None
 
@@ -16,6 +17,7 @@ class EternaState:
         print(f"  • Intellect Level     : {self.eterna.evolution.intellect}")
         print(f"  • Cognitive Load      : {self.cognitive_load}")
         print(f"  • Current Mode        : {self.mode}")
+
 
 class EternaRuntime:
     def __init__(self, eterna_interface):
@@ -33,22 +35,32 @@ class EternaRuntime:
 
         current_emotion = self.eterna.emotion_circuits.current_emotion
         if current_emotion:
-            print(f"🪞 Reflecting current emotional field: {current_emotion.describe()}")
+            print(
+                f"🪞 Reflecting current emotional field: {current_emotion.describe()}"
+            )
             self.eterna.emotion_circuits.process_emotion(current_emotion)
             # Log emotional impact using EmotionProcessor
             from modules.emotional_agent import EmotionProcessor, EmotionalState
+
             if current_emotion:
                 agent = EmotionProcessor()
-                emotion_tensor = EmotionalState(current_emotion.name, current_emotion.intensity,
-                                                current_emotion.direction).to_tensor()
+                emotion_tensor = EmotionalState(
+                    current_emotion.name,
+                    current_emotion.intensity,
+                    current_emotion.direction,
+                ).to_tensor()
                 score = agent(emotion_tensor)
-                self.eterna.state_tracker.log_emotional_impact(current_emotion.name, score.item())
-                linked_zones = self.eterna.exploration.registry.get_zones_by_emotion(current_emotion.name)
+                self.eterna.state_tracker.log_emotional_impact(
+                    current_emotion.name, score.item()
+                )
+                linked_zones = self.eterna.exploration.registry.get_zones_by_emotion(
+                    current_emotion.name
+                )
                 for zone in linked_zones:
                     self.eterna.state_tracker.mark_zone(zone.name)
             self.eterna.state_tracker.update_evolution(
                 intellect=self.eterna.evolution.intellect,
-                senses=self.eterna.senses.score()  # Make sure SensoryProfile has .score()
+                senses=self.eterna.senses.score(),  # Make sure SensoryProfile has .score()
             )
 
         self.handle_exploration()
@@ -62,12 +74,12 @@ class EternaRuntime:
                 zone_name=last_zone,
                 frequency_hz=self.estimate_resonance_frequency(current_emotion),
                 waveform="sine",
-                emotional_resonance=current_emotion.name if current_emotion else None
+                emotional_resonance=current_emotion.name if current_emotion else None,
             )
 
         self.eterna.synchronize_time()
 
-        external_conditions = {'hazard_level': 7}
+        external_conditions = {"hazard_level": 7}
         self.eterna.deploy_reality_agent(external_conditions)
 
         self.save_persistent_states()
@@ -81,7 +93,7 @@ class EternaRuntime:
             "anger": 1.2,
             "curious": 2.5,
             "joy": 3.8,
-            "awe": 5.1
+            "awe": 5.1,
         }
         return emotion_map.get(emotion.name, 2.5)
 
@@ -90,7 +102,9 @@ class EternaRuntime:
         self.eterna.check_emotional_safety()
         current_emotion = self.eterna.emotion_circuits.current_emotion
         if current_emotion:
-            print(f"🪞 Reflecting current emotional field: {current_emotion.describe()}")
+            print(
+                f"🪞 Reflecting current emotional field: {current_emotion.describe()}"
+            )
             self.eterna.emotion_circuits.process_emotion(current_emotion)
 
     def apply_zone_physics(self, zone_name):
@@ -137,7 +151,11 @@ class EternaRuntime:
             log_file.write(summary)
 
     def introspect(self):
-        print(f"🔍 Current mode: {self.state.mode}, Intellect: {self.eterna.evolution.intellect}, Load: {self.state.cognitive_load}")
+        print(
+            f"🔍 Current mode: {self.state.mode}, Intellect: {self.eterna.evolution.intellect}, Load: {self.state.cognitive_load}"
+        )
 
     def migrate_to_eternal_shell(self):
-        print("🧬 Consciousness container stabilized. Physical shell abandoned. Eterna becomes primary substrate.")
+        print(
+            "🧬 Consciousness container stabilized. Physical shell abandoned. Eterna becomes primary substrate."
+        )

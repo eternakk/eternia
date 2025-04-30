@@ -1,19 +1,20 @@
 # 🌌 Eterna World Builder — Expanded Core
+import torch
+
+from modules.ai_ml_rl.rl_companion_loop import PPOTrainer
+from modules.companion_ecology import MemoryEcho, LocalAgent, SymbolicBeing
+from modules.emotions import EmotionalState
+from modules.memory_integration import Memory
+from modules.physics import PhysicsProfile
+from modules.population import User
+from modules.resonance_engine import ResonanceEngine  # ✅ NEW
+from modules.rituals import Ritual
+from modules.zone_modifiers import SymbolicModifier
+
 
 # This file contains the complete bootstrapping logic for building, simulating,
 # and emotionally enriching the Eterna world. It configures zones, emotions, rituals, companions, symbolic modifiers,
 # and deep integrations.
-
-from modules.population import User
-from modules.memory_integration import Memory
-from modules.rituals import Ritual
-from modules.physics import PhysicsProfile
-from modules.emotions import EmotionalState
-from modules.companion_ecology import MemoryEcho, LocalAgent, SymbolicBeing
-from modules.zone_modifiers import SymbolicModifier
-from modules.resonance_engine import ResonanceEngine  # ✅ NEW
-
-
 
 
 def setup_symbolic_modifiers(eterna):
@@ -24,23 +25,32 @@ def setup_symbolic_modifiers(eterna):
             "colors desaturate",
             "fog rolls in from the sea",
             "sorrow altar emerges from the rocks",
-            "ambient cello music plays from the mist"
-        ]
+            "ambient cello music plays from the mist",
+        ],
     )
     eterna.modifiers.register_modifier(shroud)
 
+
 def setup_eterna_world(eterna):
     eterna.register_zone("Quantum Forest", origin="AGI", complexity=120, emotion_tag="")
-    dreamspace = PhysicsProfile("Dreamspace", gravity=1.5, time_flow=0.6, dimensions=4, energy_behavior="thought-sensitive")
+    dreamspace = PhysicsProfile(
+        "Dreamspace",
+        gravity=1.5,
+        time_flow=0.6,
+        dimensions=4,
+        energy_behavior="thought-sensitive",
+    )
     eterna.define_physics_profile("Quantum Forest", dreamspace)
-    eterna.register_zone("Orikum Sea", origin="user", complexity=80, emotion_tag="grief")
+    eterna.register_zone(
+        "Orikum Sea", origin="user", complexity=80, emotion_tag="grief"
+    )
 
     library_physics = PhysicsProfile(
         name="Shared Cognition",
         gravity=5.5,
         time_flow=0.8,
         dimensions=4,
-        energy_behavior="emotion-mirroring"
+        energy_behavior="emotion-mirroring",
     )
 
     eterna.register_zone(
@@ -48,7 +58,7 @@ def setup_eterna_world(eterna):
         origin="shared",
         complexity=100,
         emotion_tag="awe",
-        default_physics=library_physics
+        default_physics=library_physics,
     )
     eterna.define_physics_profile("Library of Shared Minds", library_physics)
 
@@ -57,15 +67,30 @@ def setup_eterna_world(eterna):
     eterna.invite_social_user(alice)
     eterna.invite_social_user(bob)
 
-    memory = Memory("Sunrise by the sea with family", clarity=9, emotional_quality="positive")
-    eterna.integrate_memory(memory.description, memory.clarity, memory.emotional_quality)
+    memory = Memory(
+        "Sunrise by the sea with family", clarity=9, emotional_quality="positive"
+    )
+    eterna.integrate_memory(
+        memory.description, memory.clarity, memory.emotional_quality
+    )
 
-    eterna.update_emotional_state(mood="curious", stress_level=3, trauma_triggered=False)
+    eterna.update_emotional_state(
+        mood="curious", stress_level=3, trauma_triggered=False
+    )
+
 
 def setup_physics_profiles(eterna):
     normal = PhysicsProfile("Earth-Like", gravity=9.8, time_flow=1.0, dimensions=3)
-    dream = PhysicsProfile("Dreamspace", gravity=1.5, time_flow=0.6, dimensions=4, energy_behavior="thought-sensitive")
-    unstable = PhysicsProfile("Unstable Rift", gravity=0, time_flow=3.0, dimensions=5, conscious_safe=False)
+    dream = PhysicsProfile(
+        "Dreamspace",
+        gravity=1.5,
+        time_flow=0.6,
+        dimensions=4,
+        energy_behavior="thought-sensitive",
+    )
+    unstable = PhysicsProfile(
+        "Unstable Rift", gravity=0, time_flow=3.0, dimensions=5, conscious_safe=False
+    )
 
     eterna.define_physics_profile("Orikum Sea", normal)
     eterna.define_physics_profile("Quantum Forest", dream)
@@ -74,6 +99,7 @@ def setup_physics_profiles(eterna):
     eterna.show_zone_physics("Orikum Sea")
     eterna.show_zone_physics("Quantum Forest")
     eterna.show_zone_physics("Void Spiral")
+
 
 def setup_rituals(eterna):
     ritual = Ritual(
@@ -85,9 +111,9 @@ def setup_rituals(eterna):
             "Place it into the fire altar.",
             "Watch it burn. Do not look away.",
             "Step into the circle of light.",
-            "Speak your new name, or remain silent to evolve without identity."
+            "Speak your new name, or remain silent to evolve without identity.",
         ],
-        symbolic_elements=["fire", "ashes", "circle of light"]
+        symbolic_elements=["fire", "ashes", "circle of light"],
     )
     chamber = Ritual(
         name="Chamber of Waters",
@@ -97,15 +123,19 @@ def setup_rituals(eterna):
             "Let water rise to your knees.",
             "Whisper your grief into the water.",
             "Submerge your hands and close your eyes.",
-            "Feel the weight dissolve into the stream."
+            "Feel the weight dissolve into the stream.",
         ],
-        symbolic_elements=["water", "echoes", "soft light"]
+        symbolic_elements=["water", "echoes", "soft light"],
     )
     eterna.rituals.register(ritual)
     eterna.rituals.register(chamber)
 
+
 def setup_companions(eterna):
-    lira = MemoryEcho("Lira", "Your mother holding your hand near the sea during a golden sunrise in Orikum.")
+    lira = MemoryEcho(
+        "Lira",
+        "Your mother holding your hand near the sea during a golden sunrise in Orikum.",
+    )
     bran = LocalAgent("Bran", job="storykeeper")
     selene = SymbolicBeing("Selene", archetype="lunar guide")
     eko = SymbolicBeing("Eko", archetype="joyful shapeshifter")
@@ -117,12 +147,14 @@ def setup_companions(eterna):
     eterna.companions.spawn(eko)
     eterna.companions.spawn(elder)
 
+
 def setup_protection(eterna):
     eternal_threats = ["solar_flare", "aging"]
     detected = eterna.threats.detect(eternal_threats)
     eterna.vitals.add_threat("solar_flare")
     eterna.defense.engage(detected)
     eterna.defense.activate_failsafe()
+
 
 def simulate_emotional_events(eterna):
     emotion = EmotionalState("grief", intensity=9, direction="locked")
@@ -131,6 +163,7 @@ def simulate_emotional_events(eterna):
     eterna.soul_invitations.receive_response("Lira", accepted=True)
     eterna.soul_presence.register_presence("Lira")
     eterna.soul_presence.list_present_souls()
+
 
 def simulate_sensory_evolution(eterna):
     print("\n🌐 Simulating sensory evolution through physics zones...")
@@ -144,19 +177,22 @@ def simulate_sensory_evolution(eterna):
     else:
         print(f"⚠️ No physics profile found for zone: {zone_name}")
 
+
 def setup_resonance_engine(eterna):
     eterna.resonance = ResonanceEngine()
     eterna.resonance.tune_environment("Orikum Sea", frequency="calm")
     eterna.resonance.tune_environment("Quantum Forest", frequency="mysterious")
     eterna.resonance.tune_environment("Library of Shared Minds", frequency="reflective")
 
+
 def setup_time_and_agents(eterna):
     print("⏱️ Initializing time synchronization...")
     eterna.synchronize_time()
 
     print("🤖 Preparing reality agent...")
-    environment_conditions = {'hazard_level': 3}
+    environment_conditions = {"hazard_level": 3}
     eterna.deploy_reality_agent(environment_conditions)
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 #  World wrapper and checkpoint helpers for Alignment‑Governor integration
@@ -179,6 +215,12 @@ class EternaWorld:
         # Core interface
         self.eterna = EternaInterface()
         self.state_tracker: EternaStateTracker = self.eterna.state_tracker
+        # RL loop for companions
+        self.companion_trainer = PPOTrainer(
+            obs_dim=10,  # placeholder – you’ll define real obs later
+            act_dim=5,  # e.g. 5 dialogue tone classes
+            world=self,
+        )
 
         # One‑time bootstrapping
         setup_symbolic_modifiers(self.eterna)
@@ -192,9 +234,59 @@ class EternaWorld:
 
     # ---------- runtime hooks ---------- #
     def step(self, dt: float = 1.0):
-        """Advance one cognitive/physics cycle."""
-        # an existing runtime loop lives inside EternaInterface.runtime
+        # advance physics / emotions
         self.eterna.runtime.run_cycle()
+
+        # ---- RL Companion update ----
+        trainer = self.companion_trainer
+
+        # 1. simple observation vector (placeholder)
+        emo = self.state_tracker.last_emotion or "neutral"
+        val_map = {"joy": 1, "grief": -1, "anger": 0.5, "neutral": 0}
+        valence = val_map.get(emo, 0)
+        obs = [valence, 0, 0] + [0] * 7  # length 10
+
+        # 2. choose action from the policy
+        with torch.no_grad():
+            probs = trainer.policy(torch.tensor(obs, dtype=torch.float32))
+            action = torch.multinomial(probs, num_samples=1).item()
+
+        # 3. reward based on emotion
+        reward = 1 if emo == "joy" else 0
+
+        # Create a slightly different next_state to better represent state transitions
+        next_obs = obs.copy()
+        next_obs[0] += 0.01  # Small change to represent state transition
+
+        trainer.observe(obs, action, reward, next_obs)
+        trainer.step_train(batch_size=32)  # Increased batch size for better learning
+
+        # debug every 100 ticks
+        if self.eterna.runtime.cycle_count % 100 == 0:
+            # Force a training step with a larger batch size to ensure weight updates
+            if len(trainer.buffer) >= 64:
+                trainer.step_train(batch_size=64)
+
+            # Get multiple weights to track changes
+            w1 = trainer.policy.net[0].weight[0][0].item()
+            w2 = trainer.policy.net[0].weight[0][1].item() if trainer.policy.net[0].weight.size(1) > 1 else 0
+
+            # Store previous weights for comparison
+            if not hasattr(self, 'prev_weights'):
+                self.prev_weights = {'w1': w1, 'w2': w2}
+
+            # Calculate weight changes
+            w1_change = w1 - self.prev_weights['w1']
+            w2_change = w2 - self.prev_weights['w2']
+
+            # Print detailed debug information
+            print(f"[cycle {self.eterna.runtime.cycle_count}] Emotion: {emo}, Reward: {reward}, Buffer size: {len(trainer.buffer)}")
+            print(f"W[0][0] = {w1:.6f} (change: {w1_change:.6f})")
+            print(f"W[0][1] = {w2:.6f} (change: {w2_change:.6f})")
+
+            # Update previous weights for next comparison
+            self.prev_weights = {'w1': w1, 'w2': w2}
+
         self.state_tracker.save()
 
     def collect_metrics(self) -> dict:
@@ -220,4 +312,3 @@ class EternaWorld:
 def build_world() -> EternaWorld:
     CHECKPOINT_ROOT.mkdir(parents=True, exist_ok=True)
     return EternaWorld()
-

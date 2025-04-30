@@ -17,12 +17,12 @@ class AlignmentGovernor:
     """
 
     def __init__(
-            self,
-            world,
-            state_tracker,
-            threshold: float = 0.90,
-            save_interval: int = 10000,
-            event_queue: "asyncio.Queue | None" = None,
+        self,
+        world,
+        state_tracker,
+        threshold: float = 0.90,
+        save_interval: int = 10000,
+        event_queue: "asyncio.Queue | None" = None,
     ):
         self.world = world
         self.state_tracker = state_tracker

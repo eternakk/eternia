@@ -1,5 +1,3 @@
-from contextlib import nullcontext
-
 from modules.awareness import MultidimensionalAwareness
 from modules.companion_ecology import CompanionManager
 from modules.consciousness_replica import ConsciousnessReplica
@@ -38,7 +36,9 @@ class EternaInterface:
         self.lawbook = PhilosophicalLawbook()
         self.senses = SensoryProfile()
         self.physics_registry = PhysicsZoneRegistry()
-        self.exploration = ExplorationModule(user_intellect=self.evolution.intellect, eterna_interface=self)
+        self.exploration = ExplorationModule(
+            user_intellect=self.evolution.intellect, eterna_interface=self
+        )
         self.rituals = RitualSystem()
         self.emotion_circuits = EmotionalCircuitSystem(eterna_interface=self)
         self.soul_invitations = SoulInvitationSystem()
@@ -73,14 +73,15 @@ class EternaInterface:
         self.state_tracker.add_modifier(zone, modifier)
         print(f"🌗 Zone '{zone}' was symbolically modified with '{modifier}'.")
 
-
     # 📚 Memory Tracking
     def log_memory(self, memory):
-        self.state_tracker.add_memory({
-            "description": memory.description,
-            "clarity": memory.clarity,
-            "emotional_quality": memory.emotional_quality
-        })
+        self.state_tracker.add_memory(
+            {
+                "description": memory.description,
+                "clarity": memory.clarity,
+                "emotional_quality": memory.emotional_quality,
+            }
+        )
 
     def show_tracker_report(self):
         self.state_tracker.report()
@@ -106,8 +107,9 @@ class EternaInterface:
 
         self.state_tracker.update_evolution(
             intellect=self.evolution.intellect,
-            senses=100 + sense_score * 5  # scale senses evolution with enhancements
+            senses=100 + sense_score * 5,  # scale senses evolution with enhancements
         )
+
     def run_eterna(self, cycles=1):
         for _ in range(cycles):
             self.runtime.run_cycle()
@@ -125,8 +127,7 @@ class EternaInterface:
     # Inside eterna_interface.py
     def synchronize_evolution_state(self):
         self.state_tracker.update_evolution(
-            intellect=self.evolution.intellect,
-            senses=self.senses.score()
+            intellect=self.evolution.intellect, senses=self.senses.score()
         )
 
     def show_zone_physics(self, zone_name):
@@ -164,7 +165,7 @@ class EternaInterface:
         return self.refine_abstract_concept(thought)
 
     def emotional_safety_check(self, thought):
-        if thought.emotional_quality == 'negative':
+        if thought.emotional_quality == "negative":
             print("⚠️ Negative emotion detected. Pausing for refinement.")
             return False
         return True
@@ -177,14 +178,14 @@ class EternaInterface:
 
     def therapeutic_refinement(self, thought):
         print("🛠️ Therapeutic refinement mode activated.")
-        thought.emotional_quality = 'neutral'
+        thought.emotional_quality = "neutral"
         thought.clarity_level += 2
         print("✅ Thought refined therapeutically.")
 
     def refine_abstract_concept(self, thought):
         print("🎛️ Refining abstract concept...")
         thought.clarity_level = min(10, thought.clarity_level + 3)
-        thought.emotional_quality = 'positive'
+        thought.emotional_quality = "positive"
         return self.final_approval_check(thought)
 
     def final_approval_check(self, thought):
@@ -210,7 +211,7 @@ class EternaInterface:
     # -- Extracted Private Helper Methods --
 
     def _is_ready_for_manifestation(self, thought):
-        return thought.clarity_level >= 7 and thought.emotional_quality == 'positive'
+        return thought.clarity_level >= 7 and thought.emotional_quality == "positive"
 
     def _integrate_dimension(self):
         self.awareness.integrate_new_dimension()
@@ -223,7 +224,9 @@ class EternaInterface:
         print(f"✨ Instantly manifesting: {description} ✨")
 
     def _log_discovery_report(self, discoveries):
-        print(f"🔍 {len(discoveries)} new prioritized discoveries ready for exploration.")
+        print(
+            f"🔍 {len(discoveries)} new prioritized discoveries ready for exploration."
+        )
 
     def _log_user_approval(self, description):
         print(f"👍 User approved final manifestation: {description}")
@@ -241,14 +244,18 @@ class EternaInterface:
         return self.emotional_safety.monitor_and_manage_emotions()
 
     def update_emotional_state(self, mood, stress_level, trauma_triggered=False):
-        self.emotional_safety.ems.update_emotional_state(mood, stress_level, trauma_triggered)
+        self.emotional_safety.ems.update_emotional_state(
+            mood, stress_level, trauma_triggered
+        )
 
     def integrate_memory(self, description, clarity, emotional_quality):
         memory = Memory(description, clarity, emotional_quality)
         result = self.memory_integration.process_memory(memory)
         return result
 
-    def register_zone(self, name, origin, complexity, emotion_tag="", default_physics=None):
+    def register_zone(
+            self, name, origin, complexity, emotion_tag="", default_physics=None
+    ):
         zone = ExplorationZone(name, origin, complexity)
         zone.emotion_tag = emotion_tag
         self.exploration.registry.register_zone(zone)
@@ -263,6 +270,9 @@ class EternaInterface:
     # In eterna_interface.py
     def list_companions(self):
         self.companions.list_companions()
+
+    def current_companion(self):
+        return self.companions.get_current()
 
     def list_rituals(self):
         self.rituals.list_rituals()

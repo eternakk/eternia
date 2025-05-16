@@ -73,10 +73,22 @@ class SymbolicBeing(BaseCompanion):
 class CompanionManager:
     def __init__(self):
         self.companions = []
+        self.active_index = 0  # Default to the first companion (if any)
 
     def spawn(self, companion):
         self.companions.append(companion)
         print(f"✨ Companion '{companion.name}' ({companion.role}) added to the world.")
+
+    def get_current(self):
+        if not self.companions:
+            return None
+        return self.companions[self.active_index]
+
+    def set_active(self, idx):
+        if 0 <= idx < len(self.companions):
+            self.active_index = idx
+        else:
+            print("Invalid companion index.")
 
     def list_all(self):
         if not self.companions:

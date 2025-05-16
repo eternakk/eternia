@@ -1,5 +1,9 @@
+import datetime
 import json
+import math
 import os
+import random
+
 
 class EternaStateTracker:
     def __init__(self, save_path="logs/state_snapshot.json"):
@@ -17,6 +21,9 @@ class EternaStateTracker:
         self.modifiers = []
         self.discoveries = []
         self.checkpoints: list[str] = []
+        self.last_emotion: str | None = None
+        self.last_intensity: float = 0.0
+        self.last_dominance: float = 0.0
 
     def log_emotional_impact(self, emotion_name, score):
         if not hasattr(self, "emotional_log"):
@@ -41,7 +48,7 @@ class EternaStateTracker:
         self.last_emotion = {
             "name": emotion.name,
             "intensity": emotion.intensity,
-            "direction": emotion.direction
+            "direction": emotion.direction,
         }
 
     def add_modifier(self, zone, modifier):
@@ -69,8 +76,7 @@ class EternaStateTracker:
             "evolution": self.evolution_stats,
             "explored_zones": self.explored_zones,
             "discoveries": self.discoveries,
-            "last_zone": self.last_zone  # Add this line
-
+            "last_zone": self.last_zone,  # Add this line
         }
         os.makedirs(os.path.dirname(self.save_path), exist_ok=True)
         with open(self.save_path, "w") as f:
@@ -124,7 +130,9 @@ class EternaStateTracker:
             print(f"  • {zone}: {mods}")
         print("Memories:")
         for mem in self.memories:
-            print(f"  • {mem['description']} (Clarity: {mem['clarity']}, Emotion: {mem['emotional_quality']})")
+            print(
+                f"  • {mem['description']} (Clarity: {mem['clarity']}, Emotion: {mem['emotional_quality']})"
+            )
         print("Discoveries:")
         for disc in self.discoveries:
             print(f"  • {disc}")
@@ -142,6 +150,7 @@ class EternaStateTracker:
             last_modified_zone = list(self.applied_modifiers.keys())[-1]
             print(f"🔮 Last modified zone: {last_modified_zone}")
         return None
+
     # ------------------------------------------------------------------
     # Record that we just rolled back to a given checkpoint
     # ------------------------------------------------------------------
@@ -157,3 +166,41 @@ class EternaStateTracker:
 
     def current_zone(self):
         return self.last_zone or "Quantum Forest"
+
+    def zone_index(self, zone_name: str | None) -> int:
+        return abs(hash(zone_name or "")) % 10
+
+    def recent_reward_avg(self) -> float:
+        return getattr(self, "_recent_reward_avg", 0.0)
+
+    def observation_vector(self, companion=None) -> list[float]:
+        val_map = {"joy": 1, "grief": -1, "anger": 0.5, "neutral": 0}
+        emo = self.last_emotion or "neutral"
+        valence = val_map.get(emo, 0)
+        arousal = self.last_intensity / 10.0
+        dominance = self.last_dominance / 10.0
+        zone_id = self.zone_index(getattr(self, "last_zone", None)) / 10.0
+        role_id = getattr(companion, "role_id", 0) / 10.0 if companion else 0.0
+        convo_len = 0.0
+        ident = self.identity_continuity()
+        tod = math.sin(datetime.datetime.now().hour / 24 * 2 * math.pi)
+        recent_r = self.recent_reward_avg()
+        noise = random.random()
+        return [
+            valence,
+            arousal,
+            dominance,
+            zone_id,
+            role_id,
+            convo_len,
+            ident,
+            tod,
+            recent_r,
+            noise,
+        ]
+
+    # bind dynamically so self.observation_vector works
+    zone_index = zone_index
+    identity_continuity = identity_continuity
+    recent_reward_avg = recent_reward_avg
+    observation_vector = observation_vector

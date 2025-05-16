@@ -246,6 +246,14 @@ class EternaWorld:
         valence = val_map.get(emo, 0)
         obs = [valence, 0, 0] + [0] * 7  # length 10
 
+        companion = self.eterna.current_companion()  # whichever NPC is speaking
+        obs = self.state_tracker.observation_vector(companion)
+        obs_tensor = torch.tensor(obs, dtype=torch.float32)
+
+        with torch.no_grad():
+            probs = trainer.policy(obs_tensor)
+            action = torch.multinomial(probs, 1).item()
+
         # 2. choose action from the policy
         with torch.no_grad():
             probs = trainer.policy(torch.tensor(obs, dtype=torch.float32))
@@ -269,23 +277,29 @@ class EternaWorld:
 
             # Get multiple weights to track changes
             w1 = trainer.policy.net[0].weight[0][0].item()
-            w2 = trainer.policy.net[0].weight[0][1].item() if trainer.policy.net[0].weight.size(1) > 1 else 0
+            w2 = (
+                trainer.policy.net[0].weight[0][1].item()
+                if trainer.policy.net[0].weight.size(1) > 1
+                else 0
+            )
 
             # Store previous weights for comparison
-            if not hasattr(self, 'prev_weights'):
-                self.prev_weights = {'w1': w1, 'w2': w2}
+            if not hasattr(self, "prev_weights"):
+                self.prev_weights = {"w1": w1, "w2": w2}
 
             # Calculate weight changes
-            w1_change = w1 - self.prev_weights['w1']
-            w2_change = w2 - self.prev_weights['w2']
+            w1_change = w1 - self.prev_weights["w1"]
+            w2_change = w2 - self.prev_weights["w2"]
 
             # Print detailed debug information
-            print(f"[cycle {self.eterna.runtime.cycle_count}] Emotion: {emo}, Reward: {reward}, Buffer size: {len(trainer.buffer)}")
+            print(
+                f"[cycle {self.eterna.runtime.cycle_count}] Emotion: {emo}, Reward: {reward}, Buffer size: {len(trainer.buffer)}"
+            )
             print(f"W[0][0] = {w1:.6f} (change: {w1_change:.6f})")
             print(f"W[0][1] = {w2:.6f} (change: {w2_change:.6f})")
 
             # Update previous weights for next comparison
-            self.prev_weights = {'w1': w1, 'w2': w2}
+            self.prev_weights = {"w1": w1, "w2": w2}
 
         self.state_tracker.save()
 

@@ -9,6 +9,7 @@ from fastapi import Query
 from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
 from .deps import run_world  # background sim loop
@@ -46,6 +47,24 @@ async def zone_assets(name: str):
 
 
 # ─────────────────────────────  STATE  ──────────────────────────────
+
+
+class RewardIn(BaseModel):
+    value: float
+
+
+@app.post("/reward/{companion_name}")
+async def send_reward(
+    companion_name: str, body: RewardIn, dependencies=[Depends(auth)]
+):
+    companion = world.eterna.get_companion(companion_name)
+    if not companion:
+        raise HTTPException(404, "companion not found")
+    # stash reward so step() can read it
+    world.companion_trainer.observe_reward(companion_name, body.value)
+    return {"ok": True}
+
+
 @app.get("/state", response_model=StateOut)
 async def get_state():
     tracker = world.state_tracker

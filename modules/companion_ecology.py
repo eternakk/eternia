@@ -2,6 +2,15 @@
 
 import random
 
+DIALOGUE_TONES = [
+    "neutral",  # 0
+    "comforting",  # 1
+    "curious",  # 2
+    "playful",  # 3
+    "serious",  # 4
+]
+
+
 class BaseCompanion:
     def __init__(self, name, role="neutral", memory_seed=None):
         self.name = name
@@ -9,6 +18,10 @@ class BaseCompanion:
         self.memory_seed = memory_seed or ""
         self.affinity = 50  # baseline trust/love toward user
         self.routine = []
+
+    def apply_tone(companion, tone_id: int):
+        tone = DIALOGUE_TONES[tone_id]
+        companion.set_tone(tone)  # implement in your agent class
 
     def interact(self):
         print(f"🤝 You interact with {self.name} ({self.role}).")
@@ -44,13 +57,15 @@ class SymbolicBeing(BaseCompanion):
         self.archetype = archetype
 
     def react(self):
-        print(f"🦄 {self.name} (a {self.archetype}) whispers a truth: '{self._generate_wisdom()}'")
+        print(
+            f"🦄 {self.name} (a {self.archetype}) whispers a truth: '{self._generate_wisdom()}'"
+        )
 
     def _generate_wisdom(self):
         sayings = [
             "To shape time, one must hold stillness.",
             "The horizon listens more than the mountain speaks.",
-            "Every echo longs to return to its source."
+            "Every echo longs to return to its source.",
         ]
         return random.choice(sayings)
 
@@ -70,7 +85,9 @@ class CompanionManager:
             print(f" - {c.name} ({c.role})")
 
     def interact_with(self, name):
-        match = next((c for c in self.companions if c.name.lower() == name.lower()), None)
+        match = next(
+            (c for c in self.companions if c.name.lower() == name.lower()), None
+        )
         if match:
             match.interact()
         else:

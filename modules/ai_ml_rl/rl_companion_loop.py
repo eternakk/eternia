@@ -36,12 +36,12 @@ Transition = namedtuple("Transition", "state action reward next_state done")
 
 class PPOTrainer:
     def __init__(
-            self,
-            obs_dim: int,
-            act_dim: int,
-            world,
-            gamma: float = 0.99,
-            lr: float = 5e-3,  # Further increased learning rate for more noticeable updates
+        self,
+        obs_dim: int,
+        act_dim: int,
+        world,
+        gamma: float = 0.99,
+        lr: float = 5e-3,  # Further increased learning rate for more noticeable updates
     ):
         self.world = world  # you can access companions, emotions, etc.
         self.gamma = gamma
@@ -51,7 +51,9 @@ class PPOTrainer:
         for param in self.policy.parameters():
             param.data = param.data + torch.randn_like(param.data) * 0.01
 
-        self.optimizer = optim.Adam(self.policy.parameters(), lr=lr, weight_decay=1e-5)  # Added weight decay
+        self.optimizer = optim.Adam(
+            self.policy.parameters(), lr=lr, weight_decay=1e-5
+        )  # Added weight decay
         self.buffer: deque[Transition] = deque(maxlen=5000)
 
     # ----- hooks you’ll call from runtime ------------------------------------
@@ -122,3 +124,6 @@ class PPOTrainer:
         loss = policy_loss - entropy_bonus
 
         return loss
+
+    def observe_reward(self, companion_name: str, value: float):
+        self._pending_rewards[companion_name] = value  # dict of latest clicks

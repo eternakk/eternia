@@ -55,7 +55,7 @@ class RewardIn(BaseModel):
 
 @app.post("/reward/{companion_name}")
 async def send_reward(
-    companion_name: str, body: RewardIn, dependencies=[Depends(auth)]
+        companion_name: str, body: RewardIn, dependencies=[Depends(auth)]
 ):
     companion = world.eterna.get_companion(companion_name)
     if not companion:
@@ -178,3 +178,36 @@ def toggle_law(name: str, enabled: bool = Body(embed=True)):
 async def startup_event():
     asyncio.create_task(broadcaster())
     asyncio.create_task(run_world())  # ← new line
+
+
+@app.get("/agents")
+async def list_agents():
+    # Assuming: world.eterna.companion_manager.companions is your agent list
+    agents = world.eterna.companion_manager.companions
+    return [
+        {
+            "name": agent.name,
+            "role": agent.role,
+            "emotion": getattr(agent, "emotion", None),  # if emotion attribute exists
+            "zone": getattr(agent, "zone", None),
+            "memory": getattr(agent, "memory", None),
+            # Add other info (reward, stats, etc.) as needed
+        }
+        for agent in agents
+    ]
+
+
+@app.get("/agent/{name}")
+async def get_agent(name: str):
+    agent = world.eterna.get_companion(name)
+    if not agent:
+        raise HTTPException(404, "Agent not found")
+    # Expand details as needed
+    return {
+        "name": agent.name,
+        "role": agent.role,
+        "emotion": getattr(agent, "emotion", None),
+        "zone": getattr(agent, "zone", None),
+        "memory": getattr(agent, "memory", None),
+        "history": getattr(agent, "history", []),
+    }

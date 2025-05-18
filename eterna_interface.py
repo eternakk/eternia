@@ -5,6 +5,7 @@ from modules.emotional_safety import EmotionalSafetyModule
 from modules.emotions import EmotionalCircuitSystem
 from modules.evolution import UserEvolution
 from modules.exploration import ExplorationModule, ExplorationZone
+from modules.law_parser import load_laws
 from modules.laws import PhilosophicalLawbook
 from modules.memory_integration import MemoryIntegrationModule, Memory
 from modules.physics import PhysicsZoneRegistry, PhysicsProfile
@@ -53,6 +54,7 @@ class EternaInterface:
         self.modifiers = SymbolicModifierRegistry()
         self.time_sync = TimeSynchronizer(self)
         self.agent_comm = AgentCommunicationProtocol(self)
+        self.law_registry = load_laws()
 
     def synchronize_time(self):
         self.time_sync.adjust_time_flow(self.senses)
@@ -254,7 +256,7 @@ class EternaInterface:
         return result
 
     def register_zone(
-        self, name, origin, complexity, emotion_tag="", default_physics=None
+            self, name, origin, complexity, emotion_tag="", default_physics=None
     ):
         zone = ExplorationZone(name, origin, complexity)
         zone.emotion_tag = emotion_tag

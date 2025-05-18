@@ -4,7 +4,8 @@ const fetcher = (url: string) => fetch(url).then(res => res.json());
 
 export default function AgentDashboard() {
     const {data: agents, error} = useSWR('/api/agents', fetcher, {refreshInterval: 5000}); // Poll every 5s for live
-
+    console.log(agents);
+    console.log("error", error);
     if (error) return <div>Error loading agents.</div>;
     if (!agents) return <div>Loading agents...</div>;
 

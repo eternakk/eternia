@@ -301,6 +301,39 @@ class EternaWorld:
             # Update previous weights for next comparison
             self.prev_weights = {"w1": w1, "w2": w2}
 
+        # ----- Mentor AI Upgrade: Dynamic agent and zone state for UI demo -----
+        import random
+
+        # 1. Agents: If agent has an 'emotion' attribute, change it occasionally for demo/testing.
+        for companion in getattr(self.eterna.companions, "companions", []):
+            if hasattr(companion, "emotion"):
+                if random.random() < 0.18:  # 18% chance per step for visible UI change
+                    companion.emotion = random.choice(
+                        ["happy", "sad", "angry", "neutral"]
+                    )
+
+        # 2. Zones: Randomly change emotion_tag and modifiers for UI feedback
+        if hasattr(self.eterna, "exploration") and hasattr(
+                self.eterna.exploration, "registry"
+        ):
+            for zone in getattr(self.eterna.exploration.registry, "zones", []):
+                if random.random() < 0.15:
+                    zone.emotion_tag = random.choice(["awe", "grief", "joy", "neutral"])
+                    zone.modifiers = (
+                        ["blessed"]
+                        if zone.emotion_tag == "joy"
+                        else (["cursed"] if zone.emotion_tag == "grief" else [])
+                    )
+
+        # 3. Rituals: Randomly trigger a ritual for demo/testing
+        if hasattr(self.eterna, "rituals") and getattr(
+                self.eterna.rituals, "rituals", None
+        ):
+            if random.random() < 0.08:
+                ritual = random.choice(list(self.eterna.rituals.rituals.values()))
+                self.eterna.rituals.perform(ritual.name)
+        # ----- End Mentor AI Upgrade -----
+
         self.state_tracker.save()
 
     def collect_metrics(self) -> dict:

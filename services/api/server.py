@@ -55,7 +55,7 @@ class RewardIn(BaseModel):
 
 @app.post("/reward/{companion_name}")
 async def send_reward(
-        companion_name: str, body: RewardIn, dependencies=[Depends(auth)]
+    companion_name: str, body: RewardIn, dependencies=[Depends(auth)]
 ):
     companion = world.eterna.get_companion(companion_name)
     if not companion:
@@ -180,10 +180,10 @@ async def startup_event():
     asyncio.create_task(run_world())  # ← new line
 
 
-@app.get("/agents")
+@app.get("/api/agents")
 async def list_agents():
-    # Assuming: world.eterna.companion_manager.companions is your agent list
-    agents = world.eterna.companion_manager.companions
+    # Access companions through the companions attribute
+    agents = world.eterna.companions.companions
     return [
         {
             "name": agent.name,
@@ -197,7 +197,53 @@ async def list_agents():
     ]
 
 
-@app.get("/agent/{name}")
+@app.get("/api/zones")
+async def list_zones():
+    # Get zones from the exploration registry
+    zones = world.eterna.exploration.registry.zones
+    return [
+        {
+            "id": i,  # Use index as ID
+            "name": zone.name,
+            "origin": zone.origin,
+            "complexity": zone.complexity_level,
+            "explored": zone.explored,
+            "emotion": zone.emotion_tag,
+            "modifiers": zone.modifiers,
+        }
+        for i, zone in enumerate(zones)
+    ]
+
+
+@app.get("/api/rituals")
+async def list_rituals():
+    # Get rituals from the ritual system
+    rituals_dict = world.eterna.rituals.rituals
+    return [
+        {
+            "id": i,  # Use index as ID
+            "name": ritual.name,
+            "purpose": ritual.purpose,
+            "steps": ritual.steps,
+            "symbolic_elements": ritual.symbolic_elements,
+        }
+        for i, ritual in enumerate(rituals_dict.values())
+    ]
+
+
+@app.post("/api/rituals/trigger/{id}")
+async def trigger_ritual(id: int):
+    # Get rituals from the ritual system
+    rituals = list(world.eterna.rituals.rituals.values())
+    if id < 0 or id >= len(rituals):
+        raise HTTPException(404, "Ritual not found")
+
+    ritual = rituals[id]
+    world.eterna.rituals.perform(ritual.name)
+    return {"status": "success", "message": f"Ritual '{ritual.name}' triggered"}
+
+
+@app.get("/api/agent/{name}")
 async def get_agent(name: str):
     agent = world.eterna.get_companion(name)
     if not agent:

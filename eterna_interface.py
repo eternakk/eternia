@@ -254,7 +254,7 @@ class EternaInterface:
         return result
 
     def register_zone(
-            self, name, origin, complexity, emotion_tag="", default_physics=None
+        self, name, origin, complexity, emotion_tag="", default_physics=None
     ):
         zone = ExplorationZone(name, origin, complexity)
         zone.emotion_tag = emotion_tag

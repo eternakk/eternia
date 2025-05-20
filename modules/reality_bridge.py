@@ -65,3 +65,37 @@ class RealityBridgeModule:
         else:
             print(f"🚫 Discovery '{discovery.description}' declined by user.")
             return False
+
+
+class RealityAgent:
+    def __init__(self, durability, environment_resistance):
+        self.durability = durability
+        self.environment_resistance = environment_resistance
+        self.active = False
+
+    def activate(self):
+        self.active = True
+        print(f"🤖 Reality agent activated (Durability: {self.durability}, Resistance: {self.environment_resistance})")
+
+    def deactivate(self):
+        self.active = False
+        print("⚠️ Reality agent deactivated. Consciousness returned to Eterna.")
+
+class AgentCommunicationProtocol:
+    def __init__(self, eterna_interface):
+        self.eterna = eterna_interface
+        self.active_agent = None
+
+    def deploy_agent(self, environment_conditions):
+        durability = self.eterna.evolution.intellect + 10
+        resistance = environment_conditions.get('hazard_level', 5) * 2
+        agent = RealityAgent(durability, resistance)
+        agent.activate()
+        self.active_agent = agent
+
+    def recall_agent(self):
+        if self.active_agent:
+            self.active_agent.deactivate()
+            self.active_agent = None
+        else:
+            print("⚠️ No active agent to recall.")

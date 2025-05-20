@@ -2,11 +2,26 @@ import random
 
 
 class ExplorationZone:
-    def __init__(self, name, origin, complexity_level):
+    def __init__(self, name, origin, complexity_level, emotion_tag=None):
         self.name = name
         self.origin = origin  # 'user', 'AGI', 'shared'
         self.complexity_level = complexity_level
         self.explored = False
+        self.emotion_tag = emotion_tag  # New symbolic emotional link
+        self.modifiers = []  # To store symbolic overlays
+
+    def add_modifier(self, modifier_name):
+        if modifier_name not in self.modifiers:
+            self.modifiers.append(modifier_name)
+            print(f"🌗 Zone '{self.name}' was symbolically modified with '{modifier_name}'.")
+
+    def show_modifiers(self):
+        if self.modifiers:
+            print(f"🎨 Symbolic Layers for '{self.name}':")
+            for m in self.modifiers:
+                print(f" - {m}")
+        else:
+            print(f"➖ No symbolic modifiers in '{self.name}'.")
 
 class ExplorationRegistry:
     def __init__(self):
@@ -18,6 +33,18 @@ class ExplorationRegistry:
 
     def available_zones(self, user_intellect):
         return [z for z in self.zones if not z.explored and z.complexity_level <= user_intellect + 15]
+
+    def list_zones(self):
+        if not self.zones:
+            print("🌌 No zones registered.")
+        else:
+            print("🌌 Registered Exploration Zones:")
+            for zone in self.zones:
+                explored_status = "✅" if zone.explored else "🟣"
+                print(f" - {zone.name} ({zone.origin}, complexity: {zone.complexity_level}) {explored_status}")
+
+    def get_zones_by_emotion(self, emotion_name):
+        return [z for z in self.zones if z.emotion_tag == emotion_name]
 
 class VirgilGuide:
     def guide_user(self, zone, physics_profile=None):
@@ -47,8 +74,23 @@ class ExplorationModule:
         self.virgil.guide_user(zone, physics_profile)
 
         zone.explored = True
+        if self.eterna:
+            self.eterna.state_tracker.mark_zone(zone.name)
         print(f"✨ You explored: {zone.name} — Complexity: {zone.complexity_level}")
         return zone if return_zone else None
+
+    def manual_explore(self, zone_name):
+        zone = next((z for z in self.registry.zones if z.name.lower() == zone_name.lower()), None)
+        if zone:
+            physics_profile = self.eterna.physics_registry.get_profile(zone.name) if self.eterna else None
+            self.virgil.guide_user(zone, physics_profile)
+            zone.explored = True
+            if self.eterna:
+                self.eterna.state_tracker.mark_zone(zone.name)
+            print(f"✨ Manually explored: {zone.name} — Complexity: {zone.complexity_level}")
+        else:
+            print(f"⚠️ Zone '{zone_name}' doesn't exist.")
+
 
     def mark_zone_as_explored(self, zone_name):
         for zone in self.registry.zones:

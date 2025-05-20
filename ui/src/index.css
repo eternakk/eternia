@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+.emotion-badge {
+    @apply px-2 py-1 rounded text-white text-xs font-bold;
+}
+
+.emotion-happy {
+    @apply bg-yellow-400;
+}
+
+.emotion-sad {
+    @apply bg-blue-400;
+}
+
+.emotion-angry {
+    @apply bg-red-500;
+}
+
+.emotion-neutral {
+    @apply bg-gray-400;
+}

@@ -1,0 +1,12 @@
+[meta]
+name        = "Law of Shared Existence"
+version     = 1
+enabled     = true
+description = "Others may enter your world only with full consent, understanding, and the intent of shared creation."
+
+[trigger]
+on_event = ["companion_spawn"]
+
+conditions = []
+
+[effects]

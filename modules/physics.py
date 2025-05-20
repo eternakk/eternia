@@ -20,6 +20,7 @@ class PhysicsProfile:
 class PhysicsZoneRegistry:
     def __init__(self):
         self.zone_profiles = {}
+        self.profiles = {}  # ✅ add this line to hold the profiles
 
     def assign_profile(self, zone_name, profile: PhysicsProfile):
         if profile.conscious_safe:
@@ -29,4 +30,7 @@ class PhysicsZoneRegistry:
             print(f"❌ Profile '{profile.name}' rejected for zone '{zone_name}' — consciousness integrity risk.")
 
     def get_profile(self, zone_name):
-        return self.zone_profiles.get(zone_name, None)
+        for key in self.zone_profiles:
+            if key.lower() == zone_name.lower():
+                return self.zone_profiles[key]
+        return None

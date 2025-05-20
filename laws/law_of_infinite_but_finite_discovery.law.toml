@@ -1,0 +1,12 @@
+[meta]
+name        = "Law of Infinite But Finite Discovery"
+version     = 1
+enabled     = true
+description = "The world must always present new mysteries — but all discoveries must remain within your grasp, at your current level of evolution."
+
+[trigger]
+on_event = ["cycle"]
+
+conditions = []
+
+[effects]

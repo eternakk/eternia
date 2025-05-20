@@ -1,0 +1,12 @@
+[meta]
+name        = "Law of Gentle Integration"
+version     = 1
+enabled     = true
+description = "Negative memories or emotions may only be integrated through healing, never forced repetition."
+
+[trigger]
+on_event = ["cycle"]
+
+conditions = []
+
+[effects]

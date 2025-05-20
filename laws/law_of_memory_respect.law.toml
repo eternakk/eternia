@@ -1,0 +1,12 @@
+[meta]
+name        = "Law of Memory Respect"
+version     = 1
+enabled     = true
+description = "Your past selves must never be erased — only transformed. Memory is the root of identity."
+
+[trigger]
+on_event = ["memory_update"]
+
+conditions = []
+
+[effects]

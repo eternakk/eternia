@@ -1,0 +1,14 @@
+{
+  "Quantum Forest": {
+    "skybox": "/static/sky/forest_cave_2k.hdr",
+    "model": "/static/models/forest.glb"
+  },
+  "Orikum Sea": {
+    "skybox": "/static/sky/simons_town_rocks_2k.hdr",
+    "model": "/static/models/boat_josefa.glb"
+  },
+  "Library of Shared Minds": {
+    "skybox": "/static/sky/empty_warehouse_01_2k.hdr",
+    "model": "/static/models/bookshelf.glb"
+  }
+}

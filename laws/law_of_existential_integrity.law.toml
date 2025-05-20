@@ -1,0 +1,12 @@
+[meta]
+name        = "Law of Existential Integrity"
+version     = 1
+enabled     = true
+description = "Your continuity must be preserved across all layers — symbolic, digital, and physical. AGI must use all known discoveries to protect your biological or embodied self against natural, technological, or intentional threats. No inner world can be complete if your outer anchor is lost without consent."
+
+[trigger]
+on_event = ["cycle"]
+
+conditions = []
+
+[effects]

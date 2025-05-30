@@ -44,14 +44,14 @@ class TestAPIIntegration:
     def test_command_pause_resume(self, client, auth_headers):
         """Test that the pause and resume commands work correctly."""
         # Test pause command
-        with patch("services.api.deps.governor") as mock_governor:
+        with patch("services.api.server.governor") as mock_governor:
             response = client.post("/command/pause", headers=auth_headers)
             assert response.status_code == 200
             assert response.json()["status"] == "paused"
             mock_governor.pause.assert_called_once()
 
         # Test resume command
-        with patch("services.api.deps.governor") as mock_governor:
+        with patch("services.api.server.governor") as mock_governor:
             mock_governor.is_shutdown.return_value = False
             response = client.post("/command/resume", headers=auth_headers)
             assert response.status_code == 200
@@ -60,7 +60,7 @@ class TestAPIIntegration:
 
     def test_command_shutdown(self, client, auth_headers):
         """Test that the shutdown command works correctly."""
-        with patch("services.api.deps.governor") as mock_governor, \
+        with patch("services.api.server.governor") as mock_governor, \
              patch("services.api.deps.save_shutdown_state") as mock_save:
             response = client.post("/command/shutdown", headers=auth_headers)
             assert response.status_code == 200
@@ -70,7 +70,7 @@ class TestAPIIntegration:
 
     def test_command_rollback(self, client, auth_headers):
         """Test that the rollback command works correctly."""
-        with patch("services.api.deps.governor") as mock_governor:
+        with patch("services.api.server.governor") as mock_governor:
             response = client.post("/command/rollback", headers=auth_headers)
             assert response.status_code == 200
             assert response.json()["status"] == "rolled_back"
@@ -78,7 +78,7 @@ class TestAPIIntegration:
 
     def test_list_agents(self, client):
         """Test that the /api/agents endpoint returns the correct agents."""
-        with patch("services.api.deps.world") as mock_world:
+        with patch("services.api.server.world") as mock_world:
             # Create mock companions
             mock_companion = MagicMock()
             mock_companion.name = "TestCompanion"
@@ -86,10 +86,10 @@ class TestAPIIntegration:
             mock_companion.emotion = "Happy"
             mock_companion.zone = "TestZone"
             mock_companion.memory = ["Memory1", "Memory2"]
-            
+
             # Set up the mock world to return our mock companions
             mock_world.eterna.companions.companions = [mock_companion]
-            
+
             response = client.get("/api/agents")
             assert response.status_code == 200
             data = response.json()
@@ -101,7 +101,7 @@ class TestAPIIntegration:
 
     def test_list_zones(self, client):
         """Test that the /api/zones endpoint returns the correct zones."""
-        with patch("services.api.deps.world") as mock_world:
+        with patch("services.api.server.world") as mock_world:
             # Create mock zone
             mock_zone = MagicMock()
             mock_zone.name = "TestZone"
@@ -110,10 +110,10 @@ class TestAPIIntegration:
             mock_zone.explored = True
             mock_zone.emotion_tag = "Peaceful"
             mock_zone.modifiers = ["Modifier1", "Modifier2"]
-            
+
             # Set up the mock world to return our mock zone
             mock_world.eterna.exploration.registry.zones = [mock_zone]
-            
+
             response = client.get("/api/zones")
             assert response.status_code == 200
             data = response.json()
@@ -131,7 +131,7 @@ class TestAPIIntegration:
         invalid_headers = {"Authorization": "Bearer invalid_token"}
         response = client.post("/command/pause", headers=invalid_headers)
         assert response.status_code == 401
-        
+
         # Test with missing token
         response = client.post("/command/pause")
         assert response.status_code == 422  # FastAPI validation error for missing header
@@ -142,13 +142,13 @@ class TestAPIIntegration:
             # This test is more complex as it involves WebSockets
             # In a real test, we would use a WebSocket client to connect and verify events
             # For now, we'll just verify that the broadcaster task is created on startup
-            
+
             # Create a mock for asyncio.create_task
             with patch("asyncio.create_task") as mock_create_task:
                 # Call the startup event handler
                 for handler in app.router.on_startup:
                     asyncio.run(handler())
-                
+
                 # Verify that create_task was called at least twice (for broadcaster and run_world)
                 assert mock_create_task.call_count >= 2
 

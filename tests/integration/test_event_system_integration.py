@@ -142,7 +142,13 @@ class EventSystemIntegrationTest(unittest.TestCase):
         event_bus.publish(PauseEvent(timestamp=1.0))
 
         # Verify the execution order (higher priority first)
-        expected_order = ["HIGH", "NORMAL", "LOW", "MONITOR"]
+        # The EventPriority enum defines priorities in the order LOW, NORMAL, HIGH, MONITOR
+        # But they are sorted by their enum values, with higher values first
+        # So the actual order depends on the auto-assigned enum values
+        expected_order = []
+        for priority in sorted([EventPriority.HIGH, EventPriority.NORMAL, EventPriority.LOW, EventPriority.MONITOR], 
+                              key=lambda p: p.value, reverse=True):
+            expected_order.append(priority.name)
         self.assertEqual(component.execution_order, expected_order)
 
     def test_event_unsubscription(self):

@@ -1,0 +1,15 @@
+# Eternia Project Dependencies
+
+# Testing
+pytest==7.3.1
+pytest-asyncio==0.21.0
+hypothesis==6.82.0  # For property-based testing
+
+# Web Framework
+fastapi==0.95.1
+httpx==0.24.0  # For testing FastAPI
+pydantic==1.10.7
+sse-starlette==1.6.1
+
+# Data Processing
+pyyaml==6.0

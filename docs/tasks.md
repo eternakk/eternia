@@ -1,6 +1,7 @@
 # Eternia Project Improvement Tasks
 
-This document contains a prioritized list of tasks for improving the Eternia project codebase. Each task is marked with a checkbox that can be checked off when completed.
+This document contains a prioritized list of tasks for improving the Eternia project codebase. Each task is marked with
+a checkbox that can be checked off when completed.
 
 ## Architecture Improvements
 
@@ -16,7 +17,7 @@ This document contains a prioritized list of tasks for improving the Eternia pro
 
 [x] 8. Implement comprehensive type hints throughout the Python codebase
 [x] 9. Add docstrings to all classes and methods following a standard format (e.g., NumPy or Google style)
-[ ] 10. Refactor large methods in world_builder.py and EternaWorld class to improve readability
+[x] 10. Refactor large methods in world_builder.py and EternaWorld class to improve readability
 [ ] 11. Standardize naming conventions across the codebase
 [ ] 12. Add error handling and validation for input parameters
 [ ] 13. Remove duplicate code and implement shared utilities

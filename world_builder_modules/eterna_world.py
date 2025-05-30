@@ -90,13 +90,9 @@ class EternaWorld:
         """
         Advance the simulation by one step.
 
-        This method:
+        This method orchestrates the simulation step by calling more focused helper methods:
         1. Advances the physics and emotions by running a cycle
-        2. Updates the RL companion system:
-           - Gets observations from the current state
-           - Chooses actions based on the policy
-           - Calculates rewards based on emotions
-           - Updates the policy with the new observations
+        2. Updates the RL companion system
         3. Handles law compliance and agent evolution
         4. Performs debug logging every 100 ticks
         5. Updates agent and zone states for UI feedback
@@ -105,51 +101,115 @@ class EternaWorld:
         Args:
             dt: The time delta for this step. Defaults to 1.0.
         """
-        # advance physics / emotions
+        # Advance physics / emotions
         self.eterna.runtime.run_cycle()
 
-        # ---- RL Companion update ----
+        # Get current companion and emotion
+        companion = self.eterna.current_companion()
+        emo = self.state_tracker.last_emotion or "neutral"
+
+        # Update RL companion system
+        obs, action, reward = self._update_rl_companion(companion, emo)
+
+        # Handle law compliance and execute actions
+        chosen_action_name = self._get_action_name(action)
+        law_blocked = self._handle_law_compliance(companion, chosen_action_name, reward)
+
+        if not law_blocked:
+            self._execute_agent_action(companion, chosen_action_name)
+
+        # Update agent evolution
+        self._update_agent_evolution(companion)
+
+        # Log debug information
+        self._log_debug_info(emo, reward)
+
+        # Update UI state
+        self._update_ui_state()
+
+        # Save current state
+        self.state_tracker.save()
+
+    def _update_rl_companion(self, companion, emo: str) -> Tuple[List[float], int, float]:
+        """
+        Update the RL companion system.
+
+        This method:
+        1. Gets observations from the current state
+        2. Chooses actions based on the policy
+        3. Calculates rewards based on emotions
+        4. Updates the policy with the new observations
+
+        Args:
+            companion: The current companion
+            emo: The current emotion
+
+        Returns:
+            Tuple containing:
+            - obs: The observation vector
+            - action: The chosen action
+            - reward: The calculated reward
+        """
         trainer = self.companion_trainer
 
-        # 1. simple observation vector (placeholder)
-        emo = self.state_tracker.last_emotion or "neutral"
+        # Create observation vector
         val_map = {"joy": 1, "grief": -1, "anger": 0.5, "neutral": 0}
         valence = val_map.get(emo, 0)
         obs = [valence, 0, 0] + [0] * 7  # length 10
 
-        companion = self.eterna.current_companion()  # whichever NPC is speaking
+        # Get observation from state tracker
         obs = self.state_tracker.observation_vector(companion)
         obs_tensor = torch.tensor(obs, dtype=torch.float32)
 
+        # Choose action from policy
         with torch.no_grad():
             probs = trainer.policy(obs_tensor)
-            action = torch.multinomial(probs, 1).item()
-
-        # 2. choose action from the policy
-        with torch.no_grad():
-            probs = trainer.policy(torch.tensor(obs, dtype=torch.float32))
             action = torch.multinomial(probs, num_samples=1).item()
 
-        # 3. reward based on emotion
+        # Calculate reward based on emotion
         reward = 1 if emo == "joy" else 0
 
-        # Create a slightly different next_state to better represent state transitions
+        # Create next state and observe transition
         next_obs = obs.copy()
         next_obs[0] += 0.01  # Small change to represent state transition
-
         trainer.observe(obs, action, reward, next_obs)
-        trainer.step_train(batch_size=32)  # Increased batch size for better learning
 
-        # ----- Law Compliance and Agent Evolution Upgrade -----
-        law_blocked = False
-        chosen_action_name = None
+        # Train the model
+        trainer.step_train(batch_size=32)
+
+        return obs, action, reward
+
+    def _get_action_name(self, action: int) -> str:
+        """
+        Convert action index to action name.
+
+        Args:
+            action: The action index
+
+        Returns:
+            The name of the action
+        """
         actions = ["speak_gently", "move_zone", "start_ritual", "reflect", "idle"]
-        if "action" in locals():
-            chosen_action_name = actions[action % len(actions)]
-        else:
-            chosen_action_name = "idle"
+        return actions[action % len(actions)]
 
-        # Law check: block or modify action if forbidden by any enabled law
+    def _handle_law_compliance(self, companion, chosen_action_name: str, reward: float) -> bool:
+        """
+        Check and enforce law compliance.
+
+        This method checks if the chosen action is forbidden by any enabled law
+        and applies the appropriate effects.
+
+        Args:
+            companion: The current companion
+            chosen_action_name: The name of the chosen action
+            reward: The current reward value
+
+        Returns:
+            True if the action is blocked by a law, False otherwise
+        """
+        law_blocked = False
+
+        # Check each law for compliance
         for law in self.law_registry.values():
             if getattr(law, "enabled", False) and chosen_action_name in getattr(
                     law, "on_event", []
@@ -165,30 +225,58 @@ class EternaWorld:
                 if law_blocked:
                     break
 
-        # Only execute agent action if not blocked
-        if not law_blocked:
-            if chosen_action_name == "move_zone":
-                possible_zones = [
-                    z
-                    for z in self.eterna.exploration.registry.zones
-                    if z != getattr(companion, "zone", None)
-                ]
-                if possible_zones:
-                    companion.zone = random.choice(possible_zones)
-            elif chosen_action_name == "start_ritual":
-                if hasattr(self.eterna, "rituals") and self.eterna.rituals.rituals:
-                    ritual = random.choice(list(self.eterna.rituals.rituals.values()))
-                    self.eterna.rituals.perform(ritual.name)
-            # Add other actions as needed
+        return law_blocked
 
-        # Agent evolution: increment agent's evolution_level
+    def _execute_agent_action(self, companion, chosen_action_name: str) -> None:
+        """
+        Execute the chosen agent action.
+
+        This method performs the action specified by chosen_action_name.
+
+        Args:
+            companion: The current companion
+            chosen_action_name: The name of the chosen action
+        """
+        if chosen_action_name == "move_zone":
+            possible_zones = [
+                z
+                for z in self.eterna.exploration.registry.zones
+                if z != getattr(companion, "zone", None)
+            ]
+            if possible_zones:
+                companion.zone = random.choice(possible_zones)
+        elif chosen_action_name == "start_ritual":
+            if hasattr(self.eterna, "rituals") and self.eterna.rituals.rituals:
+                ritual = random.choice(list(self.eterna.rituals.rituals.values()))
+                self.eterna.rituals.perform(ritual.name)
+        # Add other actions as needed
+
+    def _update_agent_evolution(self, companion) -> None:
+        """
+        Update agent evolution.
+
+        This method increments the companion's evolution level.
+
+        Args:
+            companion: The current companion
+        """
         if hasattr(companion, "evolution_level"):
             companion.evolution_level += 1
         else:
             companion.evolution_level = 1
-        # ----- End Law Compliance and Agent Evolution Upgrade -----
 
-        # debug every 100 ticks
+    def _log_debug_info(self, emo: str, reward: float) -> None:
+        """
+        Log debug information.
+
+        This method logs debug information every 100 ticks.
+
+        Args:
+            emo: The current emotion
+            reward: The current reward value
+        """
+        trainer = self.companion_trainer
+
         if self.eterna.runtime.cycle_count % 100 == 0:
             # Force a training step with a larger batch size to ensure weight updates
             if len(trainer.buffer) >= 64:
@@ -220,8 +308,15 @@ class EternaWorld:
             # Update previous weights for next comparison
             self.prev_weights = {"w1": w1, "w2": w2}
 
-        # ----- Mentor AI Upgrade: Dynamic agent and zone state for UI demo -----
+    def _update_ui_state(self) -> None:
+        """
+        Update agent and zone states for UI feedback.
 
+        This method:
+        1. Updates companion emotions
+        2. Updates zone emotion tags and modifiers
+        3. Randomly triggers rituals
+        """
         # 1. Agents: If agent has an 'emotion' attribute, change it occasionally for demo/testing.
         for companion in getattr(self.eterna.companions, "companions", []):
             if hasattr(companion, "emotion"):
@@ -250,9 +345,6 @@ class EternaWorld:
             if random.random() < 0.08:
                 ritual = random.choice(list(self.eterna.rituals.rituals.values()))
                 self.eterna.rituals.perform(ritual.name)
-        # ----- End Mentor AI Upgrade -----
-
-        self.state_tracker.save()
 
     def collect_metrics(self) -> Dict[str, Any]:
         """

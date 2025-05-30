@@ -19,7 +19,7 @@ a checkbox that can be checked off when completed.
 [x] 9. Add docstrings to all classes and methods following a standard format (e.g., NumPy or Google style)
 [x] 10. Refactor large methods in world_builder.py and EternaWorld class to improve readability
 [ ] 11. Standardize naming conventions across the codebase
-[ ] 12. Add error handling and validation for input parameters
+[x] 12. Add error handling and validation for input parameters
 [ ] 13. Remove duplicate code and implement shared utilities
 [x] 14. Implement logging throughout the application with appropriate log levels
 

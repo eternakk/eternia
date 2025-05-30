@@ -1,0 +1,3 @@
+patterns:
+  - "!modules/governor_events.py"
+  - "!modules/utilities/event_bus.py"

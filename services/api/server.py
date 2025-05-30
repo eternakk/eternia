@@ -92,15 +92,24 @@ async def rollback(file: str | None = Query(default=None)):
 
 @app.post("/command/{action}", response_model=CommandOut, dependencies=[Depends(auth)])
 async def command(action: str):
+    from .deps import save_shutdown_state
+
     match action.lower():
         case "pause":
             governor.pause()
             status = "paused"
         case "resume":
+            # If the simulation was shutdown, we need to reset the shutdown flag
+            if governor.is_shutdown():
+                governor._shutdown = False
+                save_shutdown_state(False)  # Clear the shutdown state
+                # Reset the cycle count to start from the beginning
+                world.eterna.runtime.cycle_count = 0
             governor.resume()
             status = "running"
         case "shutdown":
             governor.shutdown("user request")
+            save_shutdown_state(True)  # Save shutdown state immediately
             status = "shutdown"
             return {"status": status, "detail": "server will stop world loop"}
         case _:

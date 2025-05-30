@@ -11,7 +11,7 @@ a checkbox that can be checked off when completed.
 [x] 4. Refactor the world_builder.py file to use a more modular approach
 [x] 5. Implement a proper configuration management system instead of hardcoded values
 [ ] 6. Create a clear separation between core simulation logic and UI/visualization components
-[ ] 7. Establish a consistent event system for communication between components
+[x] 7. Establish a consistent event system for communication between components
 
 ## Code Quality Improvements
 

@@ -1,9 +1,11 @@
-import {sendCommand} from "../api";
+import {sendCommand, rollbackTo} from "../api";
 import axios from "axios";
 
-const actions = ["pause", "resume", "rollback", "shutdown"] as const;
+const actions = ["pause", "resume", "shutdown"] as const;
+const TOKEN = import.meta.env.VITE_ETERNA_TOKEN;
 const api = axios.create({
     baseURL: "http://localhost:8000",
+    headers: { Authorization: `Bearer ${TOKEN}` },
 });
 
 export default function ControlPanel() {
@@ -23,6 +25,12 @@ export default function ControlPanel() {
                         {a.toUpperCase()}
                     </button>
                 ))}
+                <button
+                    onClick={() => rollbackTo()}
+                    className="px-3 py-1 rounded bg-slate-800 text-white text-sm hover:bg-slate-700"
+                >
+                    ROLLBACK
+                </button>
             </div>
             <button
                 onClick={() => api.post(`/reward/${companionName}`, {value: 1})}

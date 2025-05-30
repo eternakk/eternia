@@ -1,9 +1,12 @@
 # 🌌 Eterna World Builder — Expanded Core
+import random
+
 import torch
 
 from modules.ai_ml_rl.rl_companion_loop import PPOTrainer
 from modules.companion_ecology import MemoryEcho, LocalAgent, SymbolicBeing
 from modules.emotions import EmotionalState
+from modules.law_parser import load_laws
 from modules.memory_integration import Memory
 from modules.physics import PhysicsProfile
 from modules.population import User
@@ -214,6 +217,9 @@ class EternaWorld:
     def __init__(self):
         # Core interface
         self.eterna = EternaInterface()
+        self.law_registry = load_laws(
+            "laws"
+        )  # <<--- Make sure this is here, near the top
         self.state_tracker: EternaStateTracker = self.eterna.state_tracker
         # RL loop for companions
         self.companion_trainer = PPOTrainer(
@@ -269,6 +275,54 @@ class EternaWorld:
         trainer.observe(obs, action, reward, next_obs)
         trainer.step_train(batch_size=32)  # Increased batch size for better learning
 
+        # ----- Law Compliance and Agent Evolution Upgrade -----
+        law_blocked = False
+        chosen_action_name = None
+        actions = ["speak_gently", "move_zone", "start_ritual", "reflect", "idle"]
+        if "action" in locals():
+            chosen_action_name = actions[action % len(actions)]
+        else:
+            chosen_action_name = "idle"
+
+        # Law check: block or modify action if forbidden by any enabled law
+        for law in self.law_registry.values():
+            if getattr(law, "enabled", False) and chosen_action_name in getattr(
+                    law, "on_event", []
+            ):
+                for effect_type, effect in getattr(law, "effects", {}).items():
+                    if effect_type == "block_action":
+                        law_blocked = True
+                        if hasattr(companion, "emotion"):
+                            companion.emotion = "frustrated"
+                        break
+                    elif effect_type == "modify_reward":
+                        reward += getattr(effect, "params", {}).get("delta", 0)
+                if law_blocked:
+                    break
+
+        # Only execute agent action if not blocked
+        if not law_blocked:
+            if chosen_action_name == "move_zone":
+                possible_zones = [
+                    z
+                    for z in self.eterna.exploration.registry.zones
+                    if z != getattr(companion, "zone", None)
+                ]
+                if possible_zones:
+                    companion.zone = random.choice(possible_zones)
+            elif chosen_action_name == "start_ritual":
+                if hasattr(self.eterna, "rituals") and self.eterna.rituals.rituals:
+                    ritual = random.choice(list(self.eterna.rituals.rituals.values()))
+                    self.eterna.rituals.perform(ritual.name)
+            # Add other actions as needed
+
+        # Agent evolution: increment agent's evolution_level
+        if hasattr(companion, "evolution_level"):
+            companion.evolution_level += 1
+        else:
+            companion.evolution_level = 1
+        # ----- End Law Compliance and Agent Evolution Upgrade -----
+
         # debug every 100 ticks
         if self.eterna.runtime.cycle_count % 100 == 0:
             # Force a training step with a larger batch size to ensure weight updates
@@ -302,7 +356,6 @@ class EternaWorld:
             self.prev_weights = {"w1": w1, "w2": w2}
 
         # ----- Mentor AI Upgrade: Dynamic agent and zone state for UI demo -----
-        import random
 
         # 1. Agents: If agent has an 'emotion' attribute, change it occasionally for demo/testing.
         for companion in getattr(self.eterna.companions, "companions", []):

@@ -20,7 +20,7 @@ export default function AgentDashboard() {
                             <span className="ml-2 text-sm text-gray-500">({agent.role})</span>
                         </div>
                         <div>
-                            <span>Zone: {agent.zone || "Unknown"}</span>
+                            <span>Zone: {agent.zone && typeof agent.zone === 'object' ? agent.zone.name : agent.zone || "Unknown"}</span>
                         </div>
                         <div className="mt-2 flex items-center">
               <span className={`emotion-badge emotion-${(agent.emotion || 'neutral').toLowerCase()}`}>

@@ -1,3 +1,13 @@
+"""
+Eternia Simulation Main Entry Point
+
+This script initializes and runs the Eternia simulation, which is a complex
+world simulation with AI companions, physics, emotions, and safety mechanisms.
+It sets up the world, initializes the safety governor, and runs the main
+simulation loop until the specified number of cycles is reached or the user
+interrupts the process.
+"""
+
 import argparse
 import time
 from typing import Any, Callable, Dict

@@ -1,0 +1,218 @@
+# Default configuration for Eternia
+
+# User acceptance thresholds
+user_acceptance:
+  intellect_threshold: 110
+  emotional_maturity_threshold: 110
+
+# Default laws enabled at boot
+default_laws:
+  - "Law of Sovereign Consciousness"
+  - "Law of Gentle Integration"
+  - "Law of Infinite But Finite Discovery"
+  - "Law of Meaningful Struggle"
+  - "Law of Shared Existence"
+  - "Law of Joyful Presence"
+  - "Law of Memory Respect"
+
+# Symbolic modifiers
+symbolic_modifiers:
+  shroud_of_memory:
+    name: "Shroud of Memory"
+    trigger_emotion: "grief"
+    effects:
+      - "colors desaturate"
+      - "fog rolls in from the sea"
+      - "sorrow altar emerges from the rocks"
+      - "ambient cello music plays from the mist"
+
+  joy_bloom:
+    name: "Joy Bloom"
+    trigger_emotion: "joy"
+    effects:
+      - "colors intensify"
+      - "flowers bloom around the path"
+      - "soft golden light emanates from surfaces"
+      - "gentle wind chimes play in the distance"
+
+# Zone configurations
+zones:
+  quantum_forest:
+    name: "Quantum Forest"
+    origin: "AGI"
+    complexity: 120
+    emotion_tag: ""
+
+  orikum_sea:
+    name: "Orikum Sea"
+    origin: "user"
+    complexity: 80
+    emotion_tag: "grief"
+
+  library_of_shared_minds:
+    name: "Library of Shared Minds"
+    origin: "shared"
+    complexity: 100
+    emotion_tag: "awe"
+
+  void_spiral:
+    name: "Void Spiral"
+    origin: "unknown"
+    complexity: 150
+    emotion_tag: "mystery"
+
+# Physics profiles
+physics_profiles:
+  dreamspace:
+    name: "Dreamspace"
+    gravity: 1.5
+    time_flow: 0.6
+    dimensions: 4
+    energy_behavior: "thought-sensitive"
+    conscious_safe: true
+
+  shared_cognition:
+    name: "Shared Cognition"
+    gravity: 5.5
+    time_flow: 0.8
+    dimensions: 4
+    energy_behavior: "emotion-mirroring"
+    conscious_safe: true
+
+  earth_like:
+    name: "Earth-Like"
+    gravity: 9.8
+    time_flow: 1.0
+    dimensions: 3
+    energy_behavior: "standard"
+    conscious_safe: true
+
+  unstable_rift:
+    name: "Unstable Rift"
+    gravity: 0
+    time_flow: 3.0
+    dimensions: 5
+    energy_behavior: "chaotic"
+    conscious_safe: false
+
+# Zone physics mappings
+zone_physics:
+  quantum_forest: "dreamspace"
+  orikum_sea: "earth_like"
+  library_of_shared_minds: "shared_cognition"
+  void_spiral: "unstable_rift"
+
+# User configurations
+users:
+  alice:
+    name: "Alice"
+    intellect: 115
+    emotional_maturity: 115
+    consent: true
+
+  bob:
+    name: "Bob"
+    intellect: 120
+    emotional_maturity: 118
+    consent: true
+
+# Memory configuration
+memory:
+  initial:
+    description: "Sunrise by the sea with family"
+    clarity: 9
+    emotional_quality: "positive"
+
+# Emotional state
+emotional_state:
+  initial:
+    mood: "curious"
+    stress_level: 3
+    trauma_triggered: false
+
+# Rituals
+rituals:
+  ash_garden_rebirth:
+    name: "Ash Garden Rebirth"
+    purpose: "Letting go of a former self or identity."
+    steps:
+      - "Enter the Ash Garden in silence."
+      - "Speak the name of the part of you that must end."
+      - "Place it into the fire altar."
+      - "Watch it burn. Do not look away."
+      - "Step into the circle of light."
+      - "Speak your new name, or remain silent to evolve without identity."
+    symbolic_elements:
+      - "fire"
+      - "ashes"
+      - "circle of light"
+
+  chamber_of_waters:
+    name: "Chamber of Waters"
+    purpose: "Processing grief, sorrow, and emotional blockages."
+    steps:
+      - "Enter the chamber barefoot."
+      - "Let water rise to your knees."
+      - "Whisper your grief into the water."
+      - "Submerge your hands and close your eyes."
+      - "Feel the weight dissolve into the stream."
+    symbolic_elements:
+      - "water"
+      - "echoes"
+      - "soft light"
+
+# Companions
+companions:
+  lira:
+    name: "Lira"
+    type: "memory_echo"
+    description: "Your mother holding your hand near the sea during a golden sunrise in Orikum."
+
+  bran:
+    name: "Bran"
+    type: "local_agent"
+    job: "storykeeper"
+
+  selene:
+    name: "Selene"
+    type: "symbolic_being"
+    archetype: "lunar guide"
+
+  eko:
+    name: "Eko"
+    type: "symbolic_being"
+    archetype: "joyful shapeshifter"
+
+  elder:
+    name: "The Elder"
+    type: "symbolic_being"
+    archetype: "existential mirror"
+
+# Protection
+protection:
+  threats:
+    - "solar_flare"
+    - "aging"
+
+# Resonance engine
+resonance:
+  zone_frequencies:
+    orikum_sea: "calm"
+    quantum_forest: "mysterious"
+    library_of_shared_minds: "reflective"
+
+# Reality agent
+reality_agent:
+  environment_conditions:
+    hazard_level: 3
+
+# Simulation configurations
+simulation:
+  emotional_events:
+    emotion: "grief"
+    intensity: 9
+    direction: "locked"
+    companion: "Lira"
+
+  sensory_evolution:
+    zone: "quantum_forest"

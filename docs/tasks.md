@@ -7,15 +7,15 @@ This document contains a prioritized list of tasks for improving the Eternia pro
 [ ] 1. Create comprehensive architecture documentation with diagrams showing component relationships
 [ ] 2. Implement a dependency injection system to reduce tight coupling between modules
 [ ] 3. Standardize interfaces between major system components
-[ ] 4. Refactor the world_builder.py file to use a more modular approach
-[ ] 5. Implement a proper configuration management system instead of hardcoded values
+[x] 4. Refactor the world_builder.py file to use a more modular approach
+[x] 5. Implement a proper configuration management system instead of hardcoded values
 [ ] 6. Create a clear separation between core simulation logic and UI/visualization components
 [ ] 7. Establish a consistent event system for communication between components
 
 ## Code Quality Improvements
 
 [x] 8. Implement comprehensive type hints throughout the Python codebase
-[ ] 9. Add docstrings to all classes and methods following a standard format (e.g., NumPy or Google style)
+[x] 9. Add docstrings to all classes and methods following a standard format (e.g., NumPy or Google style)
 [ ] 10. Refactor large methods in world_builder.py and EternaWorld class to improve readability
 [ ] 11. Standardize naming conventions across the codebase
 [ ] 12. Add error handling and validation for input parameters

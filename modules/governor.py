@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Dict, Callable
 
 from modules.law_parser import load_laws
+from modules.logging_config import get_logger
 
 CHECKPOINT_DIR = Path("artifacts/checkpoints")
 
@@ -35,6 +36,7 @@ class AlignmentGovernor:
         self.laws = load_laws()
         self.event_queue = event_queue
         # used by API WebSocket
+        self.logger = get_logger("governor")
 
         CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -126,9 +128,15 @@ class AlignmentGovernor:
 
     def _log_event(self, event: str, payload=None):
         entry = {"t": time.time(), "event": event, "payload": payload}
+        # Log to the governor logger
+        self.logger.info(f"Event: {event}, Payload: {payload}")
+
+        # Also maintain the JSON log file for backward compatibility
         (CHECKPOINT_DIR / "governor_log.jsonl").open("a").write(
             json.dumps(entry) + "\n"
         )
+
+        # Broadcast to WebSocket
         self._broadcast(entry)
 
     # external API can swap in a fresh queue at runtime

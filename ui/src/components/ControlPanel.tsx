@@ -1,8 +1,15 @@
 import {sendCommand} from "../api";
+import axios from "axios";
 
 const actions = ["pause", "resume", "rollback", "shutdown"] as const;
+const api = axios.create({
+    baseURL: "http://localhost:8000",
+});
 
 export default function ControlPanel() {
+    // Default companion name or get it from somewhere else if needed
+    const companionName = "default";
+
     return (
         <div className="p-4 border rounded-xl shadow bg-white">
             <h2 className="font-semibold mb-2">Controls</h2>

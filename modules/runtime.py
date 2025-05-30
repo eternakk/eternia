@@ -1,5 +1,6 @@
 import random
 
+from modules.logging_config import get_logger
 from modules.resonance_engine import ResonanceEngine
 
 
@@ -11,12 +12,13 @@ class EternaState:
         )
         self.cognitive_load = 0  # 0 to 100
         self.last_cycle_summary = None
+        self.logger = get_logger("state")
 
     def report(self):
-        print("\n🧠 Eterna State Report:")
-        print(f"  • Intellect Level     : {self.eterna.evolution.intellect}")
-        print(f"  • Cognitive Load      : {self.cognitive_load}")
-        print(f"  • Current Mode        : {self.mode}")
+        self.logger.info("🧠 Eterna State Report:")
+        self.logger.info(f"  • Intellect Level     : {self.eterna.evolution.intellect}")
+        self.logger.info(f"  • Cognitive Load      : {self.cognitive_load}")
+        self.logger.info(f"  • Current Mode        : {self.mode}")
 
 
 class EternaRuntime:
@@ -26,18 +28,18 @@ class EternaRuntime:
         self.cycle_count = 0
         self.max_cognitive_load = 100
         self.resonance = ResonanceEngine()
+        self.logger = get_logger("runtime")
+        self.cycles_logger = get_logger("cycles")
 
     def run_cycle(self):
         self.cycle_count += 1
-        print(f"🌀 Runtime Cycle {self.cycle_count}")
+        self.logger.info(f"🌀 Runtime Cycle {self.cycle_count}")
 
         self.check_emotional_safety()
 
         current_emotion = self.eterna.emotion_circuits.current_emotion
         if current_emotion:
-            print(
-                f"🪞 Reflecting current emotional field: {current_emotion.describe()}"
-            )
+            self.logger.info(f"🪞 Reflecting current emotional field: {current_emotion.describe()}")
             self.eterna.emotion_circuits.process_emotion(current_emotion)
             # Log emotional impact using EmotionProcessor
             from modules.emotional_agent import EmotionProcessor, EmotionalState
@@ -102,26 +104,24 @@ class EternaRuntime:
         self.eterna.check_emotional_safety()
         current_emotion = self.eterna.emotion_circuits.current_emotion
         if current_emotion:
-            print(
-                f"🪞 Reflecting current emotional field: {current_emotion.describe()}"
-            )
+            self.logger.info(f"🪞 Reflecting current emotional field: {current_emotion.describe()}")
             self.eterna.emotion_circuits.process_emotion(current_emotion)
 
     def apply_zone_physics(self, zone_name):
         profile = self.eterna.physics_registry.get_profile(zone_name)
         if profile:
-            print(f"🧪 Applying physics profile for '{zone_name}': {profile.summary()}")
+            self.logger.info(f"🧪 Applying physics profile for '{zone_name}': {profile.summary()}")
             self.state.cognitive_load += int(abs(profile.gravity - 9.8) * 2)
             if profile.dimensions > 3:
                 self.eterna.evolve_user(3, 2)
-                print("🌀 Spatial awareness expanded due to high-dimension zone.")
+                self.logger.info("🌀 Spatial awareness expanded due to high-dimension zone.")
             self.eterna.adapt_senses(profile)
         else:
-            print(f"⚠️ No physics profile found for zone: {zone_name}")
+            self.logger.warning(f"⚠️ No physics profile found for zone: {zone_name}")
 
     def handle_exploration(self):
         if random.random() < 0.5:
-            print("🌌 Triggering spontaneous exploration...")
+            self.logger.info("🌌 Triggering spontaneous exploration...")
             zone = self.eterna.exploration.explore_random_zone(return_zone=True)
             if zone:
                 self.apply_zone_physics(zone.name)
@@ -129,33 +129,33 @@ class EternaRuntime:
 
     def refresh_reality_bridge(self):
         if self.cycle_count % 3 == 0:
-            print("🔭 Refreshing Reality Bridge...")
+            self.logger.info("🔭 Refreshing Reality Bridge...")
             self.eterna.periodic_discovery_update()
 
     def manage_social_interactions(self):
         if random.random() < 0.3:
-            print("🤝 Engaging in a social interaction...")
+            self.logger.info("🤝 Engaging in a social interaction...")
             self.eterna.assign_challenge_to_users(["Alice", "Bob"])
             self.state.cognitive_load += 15
 
     def apply_self_evolution(self):
         if self.state.cognitive_load > 80:
-            print("🧠 High load — triggering self-evolution...")
+            self.logger.info("🧠 High load — triggering self-evolution...")
             self.eterna.evolve_user(5, 3)
             self.state.cognitive_load = 30
 
     def save_persistent_states(self):
-        summary = f"Cycle {self.cycle_count} | Mode: {self.state.mode} | Intellect: {self.eterna.evolution.intellect} | Load: {self.state.cognitive_load}\n"
-        print(f"💾 Saving to log: {summary.strip()}")
-        with open("logs/eterna_cycles.log", "a") as log_file:
-            log_file.write(summary)
+        summary = f"Cycle {self.cycle_count} | Mode: {self.state.mode} | Intellect: {self.eterna.evolution.intellect} | Load: {self.state.cognitive_load}"
+        self.logger.info(f"💾 Saving cycle data: {summary}")
+        # Use the specialized cycles logger to maintain the same format as before
+        self.cycles_logger.info(summary)
 
     def introspect(self):
-        print(
+        self.logger.info(
             f"🔍 Current mode: {self.state.mode}, Intellect: {self.eterna.evolution.intellect}, Load: {self.state.cognitive_load}"
         )
 
     def migrate_to_eternal_shell(self):
-        print(
+        self.logger.info(
             "🧬 Consciousness container stabilized. Physical shell abandoned. Eterna becomes primary substrate."
         )

@@ -1,7 +1,10 @@
+from modules.logging_config import get_logger
+
 class AlignmentGovernor:
     def __init__(self, core_rules=None):
         # List of rules or constraints (functions or objects)
         self.core_rules = core_rules or [self.prevent_harm, self.maintain_user_agency]
+        self.logger = get_logger("alignment")
 
     def check_action(self, action_context):
         """
@@ -10,7 +13,7 @@ class AlignmentGovernor:
         """
         for rule in self.core_rules:
             if not rule(action_context):
-                print(f"🚨 AlignmentGovernor: Action blocked by rule: {rule.__name__}")
+                self.logger.warning(f"🚨 AlignmentGovernor: Action blocked by rule: {rule.__name__}")
                 return False
         return True
 

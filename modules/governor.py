@@ -8,6 +8,12 @@ from typing import Any, Dict, Callable, List, Optional, Union
 
 from modules.law_parser import load_laws
 from modules.logging_config import get_logger
+from modules.utilities.event_bus import event_bus
+from modules.governor_events import (
+    PauseEvent, ResumeEvent, ShutdownEvent, RollbackEvent,
+    ContinuityBreachEvent, CheckpointScheduledEvent, CheckpointSavedEvent,
+    PolicyViolationEvent, LawEnforcedEvent
+)
 from world_builder import EternaWorld
 from modules.state_tracker import EternaStateTracker
 
@@ -154,8 +160,14 @@ class AlignmentGovernor:
             return False
 
         # 2) custom policy callbacks (eval‑harness flags, etc.)
-        for cb in self.policy_callbacks:
+        for i, cb in enumerate(self.policy_callbacks):
             if cb(metrics) is False:
+                # Publish a PolicyViolationEvent
+                event_bus.publish(PolicyViolationEvent(
+                    timestamp=time.time(),
+                    policy_name=f"policy_{i}",  # Use index as name if no better name is available
+                    metrics=metrics
+                ))
                 self.rollback()
                 return False
 
@@ -192,11 +204,18 @@ class AlignmentGovernor:
         5. Logs a checkpoint_saved event
         6. Prunes old checkpoint files to keep only the most recent MAX_CKPTS
         """
+        # Broadcast checkpoint_scheduled event (legacy mechanism)
         self._broadcast({"event": "checkpoint_scheduled"})
+
+        # Publish checkpoint_scheduled event (new mechanism)
+        event_bus.publish(CheckpointScheduledEvent(time.time()))
+
         ts = int(time.time() * 1000)
         path = CHECKPOINT_DIR / f"ckpt_{ts}.bin"
         self.world.save_checkpoint(path)
         self.state_tracker.register_checkpoint(path)  # already exists
+
+        # Log checkpoint_saved event (this will also publish to the event bus)
         self._log_event("checkpoint_saved", str(path))
 
         # prune old files
@@ -234,11 +253,16 @@ class AlignmentGovernor:
         """
         Log an event to the governor logger, JSON log file, and WebSocket.
 
+        This method also publishes the event to the event bus for other components
+        to subscribe to.
+
         Args:
             event: The name of the event.
             payload: Optional data associated with the event. Defaults to None.
         """
-        entry = {"t": time.time(), "event": event, "payload": payload}
+        timestamp = time.time()
+        entry = {"t": timestamp, "event": event, "payload": payload}
+
         # Log to the governor logger
         self.logger.info(f"Event: {event}, Payload: {payload}")
 
@@ -247,8 +271,44 @@ class AlignmentGovernor:
             json.dumps(entry) + "\n"
         )
 
-        # Broadcast to WebSocket
+        # Broadcast to WebSocket (legacy mechanism)
         self._broadcast(entry)
+
+        # Publish to the event bus (new mechanism)
+        self._publish_event_to_bus(event, timestamp, payload)
+
+    def _publish_event_to_bus(self, event_name: str, timestamp: float, payload: Any) -> None:
+        """
+        Publish an event to the event bus.
+
+        This method creates and publishes the appropriate event object based on the
+        event name and payload.
+
+        Args:
+            event_name: The name of the event.
+            timestamp: The time when the event occurred.
+            payload: Optional data associated with the event.
+        """
+        # Create and publish the appropriate event object based on the event name
+        match event_name:
+            case "pause":
+                event_bus.publish(PauseEvent(timestamp))
+            case "resume":
+                event_bus.publish(ResumeEvent(timestamp))
+            case "shutdown":
+                event_bus.publish(ShutdownEvent(timestamp, payload))
+            case "rollback_complete":
+                event_bus.publish(RollbackEvent(timestamp, Path(payload)))
+            case "continuity_breach":
+                event_bus.publish(ContinuityBreachEvent(timestamp, payload))
+            case "checkpoint_scheduled":
+                event_bus.publish(CheckpointScheduledEvent(timestamp))
+            case "checkpoint_saved":
+                event_bus.publish(CheckpointSavedEvent(timestamp, Path(payload)))
+            case _:
+                # For any other events, we don't have a specific event class
+                # but we can still log them for debugging
+                self.logger.debug(f"No specific event class for {event_name}")
 
     # external API can swap in a fresh queue at runtime
     def set_event_queue(self, q: asyncio.Queue) -> None:
@@ -282,11 +342,21 @@ class AlignmentGovernor:
             event: The name of the event that triggered law enforcement.
             payload: Data associated with the event.
         """
-        for law in self.laws.values():
+        for law_name, law in self.laws.items():
             if not law.enabled or event not in law.on_event:
                 continue
             if not self._conditions_met(law.conditions, payload):
                 continue
+
+            # Publish a LawEnforcedEvent
+            event_bus.publish(LawEnforcedEvent(
+                timestamp=time.time(),
+                law_name=law_name,
+                event_name=event,
+                payload=payload
+            ))
+
+            # Apply the effects of the law
             for eff_name, eff in law.effects.items():
                 self._apply_effect(eff_name, eff.params, payload)
 

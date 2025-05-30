@@ -4,6 +4,8 @@ import math
 import os
 import random
 
+from modules.utilities.file_utils import save_json, load_json
+
 
 class EternaStateTracker:
     """
@@ -181,9 +183,7 @@ class EternaStateTracker:
             "discoveries": self.discoveries,
             "last_zone": self.last_zone,  # Add this line
         }
-        os.makedirs(os.path.dirname(self.save_path), exist_ok=True)
-        with open(self.save_path, "w") as f:
-            json.dump(snapshot, f, indent=2)
+        save_json(self.save_path, snapshot, create_dirs=True, indent=2)
         print(f"💾 Eterna state saved to {self.save_path}")
 
     def load(self):
@@ -193,16 +193,15 @@ class EternaStateTracker:
         This method loads a previously saved state from the file specified by
         save_path. If the file doesn't exist, it prints a warning message.
         """
-        if os.path.exists(self.save_path):
-            with open(self.save_path, "r") as f:
-                snapshot = json.load(f)
-                self.last_emotion = snapshot.get("emotion")
-                self.applied_modifiers = snapshot.get("modifiers", {})
-                self.memories = snapshot.get("memories", [])
-                self.evolution_stats = snapshot.get("evolution", self.evolution_stats)
-                self.explored_zones = snapshot.get("explored_zones", [])
-                self.discoveries = snapshot.get("discoveries", [])
-                self.last_zone = snapshot.get("last_zone")  # Add this line
+        snapshot = load_json(self.save_path)
+        if snapshot:
+            self.last_emotion = snapshot.get("emotion")
+            self.applied_modifiers = snapshot.get("modifiers", {})
+            self.memories = snapshot.get("memories", [])
+            self.evolution_stats = snapshot.get("evolution", self.evolution_stats)
+            self.explored_zones = snapshot.get("explored_zones", [])
+            self.discoveries = snapshot.get("discoveries", [])
+            self.last_zone = snapshot.get("last_zone")  # Add this line
             print(f"📂 Loaded Eterna state from {self.save_path}")
         else:
             print(f"⚠️ No saved state found at {self.save_path}")

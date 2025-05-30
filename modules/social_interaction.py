@@ -46,10 +46,10 @@ class SocialInteractionModule:
     def initiate_safe_interaction(self, user1_name, user2_name):
         user1 = next((u for u in self.users if u.name == user1_name), None)
         user2 = next((u for u in self.users if u.name == user2_name), None)
-        if user1 and user2:
+        if user1 and user2 and user1.is_allowed() and user2.is_allowed():
             self.ims.initiate_interaction(user1, user2)
         else:
-            print("❌ One or both users not found.")
+            print("❌ One or both users not found or not allowed.")
 
     def assign_collaborative_challenge(self, user_names):
         selected_users = [u for u in self.users if u.name in user_names]

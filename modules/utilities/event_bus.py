@@ -70,10 +70,10 @@ class EventBus:
         self._initialized = True
 
     def subscribe(
-            self,
-            event_type: type,
-            handler: Union[EventHandler, AsyncEventHandler],
-            priority: EventPriority = EventPriority.NORMAL,
+        self,
+        event_type: type,
+        handler: Union[EventHandler, AsyncEventHandler],
+        priority: EventPriority = EventPriority.NORMAL,
     ) -> None:
         """
         Subscribe to events of a specific type.
@@ -88,7 +88,7 @@ class EventBus:
 
         # Check if handler is async
         is_async = asyncio.iscoroutinefunction(handler) or (
-                inspect.ismethod(handler) and asyncio.iscoroutinefunction(handler.__func__)
+            inspect.ismethod(handler) and asyncio.iscoroutinefunction(handler.__func__)
         )
 
         # Add handler to the list
@@ -101,12 +101,14 @@ class EventBus:
             key=lambda reg: reg.priority.value, reverse=True
         )
 
+        # Get handler name safely, as it might be a mock in tests
+        handler_name = getattr(handler, "__name__", str(handler))
         logger.debug(
-            f"Subscribed {handler.__name__} to {event_type.__name__} events with {priority.name} priority"
+            f"Subscribed {handler_name} to {event_type.__name__} events with {priority.name} priority"
         )
 
     def unsubscribe(
-            self, event_type: type, handler: Union[EventHandler, AsyncEventHandler]
+        self, event_type: type, handler: Union[EventHandler, AsyncEventHandler]
     ) -> bool:
         """
         Unsubscribe from events of a specific type.
@@ -124,8 +126,10 @@ class EventBus:
         for i, reg in enumerate(self._handlers[event_type]):
             if reg.handler == handler:
                 self._handlers[event_type].pop(i)
+                # Get handler name safely, as it might be a mock in tests
+                handler_name = getattr(handler, "__name__", str(handler))
                 logger.debug(
-                    f"Unsubscribed {handler.__name__} from {event_type.__name__} events"
+                    f"Unsubscribed {handler_name} from {event_type.__name__} events"
                 )
                 return True
 
@@ -156,7 +160,9 @@ class EventBus:
                     # Call sync handler directly
                     reg.handler(event)
             except Exception as e:
-                logger.error(f"Error in event handler {reg.handler.__name__}: {str(e)}")
+                # Get handler name safely, as it might be a mock in tests
+                handler_name = getattr(reg.handler, "__name__", str(reg.handler))
+                logger.error(f"Error in event handler {handler_name}: {str(e)}")
 
     async def publish_async(self, event: Any) -> None:
         """
@@ -189,7 +195,9 @@ class EventBus:
                     # Call sync handler directly
                     reg.handler(event)
             except Exception as e:
-                logger.error(f"Error in event handler {reg.handler.__name__}: {str(e)}")
+                # Get handler name safely, as it might be a mock in tests
+                handler_name = getattr(reg.handler, "__name__", str(reg.handler))
+                logger.error(f"Error in event handler {handler_name}: {str(e)}")
 
         # Wait for all async handlers to complete
         if tasks:

@@ -29,14 +29,14 @@ a checkbox that can be checked off when completed.
 [x] 16. Add integration tests for key system workflows
 [ ] 17. Implement UI component tests for the React frontend
 [x] 18. Set up continuous integration to run tests automatically
-[ ] 19. Add property-based testing for complex simulation logic
+[x] 19. Add property-based testing for complex simulation logic
 [ ] 20. Implement performance benchmarks and regression tests
 [ ] 21. Create test fixtures for common simulation scenarios
 
 ## Documentation Improvements
 
-[ ] 22. Complete all module-specific documentation files in the docs directory
-[ ] 23. Create a developer onboarding guide
+[x] 22. Complete all module-specific documentation files in the docs directory
+[x] 23. Create a developer onboarding guide
 [ ] 24. Document the simulation concepts and terminology in a glossary
 [ ] 25. Add inline comments for complex algorithms and logic
 [ ] 26. Create API documentation for backend-frontend communication

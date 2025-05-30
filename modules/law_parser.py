@@ -19,11 +19,6 @@ class Law(BaseModel):
         if not re.fullmatch(r"[A-Za-z0-9 _-]+", v):
             raise ValueError("name must be slug‑safe")
         return v
-    @validator("name")
-    def slug_safe(cls, v):
-        if not re.fullmatch(r"[A-Za-z0-9 _-]+", v):
-            raise ValueError("name must be slug‑safe")
-        return v
 
 def load_laws(path="laws") -> dict[str, Law]:
     laws = {}

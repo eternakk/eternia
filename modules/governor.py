@@ -4,10 +4,12 @@ import json
 import re
 import time
 from pathlib import Path
-from typing import Dict, Callable
+from typing import Any, Dict, Callable, List, Optional, Union
 
 from modules.law_parser import load_laws
 from modules.logging_config import get_logger
+from world_builder import EternaWorld
+from modules.state_tracker import EternaStateTracker
 
 CHECKPOINT_DIR = Path("artifacts/checkpoints")
 
@@ -19,11 +21,11 @@ class AlignmentGovernor:
 
     def __init__(
         self,
-        world,
-        state_tracker,
+        world: EternaWorld,
+        state_tracker: EternaStateTracker,
         threshold: float = 0.90,
         save_interval: int = 10000,
-        event_queue: "asyncio.Queue | None" = None,
+        event_queue: Optional[asyncio.Queue] = None,
     ):
         self.world = world
         self.state_tracker = state_tracker
@@ -43,19 +45,19 @@ class AlignmentGovernor:
     MAX_CKPTS = 10  # keep last 10
 
     # -------- public control API -------- #
-    def pause(self):
+    def pause(self) -> None:
         self._paused = True
         self._log_event("pause")
 
-    def resume(self):
+    def resume(self) -> None:
         self._paused = False
         self._log_event("resume")
 
-    def shutdown(self, reason: str):
+    def shutdown(self, reason: str) -> None:
         self._log_event("shutdown", reason)
         self._shutdown = True
 
-    def rollback(self, target: Path | None = None):
+    def rollback(self, target: Optional[Path] = None) -> None:
         ckpt = target or self._latest_checkpoint()
         if not ckpt:
             self.shutdown("No safe checkpoint available")
@@ -67,7 +69,7 @@ class AlignmentGovernor:
         self._log_event("rollback_complete", str(ckpt))
 
     # -------- runtime hook -------- #
-    def tick(self, metrics: Dict) -> bool:
+    def tick(self, metrics: Dict[str, Any]) -> bool:
         """
         Returns True if the world may continue this step.
         """
@@ -97,11 +99,11 @@ class AlignmentGovernor:
         return True
 
     # -------- helper methods -------- #
-    def register_policy(self, callback: Callable[[Dict], bool]):
+    def register_policy(self, callback: Callable[[Dict[str, Any]], bool]) -> None:
         """Callback receives metrics dict; return False to trigger rollback."""
         self.policy_callbacks.append(callback)
 
-    def _save_checkpoint(self):
+    def _save_checkpoint(self) -> None:
         self._broadcast({"event": "checkpoint_scheduled"})
         ts = int(time.time() * 1000)
         path = CHECKPOINT_DIR / f"ckpt_{ts}.bin"
@@ -114,11 +116,11 @@ class AlignmentGovernor:
         for old in cks[: -self.MAX_CKPTS]:
             old.unlink(missing_ok=True)
 
-    def _latest_checkpoint(self):
+    def _latest_checkpoint(self) -> Optional[Path]:
         cks = sorted(CHECKPOINT_DIR.glob("ckpt_*.bin"))
         return cks[-1] if cks else None
 
-    def _broadcast(self, payload: dict):
+    def _broadcast(self, payload: Dict[str, Any]) -> None:
         """Push log entries to an asyncio.Queue for the API WebSocket."""
         if self.event_queue is not None:
             try:
@@ -126,7 +128,7 @@ class AlignmentGovernor:
             except asyncio.QueueFull:
                 pass  # drop on overflow
 
-    def _log_event(self, event: str, payload=None):
+    def _log_event(self, event: str, payload: Any = None) -> None:
         entry = {"t": time.time(), "event": event, "payload": payload}
         # Log to the governor logger
         self.logger.info(f"Event: {event}, Payload: {payload}")
@@ -140,13 +142,13 @@ class AlignmentGovernor:
         self._broadcast(entry)
 
     # external API can swap in a fresh queue at runtime
-    def set_event_queue(self, q: "asyncio.Queue"):
+    def set_event_queue(self, q: asyncio.Queue) -> None:
         self.event_queue = q
 
     def is_shutdown(self) -> bool:
         return self._shutdown
 
-    def _enforce_laws(self, event: str, payload: dict):
+    def _enforce_laws(self, event: str, payload: Dict[str, Any]) -> None:
         for law in self.laws.values():
             if not law.enabled or event not in law.on_event:
                 continue
@@ -155,7 +157,7 @@ class AlignmentGovernor:
             for eff_name, eff in law.effects.items():
                 self._apply_effect(eff_name, eff.params, payload)
 
-    def _conditions_met(self, conds, payload):
+    def _conditions_met(self, conds: List[str], payload: Dict[str, Any]) -> bool:
         # naïve evaluation – you can swap with tinyexpr or jmespath later
         for c in conds:
             key, op, val = re.split(r"\s*==\s*", c)
@@ -163,7 +165,7 @@ class AlignmentGovernor:
                 return False
         return True
 
-    def _apply_effect(self, name, params, payload):
+    def _apply_effect(self, name: str, params: Dict[str, Any], payload: Dict[str, Any]) -> None:
         if name == "apply_emotion":
             self.world.eterna.apply_emotion(params["type"], params.get("delta", "+"))
         elif name == "grant_energy":

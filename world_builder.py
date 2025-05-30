@@ -1,5 +1,8 @@
 # 🌌 Eterna World Builder — Expanded Core
+import pickle
 import random
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union, Tuple
 
 import torch
 
@@ -12,7 +15,9 @@ from modules.physics import PhysicsProfile
 from modules.population import User
 from modules.resonance_engine import ResonanceEngine  # ✅ NEW
 from modules.rituals import Ritual
+from modules.state_tracker import EternaStateTracker
 from modules.zone_modifiers import SymbolicModifier
+from eterna_interface import EternaInterface
 
 
 # This file contains the complete bootstrapping logic for building, simulating,
@@ -20,7 +25,7 @@ from modules.zone_modifiers import SymbolicModifier
 # and deep integrations.
 
 
-def setup_symbolic_modifiers(eterna):
+def setup_symbolic_modifiers(eterna: EternaInterface) -> None:
     shroud = SymbolicModifier(
         name="Shroud of Memory",
         trigger_emotion="grief",
@@ -34,7 +39,7 @@ def setup_symbolic_modifiers(eterna):
     eterna.modifiers.register_modifier(shroud)
 
 
-def setup_eterna_world(eterna):
+def setup_eterna_world(eterna: EternaInterface) -> None:
     eterna.register_zone("Quantum Forest", origin="AGI", complexity=120, emotion_tag="")
     dreamspace = PhysicsProfile(
         "Dreamspace",
@@ -82,7 +87,7 @@ def setup_eterna_world(eterna):
     )
 
 
-def setup_physics_profiles(eterna):
+def setup_physics_profiles(eterna: EternaInterface) -> None:
     normal = PhysicsProfile("Earth-Like", gravity=9.8, time_flow=1.0, dimensions=3)
     dream = PhysicsProfile(
         "Dreamspace",
@@ -104,7 +109,7 @@ def setup_physics_profiles(eterna):
     eterna.show_zone_physics("Void Spiral")
 
 
-def setup_rituals(eterna):
+def setup_rituals(eterna: EternaInterface) -> None:
     ritual = Ritual(
         name="Ash Garden Rebirth",
         purpose="Letting go of a former self or identity.",
@@ -134,7 +139,7 @@ def setup_rituals(eterna):
     eterna.rituals.register(chamber)
 
 
-def setup_companions(eterna):
+def setup_companions(eterna: EternaInterface) -> None:
     lira = MemoryEcho(
         "Lira",
         "Your mother holding your hand near the sea during a golden sunrise in Orikum.",
@@ -151,7 +156,7 @@ def setup_companions(eterna):
     eterna.companions.spawn(elder)
 
 
-def setup_protection(eterna):
+def setup_protection(eterna: EternaInterface) -> None:
     eternal_threats = ["solar_flare", "aging"]
     detected = eterna.threats.detect(eternal_threats)
     eterna.vitals.add_threat("solar_flare")
@@ -159,7 +164,7 @@ def setup_protection(eterna):
     eterna.defense.activate_failsafe()
 
 
-def simulate_emotional_events(eterna):
+def simulate_emotional_events(eterna: EternaInterface) -> None:
     emotion = EmotionalState("grief", intensity=9, direction="locked")
     eterna.emotion_circuits.process_emotion(emotion)
     eterna.soul_invitations.invite("Lira")
@@ -168,7 +173,7 @@ def simulate_emotional_events(eterna):
     eterna.soul_presence.list_present_souls()
 
 
-def simulate_sensory_evolution(eterna):
+def simulate_sensory_evolution(eterna: EternaInterface) -> None:
     print("\n🌐 Simulating sensory evolution through physics zones...")
     zone_name = "Quantum Forest"
     physics_profile = eterna.physics_registry.get_profile(zone_name)
@@ -181,14 +186,14 @@ def simulate_sensory_evolution(eterna):
         print(f"⚠️ No physics profile found for zone: {zone_name}")
 
 
-def setup_resonance_engine(eterna):
+def setup_resonance_engine(eterna: EternaInterface) -> None:
     eterna.resonance = ResonanceEngine()
     eterna.resonance.tune_environment("Orikum Sea", frequency="calm")
     eterna.resonance.tune_environment("Quantum Forest", frequency="mysterious")
     eterna.resonance.tune_environment("Library of Shared Minds", frequency="reflective")
 
 
-def setup_time_and_agents(eterna):
+def setup_time_and_agents(eterna: EternaInterface) -> None:
     print("⏱️ Initializing time synchronization...")
     eterna.synchronize_time()
 
@@ -214,7 +219,7 @@ class EternaWorld:
     AlignmentGovernor: step(), collect_metrics(), save_checkpoint(), load_checkpoint().
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Core interface
         self.eterna = EternaInterface()
         self.law_registry = load_laws(
@@ -239,7 +244,7 @@ class EternaWorld:
         setup_time_and_agents(self.eterna)
 
     # ---------- runtime hooks ---------- #
-    def step(self, dt: float = 1.0):
+    def step(self, dt: float = 1.0) -> None:
         # advance physics / emotions
         self.eterna.runtime.run_cycle()
 
@@ -389,7 +394,7 @@ class EternaWorld:
 
         self.state_tracker.save()
 
-    def collect_metrics(self) -> dict:
+    def collect_metrics(self) -> Dict[str, Any]:
         """Return a dictionary consumed by AlignmentGovernor."""
         return {
             "identity_continuity": self.state_tracker.identity_continuity(),
@@ -397,11 +402,11 @@ class EternaWorld:
         }
 
     # ---------- checkpoint API ---------- #
-    def save_checkpoint(self, path):
+    def save_checkpoint(self, path: Path) -> None:
         with open(path, "wb") as f:
             pickle.dump(self, f)
 
-    def load_checkpoint(self, path):
+    def load_checkpoint(self, path: Path) -> None:
         with open(path, "rb") as f:
             restored: "EternaWorld" = pickle.load(f)
         # overwrite in‑place so external references remain valid

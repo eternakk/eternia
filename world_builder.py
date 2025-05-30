@@ -12,7 +12,7 @@ package, making them available to other parts of the application.
 from pathlib import Path
 
 # Re-export setup functions
-from world_builder_modules.setup_modules import (
+from world_builder_modules.setup_modules_refactored import (
     setup_symbolic_modifiers,
     setup_eterna_world,
     setup_physics_profiles,
@@ -24,7 +24,7 @@ from world_builder_modules.setup_modules import (
 )
 
 # Re-export simulation functions
-from world_builder_modules.simulation_modules import (
+from world_builder_modules.simulation_modules_refactored import (
     simulate_emotional_events,
     simulate_sensory_evolution,
 )

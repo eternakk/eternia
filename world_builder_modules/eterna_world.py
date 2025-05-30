@@ -18,7 +18,7 @@ from modules.law_parser import load_laws
 from modules.state_tracker import EternaStateTracker
 from eterna_interface import EternaInterface
 
-from world_builder_modules.setup_modules import (
+from world_builder_modules.setup_modules_refactored import (
     setup_symbolic_modifiers,
     setup_eterna_world,
     setup_physics_profiles,

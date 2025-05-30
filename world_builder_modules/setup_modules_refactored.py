@@ -1,5 +1,5 @@
 """
-Setup Modules for Eterna World
+Setup Modules for Eterna World (Refactored)
 
 This module contains functions for setting up different aspects of the Eterna world,
 including symbolic modifiers, zones, physics profiles, rituals, companions, protection,
@@ -7,9 +7,10 @@ resonance engine, and time and agents.
 
 The module uses the configuration system to get values instead of hardcoding them.
 It also includes validation and error handling to ensure that functions receive valid inputs.
+
+This is a refactored version that uses the shared utilities to reduce code duplication.
 """
 
-import logging
 from typing import Any, Dict, List, Optional, Union, Tuple
 
 from modules.ai_ml_rl.rl_companion_loop import PPOTrainer
@@ -41,11 +42,9 @@ from modules.utilities import (
     log_batch_operation
 )
 from eterna_interface import EternaInterface
-from config.config_manager import config
 
 # Get a logger for this module
 logger = get_module_logger(__name__)
-
 
 @validate_params(eterna=lambda v, p: validate_type(v, EternaInterface, p))
 def setup_symbolic_modifiers(eterna: EternaInterface) -> None:
@@ -113,7 +112,6 @@ def setup_symbolic_modifiers(eterna: EternaInterface) -> None:
     except Exception as e:
         log_operation("Setup symbolic modifiers", False, logger, error=e)
         raise
-
 
 @validate_params(eterna=lambda v, p: validate_type(v, EternaInterface, p))
 def setup_eterna_world(eterna: EternaInterface) -> None:
@@ -227,53 +225,43 @@ def setup_eterna_world(eterna: EternaInterface) -> None:
         users_count = iterate_config_section('users', process_user, required_keys)
         log_batch_operation("Setup users", users_count, users_count, logger)
 
-        # Set up initial memory
+        # Integrate initial memory
         try:
-            memory_config = get_config_dict('memory.initial', required_keys=['description', 'clarity', 'emotional_quality'])
-            if memory_config:
-                memory = Memory(
-                    memory_config['description'],
-                    clarity=memory_config['clarity'],
-                    emotional_quality=memory_config['emotional_quality']
-                )
-                eterna.integrate_memory(
-                    memory.description, memory.clarity, memory.emotional_quality
-                )
-                log_operation("Integrate memory", True, logger, {"description": memory_config['description']})
+            memory_text = get_config_value('initial_memory.text')
+            if memory_text:
+                memory = Memory(memory_text)
+                eterna.integrate_memory(memory)
+                log_operation("Integrate initial memory", True, logger)
             else:
-                logger.info("No initial memory configured")
-        except ValidationError as e:
-            log_operation("Integrate memory", False, logger, error=e)
-            # Continue with emotional state
+                logger.warning("No initial memory text configured")
         except Exception as e:
-            log_operation("Integrate memory", False, logger, error=e)
-            # Continue with emotional state
-
-        # Set up initial emotional state
-        try:
-            emotional_state_config = get_config_dict('emotional_state.initial', 
-                                                   required_keys=['mood', 'stress_level', 'trauma_triggered'])
-            if emotional_state_config:
-                eterna.update_emotional_state(
-                    mood=emotional_state_config['mood'],
-                    stress_level=emotional_state_config['stress_level'],
-                    trauma_triggered=emotional_state_config['trauma_triggered']
-                )
-                log_operation("Update emotional state", True, logger, 
-                             {"mood": emotional_state_config['mood'], 
-                              "stress_level": emotional_state_config['stress_level']})
-            else:
-                logger.info("No initial emotional state configured")
-        except ValidationError as e:
-            log_operation("Update emotional state", False, logger, error=e)
+            log_operation("Integrate initial memory", False, logger, error=e)
             # Continue with next steps
+
+        # Set initial emotional state
+        try:
+            emotion = get_config_value('initial_emotional_state.emotion', 'neutral')
+            intensity = get_config_value('initial_emotional_state.intensity', 0.5)
+
+            # Validate intensity is between 0 and 1
+            if not isinstance(intensity, (int, float)) or intensity < 0 or intensity > 1:
+                logger.warning(f"Invalid intensity for initial emotional state: {intensity}, must be between 0 and 1")
+                intensity = 0.5  # Default value
+
+            try:
+                emotional_state = EmotionalState(emotion, intensity)
+                eterna.update_emotional_state(emotional_state)
+                log_operation("Update emotional state", True, logger, 
+                             {"emotion": emotion, "intensity": intensity})
+            except Exception as e:
+                log_operation("Update emotional state", False, logger, error=e)
+                # Continue with next steps
         except Exception as e:
             log_operation("Update emotional state", False, logger, error=e)
             # Continue with next steps
     except Exception as e:
         log_operation("Setup Eterna world", False, logger, error=e)
         raise
-
 
 @validate_params(eterna=lambda v, p: validate_type(v, EternaInterface, p))
 def setup_physics_profiles(eterna: EternaInterface) -> None:
@@ -313,7 +301,6 @@ def setup_physics_profiles(eterna: EternaInterface) -> None:
     except Exception as e:
         log_operation("Setup physics profiles", False, logger, error=e)
         raise
-
 
 @validate_params(eterna=lambda v, p: validate_type(v, EternaInterface, p))
 def setup_rituals(eterna: EternaInterface) -> None:
@@ -368,7 +355,6 @@ def setup_rituals(eterna: EternaInterface) -> None:
     except Exception as e:
         log_operation("Setup rituals", False, logger, error=e)
         raise
-
 
 @validate_params(eterna=lambda v, p: validate_type(v, EternaInterface, p))
 def setup_companions(eterna: EternaInterface) -> None:
@@ -456,7 +442,6 @@ def setup_companions(eterna: EternaInterface) -> None:
         log_operation("Setup companions", False, logger, error=e)
         raise
 
-
 @validate_params(eterna=lambda v, p: validate_type(v, EternaInterface, p))
 def setup_protection(eterna: EternaInterface) -> None:
     """
@@ -523,7 +508,6 @@ def setup_protection(eterna: EternaInterface) -> None:
         log_operation("Setup protection mechanisms", False, logger, error=e)
         raise
 
-
 @validate_params(eterna=lambda v, p: validate_type(v, EternaInterface, p))
 def setup_resonance_engine(eterna: EternaInterface) -> None:
     """
@@ -587,7 +571,6 @@ def setup_resonance_engine(eterna: EternaInterface) -> None:
     except Exception as e:
         log_operation("Setup resonance engine", False, logger, error=e)
         raise
-
 
 @validate_params(eterna=lambda v, p: validate_type(v, EternaInterface, p))
 def setup_time_and_agents(eterna: EternaInterface) -> None:

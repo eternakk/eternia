@@ -12,6 +12,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
+from modules.utilities.file_utils import load_json
+
 from .deps import run_world  # background sim loop
 from .deps import world, governor, event_queue, DEV_TOKEN
 from .schemas import StateOut, CommandOut
@@ -37,7 +39,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-ASSET_MAP = json.load(open("assets/zone_assets.json"))
+ASSET_MAP = load_json("assets/zone_assets.json", {})
 app.mount("/static", StaticFiles(directory="assets/static"), name="static")
 
 

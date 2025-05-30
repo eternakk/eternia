@@ -17,6 +17,7 @@ from modules.ai_ml_rl.rl_companion_loop import PPOTrainer
 from modules.law_parser import load_laws
 from modules.state_tracker import EternaStateTracker
 from eterna_interface import EternaInterface
+from modules.utilities.file_utils import save_pickle, load_pickle
 
 from world_builder_modules.setup_modules_refactored import (
     setup_symbolic_modifiers,
@@ -373,8 +374,7 @@ class EternaWorld:
         Args:
             path: The path where the checkpoint should be saved.
         """
-        with open(path, "wb") as f:
-            pickle.dump(self, f)
+        save_pickle(path, self, create_dirs=True)
 
     def load_checkpoint(self, path: Path) -> None:
         """
@@ -387,8 +387,7 @@ class EternaWorld:
         Args:
             path: The path to the checkpoint file to load.
         """
-        with open(path, "rb") as f:
-            restored: "EternaWorld" = pickle.load(f)
+        restored: "EternaWorld" = load_pickle(path)
         # overwrite in‑place so external references remain valid
         self.__dict__.update(restored.__dict__)
 

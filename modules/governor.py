@@ -331,6 +331,15 @@ class AlignmentGovernor:
         """
         return self._shutdown
 
+    def is_paused(self) -> bool:
+        """
+        Check if the simulation has been paused.
+
+        Returns:
+            bool: True if the simulation has been paused, False otherwise.
+        """
+        return self._paused
+
     def _enforce_laws(self, event: str, payload: Dict[str, Any]) -> None:
         """
         Enforce laws in response to an event.

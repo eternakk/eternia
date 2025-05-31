@@ -10,6 +10,7 @@ pytest-benchmark==4.0.0  # For performance benchmarking
 fastapi==0.103.1
 httpx==0.24.0  # For testing FastAPI
 pydantic==2.4.0
+email-validator==2.0.0  # For Pydantic's EmailStr validation
 sse-starlette==1.6.1
 
 # Data Processing

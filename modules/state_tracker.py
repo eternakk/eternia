@@ -3,11 +3,13 @@ import json
 import math
 import os
 import random
+from typing import Any, Dict, List, Optional, Union
 
+from modules.interfaces import StateTrackerInterface
 from modules.utilities.file_utils import save_json, load_json
 
 
-class EternaStateTracker:
+class EternaStateTracker(StateTrackerInterface):
     """
     Tracks and manages the state of the Eterna world.
 
@@ -60,6 +62,18 @@ class EternaStateTracker:
         self.last_intensity: float = 0.0
         self.last_dominance: float = 0.0
 
+    def initialize(self) -> None:
+        """Initialize the state tracker module."""
+        print("🔄 Initializing EternaStateTracker")
+        # Load the state from disk if it exists
+        self.load()
+
+    def shutdown(self) -> None:
+        """Perform any cleanup operations when shutting down."""
+        print("🛑 Shutting down EternaStateTracker")
+        # Save the current state to disk
+        self.save()
+
     def log_emotional_impact(self, emotion_name, score):
         """
         Log the impact of an emotion on the world.
@@ -110,13 +124,23 @@ class EternaStateTracker:
         Update the current emotion state.
 
         Args:
-            emotion: An emotion object with name, intensity, and direction attributes.
+            emotion: An emotion object with name, intensity, and direction attributes,
+                    or a string representing the emotion name.
         """
-        self.last_emotion = {
-            "name": emotion.name,
-            "intensity": emotion.intensity,
-            "direction": emotion.direction,
-        }
+        if isinstance(emotion, str):
+            # Handle string input
+            self.last_emotion = {
+                "name": emotion,
+                "intensity": 0.5,  # Default intensity
+                "direction": "neutral",  # Default direction
+            }
+        else:
+            # Handle emotion object
+            self.last_emotion = {
+                "name": emotion.name,
+                "intensity": emotion.intensity,
+                "direction": emotion.direction,
+            }
 
     def add_modifier(self, zone, modifier):
         """

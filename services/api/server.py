@@ -2,7 +2,7 @@ import asyncio
 import logging
 import time
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Optional, Union
 
 from fastapi import Body, Request
 from fastapi import FastAPI, HTTPException, Depends
@@ -20,6 +20,7 @@ from sse_starlette.sse import EventSourceResponse
 from modules.utilities.file_utils import load_json
 from .deps import run_world  # background sim loop
 from .deps import world, governor, event_queue, DEV_TOKEN
+from .auth import auth_router, get_current_active_user, check_permission, Permission, User, UserRole
 from .schemas import StateOut, CommandOut
 
 # Configure logging
@@ -39,9 +40,11 @@ limiter = Limiter(key_func=get_remote_address)
 security = HTTPBearer()
 
 
-def auth(credentials: HTTPAuthorizationCredentials = Depends(security)):
+async def auth(credentials: HTTPAuthorizationCredentials = Depends(security)):
     """
     Authenticate requests using Bearer token authentication.
+
+    Supports both legacy DEV_TOKEN and JWT-based authentication.
     """
     if credentials.scheme.lower() != "bearer":
         raise HTTPException(
@@ -50,16 +53,23 @@ def auth(credentials: HTTPAuthorizationCredentials = Depends(security)):
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    if credentials.credentials != DEV_TOKEN:
+    # First try legacy token for backward compatibility
+    if credentials.credentials == DEV_TOKEN:
+        return credentials.credentials
+
+    # If not legacy token, try JWT authentication
+    try:
+        # Get current user from JWT token
+        user = await get_current_active_user(credentials.credentials)
+        return user
+    except Exception as e:
         # Log failed authentication attempts
-        logger.warning(f"Failed authentication attempt from {get_remote_address}")
+        logger.warning(f"Failed authentication attempt: {str(e)}")
         raise HTTPException(
             status_code=401,
             detail="Invalid token",
             headers={"WWW-Authenticate": "Bearer"},
         )
-
-    return credentials.credentials
 
 
 app = FastAPI(title="Eterna Control API", version="0.1.0")
@@ -67,6 +77,9 @@ app = FastAPI(title="Eterna Control API", version="0.1.0")
 # Add rate limiter exception handler
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Include the authentication router
+app.include_router(auth_router, prefix="/auth")
 
 # Configure CORS - restrict to only necessary origins
 origins = ["http://localhost:5173"]  # Vite dev server
@@ -128,7 +141,7 @@ class RewardIn(BaseModel):
 @app.post("/reward/{companion_name}")
 @limiter.limit("30/minute")
 async def send_reward(
-        request: Request, companion_name: str, body: RewardIn, token: str = Depends(auth)
+    request: Request, companion_name: str, body: RewardIn, current_user: Union[str, User] = Depends(auth)
 ):
     """
     Send a reward to a specific companion.
@@ -137,11 +150,19 @@ async def send_reward(
         request: The request object (for rate limiting)
         companion_name: The name of the companion to reward
         body: The reward data
-        token: The authentication token
+        current_user: The authenticated user or legacy token
 
     Returns:
         Confirmation of the reward being sent
     """
+    # Check permissions if using JWT authentication
+    if isinstance(current_user, User) and not current_user.has_permission(Permission.WRITE):
+        logger.warning(f"User {current_user.username} attempted to send reward without permission")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions. WRITE permission required.",
+        )
+
     # Validate and sanitize companion name
     if not companion_name or not isinstance(companion_name, str):
         raise HTTPException(status_code=400, detail="Invalid companion name")
@@ -159,9 +180,12 @@ async def send_reward(
         raise HTTPException(status_code=404, detail="Companion not found")
 
     try:
+        # Log the user who sent the reward
+        user_info = current_user.username if isinstance(current_user, User) else "legacy_token"
+
         # stash reward so step() can read it
         world.companion_trainer.observe_reward(companion_name, body.value)
-        logger.info(f"Reward of {body.value} sent to companion {companion_name}")
+        logger.info(f"Reward of {body.value} sent to companion {companion_name} by {user_info}")
         return {"ok": True}
     except Exception as e:
         logger.error(f"Error sending reward to companion {companion_name}: {e}")
@@ -182,10 +206,17 @@ async def get_state(request: Request):
     """
     try:
         tracker = world.state_tracker
+        # Extract emotion name if it's an object, otherwise use as is
+        emotion = tracker.last_emotion
+        if isinstance(emotion, dict) and "name" in emotion:
+            emotion = emotion["name"]
+        elif hasattr(emotion, "name"):
+            emotion = emotion.name
+
         return {
             "cycle": world.eterna.runtime.cycle_count,
             "identity_score": tracker.identity_continuity(),
-            "emotion": tracker.last_emotion,
+            "emotion": emotion,
             "modifiers": tracker.applied_modifiers,
             "current_zone": tracker.current_zone(),
         }
@@ -201,7 +232,9 @@ async def get_state(request: Request):
 @app.post("/command/rollback", response_model=CommandOut)
 @limiter.limit("10/minute")
 async def rollback(
-        request: Request, file: str | None = Query(default=None), token: str = Depends(auth)
+    request: Request, 
+    file: str | None = Query(default=None), 
+    current_user: Union[str, User] = Depends(auth)
 ):
     """
     Roll back the system state to a previous checkpoint.
@@ -209,11 +242,19 @@ async def rollback(
     Args:
         request: The request object (for rate limiting)
         file: The checkpoint file to roll back to (optional)
-        token: The authentication token
+        current_user: The authenticated user or legacy token
 
     Returns:
         Confirmation of the rollback
     """
+    # Check permissions if using JWT authentication
+    if isinstance(current_user, User) and not current_user.has_permission(Permission.EXECUTE):
+        logger.warning(f"User {current_user.username} attempted to rollback without permission")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions. EXECUTE permission required.",
+        )
+
     try:
         # Validate file path if provided
         if file:
@@ -231,9 +272,12 @@ async def rollback(
         else:
             target = None
 
+        # Log the user who performed the rollback
+        user_info = current_user.username if isinstance(current_user, User) else "legacy_token"
+
         # Perform the rollback
         governor.rollback(target)
-        logger.info(f"System rolled back to {str(target) if target else 'latest'}")
+        logger.info(f"System rolled back to {str(target) if target else 'latest'} by {user_info}")
         return {"status": "rolled_back", "detail": str(target) if target else "latest"}
     except Exception as e:
         logger.error(f"Error during rollback: {e}")
@@ -242,19 +286,27 @@ async def rollback(
 
 @app.post("/command/{action}", response_model=CommandOut)
 @limiter.limit("20/minute")
-async def command(request: Request, action: str, token: str = Depends(auth)):
+async def command(request: Request, action: str, current_user: Union[str, User] = Depends(auth)):
     """
     Execute a command on the system.
 
     Args:
         request: The request object (for rate limiting)
         action: The action to perform (pause, resume, shutdown)
-        token: The authentication token
+        current_user: The authenticated user or legacy token
 
     Returns:
         The result of the command
     """
-    from .deps import save_shutdown_state
+    # Check permissions if using JWT authentication
+    if isinstance(current_user, User) and not current_user.has_permission(Permission.EXECUTE):
+        logger.warning(f"User {current_user.username} attempted to execute command without permission")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions. EXECUTE permission required.",
+        )
+
+    from .deps import save_governor_state
 
     # Validate action
     valid_actions = ["pause", "resume", "shutdown"]
@@ -263,27 +315,34 @@ async def command(request: Request, action: str, token: str = Depends(auth)):
         logger.warning(f"Invalid action attempted: {action}")
         raise HTTPException(status_code=404, detail="Unknown action")
 
+    # Log the user who performed the command
+    user_info = current_user.username if isinstance(current_user, User) else "legacy_token"
+
     try:
         match action:
             case "pause":
                 governor.pause()
+                # Save pause state immediately
+                save_governor_state(shutdown=False, paused=True)
                 status = "paused"
-                logger.info("System paused")
+                logger.info(f"System paused by {user_info}")
             case "resume":
                 # If the simulation was shutdown, we need to reset the shutdown flag
                 if governor.is_shutdown():
                     governor._shutdown = False
-                    save_shutdown_state(False)  # Clear the shutdown state
                     # Reset the cycle count to start from the beginning
                     world.eterna.runtime.cycle_count = 0
                 governor.resume()
+                # Clear both shutdown and pause states
+                save_governor_state(shutdown=False, paused=False)
                 status = "running"
-                logger.info("System resumed")
+                logger.info(f"System resumed by {user_info}")
             case "shutdown":
                 governor.shutdown("user request")
-                save_shutdown_state(True)  # Save shutdown state immediately
+                # Save shutdown state immediately
+                save_governor_state(shutdown=True, paused=False)
                 status = "shutdown"
-                logger.info("System shutdown initiated")
+                logger.info(f"System shutdown initiated by {user_info}")
                 return {"status": status, "detail": "server will stop world loop"}
 
         return {"status": status, "detail": None}
@@ -478,10 +537,10 @@ async def list_laws(request: Request, token: str = Depends(auth)):
 @app.post("/laws/{name}/toggle")
 @limiter.limit("20/minute")
 async def toggle_law(
-        request: Request,
-        name: str,
-        enabled: bool = Body(embed=True),
-        token: str = Depends(auth),
+    request: Request,
+    name: str,
+    enabled: bool = Body(embed=True),
+    current_user: Union[str, User] = Depends(auth),
 ):
     """
     Toggle a law on or off.
@@ -490,11 +549,19 @@ async def toggle_law(
         request: The request object (for rate limiting)
         name: The name of the law to toggle
         enabled: Whether to enable or disable the law
-        token: The authentication token
+        current_user: The authenticated user or legacy token
 
     Returns:
         The new state of the law
     """
+    # Check permissions if using JWT authentication - require ADMIN permission for law modification
+    if isinstance(current_user, User) and not current_user.has_permission(Permission.ADMIN):
+        logger.warning(f"User {current_user.username} attempted to toggle law without admin permission")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions. ADMIN permission required.",
+        )
+
     try:
         # Validate law name
         if name not in governor.laws:
@@ -505,9 +572,12 @@ async def toggle_law(
         if not isinstance(enabled, bool):
             raise HTTPException(status_code=400, detail="Enabled must be a boolean")
 
+        # Log the user who performed the action
+        user_info = current_user.username if isinstance(current_user, User) else "legacy_token"
+
         # Toggle the law
         governor.laws[name].enabled = enabled
-        logger.info(f"Law '{name}' {'enabled' if enabled else 'disabled'}")
+        logger.info(f"Law '{name}' {'enabled' if enabled else 'disabled'} by {user_info}")
         return {"enabled": enabled}
     except HTTPException:
         raise
@@ -620,18 +690,20 @@ async def list_rituals(request: Request):
 
 @app.post("/api/rituals/trigger/{id}")
 @limiter.limit("20/minute")
-async def trigger_ritual(request: Request, id: int, token: str = Depends(auth)):
+async def trigger_ritual(request: Request, id: int, current_user: Union[str, User] = Depends(auth)):
     """
     Trigger a ritual by its ID.
 
     Args:
         request: The request object (for rate limiting)
         id: The ID of the ritual to trigger
-        token: The authentication token
+        current_user: The authenticated user or legacy token
 
     Returns:
         Confirmation of the ritual being triggered
     """
+    # All authenticated users can trigger rituals, no permission check needed
+
     try:
         # Validate ritual ID
         if not isinstance(id, int):
@@ -643,9 +715,12 @@ async def trigger_ritual(request: Request, id: int, token: str = Depends(auth)):
             logger.warning(f"Attempt to trigger non-existent ritual with ID: {id}")
             raise HTTPException(status_code=404, detail="Ritual not found")
 
+        # Log the user who triggered the ritual
+        user_info = current_user.username if isinstance(current_user, User) else "legacy_token"
+
         ritual = rituals[id]
         world.eterna.rituals.perform(ritual.name)
-        logger.info(f"Ritual '{ritual.name}' triggered")
+        logger.info(f"Ritual '{ritual.name}' triggered by {user_info}")
         return {"status": "success", "message": f"Ritual '{ritual.name}' triggered"}
     except HTTPException:
         raise

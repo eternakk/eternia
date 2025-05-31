@@ -54,6 +54,11 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
+    - name: Check if code scanning is enabled
+      run: |
+        echo "Note: If this workflow fails with 'Code scanning is not enabled for this repository', please enable it in the repository settings."
+        echo "Go to: Repository > Settings > Security & analysis > Code scanning > Set up > GitHub Actions"
+
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v2
       with:

@@ -1,4 +1,7 @@
 import random
+from typing import Any, Optional
+
+from modules.interfaces import ExplorationInterface
 
 
 class ExplorationZone:
@@ -52,20 +55,48 @@ class VirgilGuide:
         if physics_profile:
             print(f"📐 Virgil: 'Expect {physics_profile.dimensions} dimensions, gravity {physics_profile.gravity}, and {physics_profile.energy_behavior} energy.'")
 
-class ExplorationModule:
-    def __init__(self, user_intellect,  eterna_interface = None):
+class ExplorationModule(ExplorationInterface):
+    def __init__(self, user_intellect, eterna_interface=None):
         self.registry = ExplorationRegistry()
         self.virgil = VirgilGuide()
         self.user_intellect = user_intellect
-        self.eterna = eterna_interface  # Add this
+        self.eterna = eterna_interface
+        self.current_zone = None
 
-    def explore_random_zone(self, return_zone=False):
+    def initialize(self) -> None:
+        """Initialize the exploration module."""
+        pass
+
+    def shutdown(self) -> None:
+        """Perform any cleanup operations when shutting down."""
+        pass
+
+    def register_zone(self, zone: Any) -> None:
+        """
+        Register a new exploration zone.
+
+        Args:
+            zone: The zone to register
+        """
+        self.registry.register_zone(zone)
+
+    def explore_random_zone(self, return_zone=False) -> Optional[Any]:
+        """
+        Explore a random zone.
+
+        Args:
+            return_zone: Whether to return the zone object
+
+        Returns:
+            The zone object if return_zone is True, None otherwise
+        """
         available = self.registry.available_zones(self.user_intellect)
         if not available:
             print("⚠️ No suitable zones to explore. Try evolving first.")
             return None
 
         zone = random.choice(available)
+        self.current_zone = zone.name
 
         # 🧠 Get physics profile for Virgil to reference
         physics_profile = self.eterna.physics_registry.get_profile(zone.name) if hasattr(self, 'eterna') else None

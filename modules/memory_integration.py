@@ -1,3 +1,7 @@
+from typing import Any, Dict
+
+from modules.interfaces import MemoryInterface
+
 class Memory:
     def __init__(self, description, clarity=5, emotional_quality='neutral'):
         self.description = description
@@ -37,16 +41,39 @@ class MemoryManifestationEngine:
             print("🚫 Memory not ready. Please refine further.")
             return "Integration Paused"
 
-class MemoryIntegrationModule:
+class MemoryIntegrationModule(MemoryInterface):
     def __init__(self, eterna=None):
         self.mss = MemorySelectionSystem()
         self.mrs = MemoryRefinementSystem()
         self.mme = MemoryManifestationEngine()
         self.eterna = eterna
 
-    def process_memory(self, memory):
+    def initialize(self) -> None:
+        """Initialize the memory integration module."""
+        pass
+
+    def shutdown(self) -> None:
+        """Perform any cleanup operations when shutting down."""
+        pass
+
+    def process_memory(self, memory: Any) -> Dict[str, Any]:
+        """
+        Process a memory for integration.
+
+        Args:
+            memory: The memory to process
+
+        Returns:
+            Dict[str, Any]: Result of memory processing
+        """
         self.mss.add_memory(memory)
         self.mrs.refine_memory(memory)
         if self.eterna:
             self.eterna.log_memory(memory)
-        return self.mme.manifest_memory(memory)
+
+        result = self.mme.manifest_memory(memory)
+
+        # Convert string result to dictionary for interface compliance
+        if isinstance(result, str):
+            return {"status": result, "memory": memory}
+        return result

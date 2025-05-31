@@ -5,6 +5,17 @@ from modules.emotional_safety import EmotionalSafetyModule
 from modules.emotions import EmotionalCircuitSystem
 from modules.evolution import UserEvolution
 from modules.exploration import ExplorationModule, ExplorationZone
+from modules.interfaces import (
+    AwarenessInterface,
+    ConsciousnessInterface,
+    EmotionalInterface,
+    EvolutionInterface,
+    ExplorationInterface,
+    MemoryInterface,
+    RuntimeInterface,
+    SocialInterface,
+    StateTrackerInterface,
+)
 from modules.law_parser import load_laws
 from modules.laws import PhilosophicalLawbook
 from modules.memory_integration import MemoryIntegrationModule, Memory
@@ -23,38 +34,92 @@ from modules.zone_modifiers import SymbolicModifierRegistry
 
 
 class EternaInterface:
-    def __init__(self):
-        self.evolution = UserEvolution()
-        self.replica = ConsciousnessReplica()
-        self.awareness = MultidimensionalAwareness()
-        self.population = WorldPopulation()
-        self.reality_bridge = RealityBridgeModule(self)
-        self.social_interaction = SocialInteractionModule()
-        self.emotional_safety = EmotionalSafetyModule()
-        self.memory_integration = MemoryIntegrationModule()
-        self.exploration = ExplorationModule(user_intellect=self.evolution.intellect)
-        self.runtime = EternaRuntime(self)
-        self.lawbook = PhilosophicalLawbook()
-        self.senses = SensoryProfile()
-        self.physics_registry = PhysicsZoneRegistry()
-        self.exploration = ExplorationModule(
-            user_intellect=self.evolution.intellect, eterna_interface=self
-        )
-        self.rituals = RitualSystem()
-        self.emotion_circuits = EmotionalCircuitSystem(eterna_interface=self)
-        self.soul_invitations = SoulInvitationSystem()
-        self.soul_presence = SoulPresenceRegistry()
-        self.vitals = ShellVitals()
-        self.threats = ThreatAnalyzer()
-        self.defense = DefenseSystem(self)
-        self.state = EternaState(self)
-        self.companions = CompanionManager()
-        self.state_tracker = EternaStateTracker()
-        self.state_tracker.load()
-        self.modifiers = SymbolicModifierRegistry()
-        self.time_sync = TimeSynchronizer(self)
-        self.agent_comm = AgentCommunicationProtocol(self)
-        self.law_registry = load_laws()
+    def __init__(self, use_dependency_injection=True):
+        """
+        Initialize the EternaInterface.
+
+        Args:
+            use_dependency_injection: Whether to use dependency injection for components.
+                If True, components will be retrieved from the dependency injection container.
+                If False, components will be instantiated directly.
+        """
+        if use_dependency_injection:
+            from modules.dependency_injection import get_container
+            from modules.module_initializer import initialize_modules
+
+            # Register this instance with the container first
+            container = get_container()
+            container.register_instance("eterna_interface", self)
+
+            # Initialize all modules
+            initialize_modules(container)
+
+            # Get components from the container
+            self.evolution = container.get("evolution")
+            self.replica = container.get("consciousness_replica")
+            self.awareness = container.get("awareness")
+            self.population = container.get("population")
+            self.social_interaction = container.get("social_interaction")
+            self.emotional_safety = container.get("emotional_safety")
+            self.memory_integration = container.get("memory_integration")
+            self.lawbook = container.get("lawbook")
+            self.senses = container.get("sensory_profile")
+            self.physics_registry = container.get("physics_registry")
+            self.rituals = container.get("rituals")
+            self.soul_invitations = container.get("soul_invitations")
+            self.soul_presence = container.get("soul_presence")
+            self.vitals = container.get("vitals")
+            self.threats = container.get("threats")
+            self.companions = container.get("companions")
+            self.state_tracker = container.get("state_tracker")
+            self.modifiers = container.get("modifiers")
+            self.law_registry = container.get("law_registry")
+
+            # Get components that depend on this instance
+            self.reality_bridge = container.get("reality_bridge")
+            self.exploration = container.get("exploration")
+            self.runtime = container.get("runtime")
+            self.emotion_circuits = container.get("emotion_circuits")
+            self.defense = container.get("defense")
+            self.state = container.get("state")
+            self.time_sync = container.get("time_sync")
+            self.agent_comm = container.get("agent_comm")
+
+            # Initialize state tracker
+            self.state_tracker.load()
+        else:
+            # Legacy initialization without dependency injection
+            self.evolution = UserEvolution()
+            self.replica = ConsciousnessReplica()
+            self.awareness = MultidimensionalAwareness()
+            self.population = WorldPopulation()
+            self.reality_bridge = RealityBridgeModule(self)
+            self.social_interaction = SocialInteractionModule()
+            self.emotional_safety = EmotionalSafetyModule()
+            self.memory_integration = MemoryIntegrationModule()
+            self.exploration = ExplorationModule(user_intellect=self.evolution.intellect)
+            self.runtime = EternaRuntime(self)
+            self.lawbook = PhilosophicalLawbook()
+            self.senses = SensoryProfile()
+            self.physics_registry = PhysicsZoneRegistry()
+            self.exploration = ExplorationModule(
+                user_intellect=self.evolution.intellect, eterna_interface=self
+            )
+            self.rituals = RitualSystem()
+            self.emotion_circuits = EmotionalCircuitSystem(eterna_interface=self)
+            self.soul_invitations = SoulInvitationSystem()
+            self.soul_presence = SoulPresenceRegistry()
+            self.vitals = ShellVitals()
+            self.threats = ThreatAnalyzer()
+            self.defense = DefenseSystem(self)
+            self.state = EternaState(self)
+            self.companions = CompanionManager()
+            self.state_tracker = EternaStateTracker()
+            self.state_tracker.load()
+            self.modifiers = SymbolicModifierRegistry()
+            self.time_sync = TimeSynchronizer(self)
+            self.agent_comm = AgentCommunicationProtocol(self)
+            self.law_registry = load_laws()
 
     def synchronize_time(self):
         self.time_sync.adjust_time_flow(self.senses)
@@ -275,6 +340,20 @@ class EternaInterface:
 
     def current_companion(self):
         return self.companions.get_current()
+
+    def get_companion(self, name):
+        """
+        Get a companion by name.
+
+        Args:
+            name: The name of the companion to get
+
+        Returns:
+            The companion with the given name, or None if not found
+        """
+        return next(
+            (c for c in self.companions.companions if c.name.lower() == name.lower()), None
+        )
 
     def list_rituals(self):
         self.rituals.list_rituals()

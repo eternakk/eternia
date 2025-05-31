@@ -2,6 +2,7 @@ import random
 
 from modules.logging_config import get_logger
 from modules.resonance_engine import ResonanceEngine
+from modules.interfaces import RuntimeInterface
 
 
 class EternaState:
@@ -21,7 +22,7 @@ class EternaState:
         self.logger.info(f"  • Current Mode        : {self.mode}")
 
 
-class EternaRuntime:
+class EternaRuntime(RuntimeInterface):
     def __init__(self, eterna_interface):
         self.eterna = eterna_interface
         self.state = EternaState(eterna_interface)
@@ -30,6 +31,18 @@ class EternaRuntime:
         self.resonance = ResonanceEngine()
         self.logger = get_logger("runtime")
         self.cycles_logger = get_logger("cycles")
+
+    def initialize(self) -> None:
+        """Initialize the runtime module."""
+        self.logger.info("🚀 Initializing EternaRuntime")
+        self.cycle_count = 0
+        self.state.cognitive_load = 0
+        self.state.mode = "idle"
+
+    def shutdown(self) -> None:
+        """Perform any cleanup operations when shutting down."""
+        self.logger.info("🛑 Shutting down EternaRuntime")
+        self.save_persistent_states()
 
     def run_cycle(self):
         self.cycle_count += 1

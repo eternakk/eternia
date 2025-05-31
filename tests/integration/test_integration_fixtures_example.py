@@ -26,12 +26,12 @@ def test_api_client_fixture(client):
 def test_auth_headers_fixture(client, auth_headers):
     """Demonstrate how to use the auth_headers fixture."""
     # Make an authenticated request to the API
-    response = client.post("/command/pause", headers=auth_headers)
+    response = client.post("/command/rollback", headers=auth_headers)
 
     # Verify the response
     assert response.status_code == 200
     data = response.json()
-    assert data["status"] == "paused"
+    assert data["status"] == "rolled_back"
 
 
 def test_patched_governor_fixture(client, auth_headers, patched_governor):
@@ -69,14 +69,15 @@ def test_patched_save_shutdown_state_fixture(client, auth_headers, patched_gover
     assert response.status_code == 200
     assert response.json()["status"] == "shutdown"
     patched_governor.shutdown.assert_called_once_with("user request")
-    patched_save_shutdown_state.assert_called_once_with(True)
+    patched_save_shutdown_state.assert_called_once_with(shutdown=True, paused=False)
 
 
-def test_patched_event_queue_and_asyncio_create_task_fixtures(client, patched_event_queue, patched_asyncio_create_task):
+@pytest.mark.asyncio
+async def test_patched_event_queue_and_asyncio_create_task_fixtures(client, patched_event_queue, patched_asyncio_create_task):
     """Demonstrate how to use the patched_event_queue and patched_asyncio_create_task fixtures."""
     # Call the startup event handler to trigger the broadcaster task
     for handler in client.app.router.on_startup:
-        asyncio.run(handler())
+        await handler()
 
     # Verify that create_task was called at least twice (for broadcaster and run_world)
     assert patched_asyncio_create_task.call_count >= 2

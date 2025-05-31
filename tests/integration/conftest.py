@@ -44,7 +44,7 @@ def patched_world():
         companion.zone = "TestZone"
         companion.memory = ["Memory1", "Memory2"]
         mock_world.eterna.companions.companions = [companion]
-        
+
         # Set up zones
         zone = MagicMock()
         zone.name = "TestZone"
@@ -54,14 +54,22 @@ def patched_world():
         zone.emotion_tag = "Peaceful"
         zone.modifiers = ["Modifier1", "Modifier2"]
         mock_world.eterna.exploration.registry.zones = [zone]
-        
+
         yield mock_world
 
 
 @pytest.fixture
+def patched_save_governor_state():
+    """Return a context manager that patches the save_governor_state function."""
+    with patch("services.api.deps.save_governor_state") as mock_save:
+        yield mock_save
+
+@pytest.fixture
 def patched_save_shutdown_state():
-    """Return a context manager that patches the save_shutdown_state function."""
-    with patch("services.api.deps.save_shutdown_state") as mock_save:
+    """Return a context manager that patches the save_shutdown_state function (deprecated)."""
+    # This fixture is kept for backward compatibility with existing tests
+    # New tests should use patched_save_governor_state instead
+    with patch("services.api.deps.save_governor_state") as mock_save:
         yield mock_save
 
 

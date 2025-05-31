@@ -1,4 +1,5 @@
 from modules.emotions import EmotionalState as CircuitEmotion, EmotionalCircuitSystem
+from modules.interfaces import EmotionalInterface
 
 
 class EmotionalState:
@@ -35,13 +36,27 @@ class TherapeuticInterventionSystem:
         print(f"🌈 Offered therapeutic intervention: {intervention}")
         return intervention
 
-class EmotionalSafetyModule:
+class EmotionalSafetyModule(EmotionalInterface):
     def __init__(self, eterna_interface=None):
         self.ems = EmotionalMonitoringSystem()
         self.ptis = TherapeuticInterventionSystem()
         self.circuits = EmotionalCircuitSystem(eterna_interface)
 
-    def monitor_and_manage_emotions(self):
+    def initialize(self) -> None:
+        """Initialize the emotional safety module."""
+        pass
+
+    def shutdown(self) -> None:
+        """Perform any cleanup operations when shutting down."""
+        pass
+
+    def monitor_and_manage_emotions(self) -> bool:
+        """
+        Monitor and manage emotions for safety.
+
+        Returns:
+            bool: True if emotional state is safe, False otherwise
+        """
         if self.ems.detect_negative_emotions():
             # Map internal emotional state to new emotion circuit model
             mapped_emotion = CircuitEmotion(
@@ -50,7 +65,19 @@ class EmotionalSafetyModule:
                 direction="locked" if self.ems.state.trauma_triggered else "flowing"
             )
             self.circuits.process_emotion(mapped_emotion)
-            return "Emotion Processed via Circuit"
+            print("Emotion Processed via Circuit")
+            return False  # Emotional state is not safe
 
         print("✅ Emotional state stable.")
-        return "Stable"
+        return True  # Emotional state is safe
+
+    def update_emotional_state(self, mood: str, stress_level: int, trauma_triggered: bool = False) -> None:
+        """
+        Update the emotional state.
+
+        Args:
+            mood: The current mood
+            stress_level: The current stress level
+            trauma_triggered: Whether trauma has been triggered
+        """
+        self.ems.update_emotional_state(mood, stress_level, trauma_triggered)

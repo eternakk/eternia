@@ -61,12 +61,12 @@ class TestAPIIntegration:
     def test_command_shutdown(self, client, auth_headers):
         """Test that the shutdown command works correctly."""
         with patch("services.api.server.governor") as mock_governor, \
-             patch("services.api.deps.save_shutdown_state") as mock_save:
+             patch("services.api.deps.save_governor_state") as mock_save:
             response = client.post("/command/shutdown", headers=auth_headers)
             assert response.status_code == 200
             assert response.json()["status"] == "shutdown"
             mock_governor.shutdown.assert_called_once_with("user request")
-            mock_save.assert_called_once_with(True)
+            mock_save.assert_called_once_with(shutdown=True, paused=False)
 
     def test_command_rollback(self, client, auth_headers):
         """Test that the rollback command works correctly."""
@@ -147,7 +147,10 @@ class TestAPIIntegration:
             with patch("asyncio.create_task") as mock_create_task:
                 # Call the startup event handler
                 for handler in app.router.on_startup:
-                    asyncio.run(handler())
+                    # Use get_event_loop().run_until_complete instead of asyncio.run
+                    # to avoid "asyncio.run() cannot be called from a running event loop" error
+                    loop = asyncio.get_event_loop()
+                    loop.run_until_complete(handler())
 
                 # Verify that create_task was called at least twice (for broadcaster and run_world)
                 assert mock_create_task.call_count >= 2

@@ -13,6 +13,7 @@ pydantic==2.4.0
 email-validator==2.0.0  # For Pydantic's EmailStr validation
 sse-starlette==1.6.1
 slowapi==0.1.8  # For API rate limiting
+python-multipart==0.0.6  # For handling form data
 
 # Data Processing
 pyyaml==6.0

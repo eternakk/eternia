@@ -109,6 +109,10 @@ class EternaWorld:
         companion = self.eterna.current_companion()
         emo = self.state_tracker.last_emotion or "neutral"
 
+        # Extract emotion name if it's a dictionary
+        if isinstance(emo, dict):
+            emo = emo.get("name", "neutral")
+
         # Update RL companion system
         obs, action, reward = self._update_rl_companion(companion, emo)
 

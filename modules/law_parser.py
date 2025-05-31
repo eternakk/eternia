@@ -1,4 +1,8 @@
-import tomllib, pathlib, re
+import pathlib, re
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib
 from pydantic import BaseModel, Field, validator
 
 class LawEffect(BaseModel):

@@ -10,7 +10,7 @@ import inspect
 import logging
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Any, Callable, Dict, List, TypeVar, Union
+from typing import Any, Callable, Dict, List, TypeVar, Union, Coroutine
 
 # Configure logging
 logger = logging.getLogger("eternia.event_bus")
@@ -18,7 +18,7 @@ logger = logging.getLogger("eternia.event_bus")
 # Type for event handlers
 T = TypeVar("T")
 EventHandler = Callable[[T], None]
-AsyncEventHandler = Callable[[T], asyncio.coroutines]
+AsyncEventHandler = Callable[[T], Coroutine[Any, Any, None]]
 
 
 class EventPriority(Enum):

@@ -12,7 +12,7 @@ def test_api_client_fixture(client):
     """Demonstrate how to use the client fixture."""
     # Make a request to the API
     response = client.get("/state")
-    
+
     # Verify the response
     assert response.status_code == 200
     data = response.json()
@@ -27,7 +27,7 @@ def test_auth_headers_fixture(client, auth_headers):
     """Demonstrate how to use the auth_headers fixture."""
     # Make an authenticated request to the API
     response = client.post("/command/rollback", headers=auth_headers)
-    
+
     # Verify the response
     assert response.status_code == 200
     data = response.json()
@@ -38,7 +38,7 @@ def test_patched_governor_fixture(client, auth_headers, patched_governor):
     """Demonstrate how to use the patched_governor fixture."""
     # Make a request that uses the governor
     response = client.post("/command/pause", headers=auth_headers)
-    
+
     # Verify the response and that the governor was called
     assert response.status_code == 200
     assert response.json()["status"] == "paused"
@@ -49,7 +49,7 @@ def test_patched_world_fixture(client, patched_world):
     """Demonstrate how to use the patched_world fixture."""
     # Make a request that uses the world
     response = client.get("/api/agents")
-    
+
     # Verify the response
     assert response.status_code == 200
     data = response.json()
@@ -64,12 +64,12 @@ def test_patched_save_shutdown_state_fixture(client, auth_headers, patched_gover
     """Demonstrate how to use the patched_save_shutdown_state fixture."""
     # Make a request that uses the save_shutdown_state function
     response = client.post("/command/shutdown", headers=auth_headers)
-    
+
     # Verify the response and that the function was called
     assert response.status_code == 200
     assert response.json()["status"] == "shutdown"
     patched_governor.shutdown.assert_called_once_with("user request")
-    patched_save_shutdown_state.assert_called_once_with(True)
+    patched_save_shutdown_state.assert_called_once_with(shutdown=True, paused=False)
 
 
 def test_patched_event_queue_and_asyncio_create_task_fixtures(client, patched_event_queue, patched_asyncio_create_task):
@@ -77,6 +77,6 @@ def test_patched_event_queue_and_asyncio_create_task_fixtures(client, patched_ev
     # Call the startup event handler to trigger the broadcaster task
     for handler in client.app.router.on_startup:
         asyncio.run(handler())
-    
+
     # Verify that create_task was called at least twice (for broadcaster and run_world)
     assert patched_asyncio_create_task.call_count >= 2

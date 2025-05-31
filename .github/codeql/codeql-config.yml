@@ -1,0 +1,19 @@
+name: "CodeQL Configuration"
+
+paths:
+  - '.'
+paths-ignore:
+  - '**/node_modules/**'
+  - '**/tests/**'
+  - '**/.venv/**'
+  - '**/vendor/**'
+  - '**/*.test.js'
+  - '**/*.test.py'
+
+queries:
+  - name: Security and Quality
+    uses: security-and-quality
+
+languages:
+  - name: python
+  - name: javascript

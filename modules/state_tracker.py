@@ -375,6 +375,11 @@ class EternaStateTracker(StateTrackerInterface):
         """
         val_map = {"joy": 1, "grief": -1, "anger": 0.5, "neutral": 0}
         emo = self.last_emotion or "neutral"
+
+        # Extract emotion name if it's a dictionary
+        if isinstance(emo, dict):
+            emo = emo.get("name", "neutral")
+
         valence = val_map.get(emo, 0)
         arousal = self.last_intensity / 10.0
         dominance = self.last_dominance / 10.0

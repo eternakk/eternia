@@ -46,4 +46,6 @@ The current configuration:
 
 If you see the error "Code scanning is not enabled for this repository", you need to follow the steps above to enable it in the repository settings. This is a GitHub-specific setting that cannot be enabled through code alone.
 
+The workflow files have been configured with `continue-on-error: true` for the CodeQL analysis steps, which means that the workflows will not fail completely when code scanning is not enabled. This allows other security scanning steps to complete successfully even if CodeQL scanning is not enabled.
+
 For more information about CodeQL, see the [GitHub documentation](https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/about-code-scanning-with-codeql).

@@ -134,7 +134,7 @@ class TestAPIIntegration:
 
         # Test with missing token
         response = client.post("/command/pause")
-        assert response.status_code == 422  # FastAPI validation error for missing header
+        assert response.status_code == 403  # FastAPI security error for missing token
 
     def test_event_broadcasting(self, client):
         """Test that events are correctly broadcast to WebSocket clients."""
@@ -147,10 +147,14 @@ class TestAPIIntegration:
             with patch("asyncio.create_task") as mock_create_task:
                 # Call the startup event handler
                 for handler in app.router.on_startup:
-                    # Use get_event_loop().run_until_complete instead of asyncio.run
-                    # to avoid "asyncio.run() cannot be called from a running event loop" error
-                    loop = asyncio.get_event_loop()
-                    loop.run_until_complete(handler())
+                    # Create a new event loop instead of getting the current one
+                    # to avoid "RuntimeError: There is no current event loop in thread 'MainThread'." error
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        loop.run_until_complete(handler())
+                    finally:
+                        loop.close()
 
                 # Verify that create_task was called at least twice (for broadcaster and run_world)
                 assert mock_create_task.call_count >= 2

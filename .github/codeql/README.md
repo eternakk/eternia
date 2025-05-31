@@ -17,7 +17,23 @@ To enable CodeQL scanning for this repository, follow these steps:
 5. Select "CodeQL Analysis" from the list of available workflows
 6. Click "Enable CodeQL"
 
-Once enabled, CodeQL will run automatically on every push to the main branch and on pull requests, according to the configuration in `.github/workflows/security-scanning.yml`.
+Once enabled, CodeQL will run automatically on every push to the main branch and on pull requests, according to the configurations in:
+- `.github/workflows/codeql-analysis.yml` (dedicated CodeQL workflow)
+- `.github/workflows/security-scanning.yml` (includes CodeQL as part of security scanning)
+
+## Workflow Files
+
+This repository includes two workflow files that use CodeQL:
+
+1. **codeql-analysis.yml**: A dedicated workflow for CodeQL analysis that:
+   - Runs separately for Python and JavaScript
+   - Uses the configuration in this directory
+   - Categorizes results by language
+
+2. **security-scanning.yml**: A comprehensive security scanning workflow that:
+   - Includes Bandit and Safety for Python dependency scanning
+   - Runs CodeQL analysis for both Python and JavaScript together
+   - Uses the same configuration as the dedicated workflow
 
 ## Configuration Details
 
@@ -25,5 +41,9 @@ The current configuration:
 - Scans Python and JavaScript/TypeScript code
 - Ignores test files, node_modules, and other non-production code
 - Runs security and quality queries
+
+## Troubleshooting
+
+If you see the error "Code scanning is not enabled for this repository", you need to follow the steps above to enable it in the repository settings. This is a GitHub-specific setting that cannot be enabled through code alone.
 
 For more information about CodeQL, see the [GitHub documentation](https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/about-code-scanning-with-codeql).

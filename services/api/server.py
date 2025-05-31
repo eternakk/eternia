@@ -11,7 +11,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, field_validator
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -130,7 +130,7 @@ async def zone_assets(request: Request, name: str):
 class RewardIn(BaseModel):
     value: float
 
-    @validator("value")
+    @field_validator("value")
     def validate_value(cls, v):
         """Validate that the reward value is within acceptable bounds."""
         if not -100 <= v <= 100:
@@ -528,7 +528,7 @@ async def list_laws(request: Request, token: str = Depends(auth)):
         Dictionary of laws with their details
     """
     try:
-        return {name: law.dict() for name, law in governor.laws.items()}
+        return {name: law.model_dump() for name, law in governor.laws.items()}
     except Exception as e:
         logger.error(f"Error retrieving laws: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve laws")

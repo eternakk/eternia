@@ -87,14 +87,14 @@ def save_users():
     """Save users to the JSON file."""
     try:
         USERS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        
+
         # Write to a temporary file first, then rename to ensure atomic write
         temp_file = USERS_FILE.with_suffix('.tmp')
         with open(temp_file, 'w') as f:
             # Convert User objects to dictionaries
-            user_dict = {username: user.dict() for username, user in users.items()}
+            user_dict = {username: user.model_dump() for username, user in users.items()}
             json.dump(user_dict, f, default=str)  # Use default=str to handle datetime objects
-        
+
         # Rename the temporary file to the actual file
         temp_file.replace(USERS_FILE)
         logger.info(f"Saved {len(users)} users to file")
@@ -104,11 +104,11 @@ def save_users():
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     """
     Create a JWT access token.
-    
+
     Args:
         data: The data to encode in the token
         expires_delta: Optional expiration time delta
-        
+
     Returns:
         The encoded JWT token
     """
@@ -121,13 +121,13 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 def verify_token(token: str) -> TokenData:
     """
     Verify a JWT token and return the token data.
-    
+
     Args:
         token: The JWT token to verify
-        
+
     Returns:
         The decoded token data
-        
+
     Raises:
         HTTPException: If the token is invalid
     """
@@ -136,17 +136,17 @@ def verify_token(token: str) -> TokenData:
         username: str = payload.get("sub")
         role: str = payload.get("role")
         exp: int = payload.get("exp")
-        
+
         if username is None or role is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token claims",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        
+
         # Convert exp to datetime
         exp_datetime = datetime.fromtimestamp(exp)
-        
+
         return TokenData(username=username, role=UserRole(role), exp=exp_datetime)
     except InvalidTokenError:
         raise HTTPException(
@@ -158,13 +158,13 @@ def verify_token(token: str) -> TokenData:
 async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
     """
     Get the current user from the token.
-    
+
     Args:
         token: The JWT token
-        
+
     Returns:
         The current user
-        
+
     Raises:
         HTTPException: If the token is invalid or the user doesn't exist
     """
@@ -187,13 +187,13 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
 async def get_current_active_user(current_user: User = Depends(get_current_user)) -> User:
     """
     Get the current active user.
-    
+
     Args:
         current_user: The current user
-        
+
     Returns:
         The current active user
-        
+
     Raises:
         HTTPException: If the user is inactive
     """
@@ -204,10 +204,10 @@ async def get_current_active_user(current_user: User = Depends(get_current_user)
 def check_permission(permission: Permission):
     """
     Dependency to check if a user has a specific permission.
-    
+
     Args:
         permission: The permission to check
-        
+
     Returns:
         A dependency function that checks the permission
     """
@@ -241,7 +241,7 @@ def create_user(user_create: UserCreate) -> User:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Username already registered",
         )
-    
+
     user = User.create(
         username=user_create.username,
         email=user_create.email,
@@ -260,7 +260,7 @@ def update_user(username: str, user_update: UserUpdate) -> User:
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found",
         )
-    
+
     # Update user fields
     if user_update.email is not None:
         user.email = user_update.email
@@ -272,7 +272,7 @@ def update_user(username: str, user_update: UserUpdate) -> User:
         user.role = user_update.role
     if user_update.is_active is not None:
         user.is_active = user_update.is_active
-    
+
     users[username] = user
     save_users()
     return user
@@ -284,7 +284,7 @@ def delete_user(username: str) -> bool:
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found",
         )
-    
+
     del users[username]
     save_users()
     return True

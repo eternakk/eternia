@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Dict, List, Optional, Union
 
-from pydantic import BaseModel, EmailStr, Field, validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 import bcrypt
 import jwt
 from jwt.exceptions import InvalidTokenError
@@ -74,7 +74,7 @@ class UserCreate(BaseModel):
     password: str
     role: UserRole = UserRole.VIEWER
 
-    @validator('password')
+    @field_validator('password')
     def password_strength(cls, v):
         """Validate password strength."""
         if len(v) < 8:
@@ -93,7 +93,7 @@ class UserUpdate(BaseModel):
     role: Optional[UserRole] = None
     is_active: Optional[bool] = None
 
-    @validator('password')
+    @field_validator('password')
     def password_strength(cls, v):
         """Validate password strength if provided."""
         if v is None:

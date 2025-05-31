@@ -3,7 +3,7 @@ try:
     import tomllib
 except ImportError:
     import tomli as tomllib
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 class LawEffect(BaseModel):
     type: str
@@ -18,7 +18,7 @@ class Law(BaseModel):
     conditions: list[str] = []
     effects: dict[str, LawEffect] = Field(default_factory=dict)
 
-    @validator("name")
+    @field_validator("name")
     def slug_safe(cls, v):
         if not re.fullmatch(r"[A-Za-z0-9 _-]+", v):
             raise ValueError("name must be slug‑safe")

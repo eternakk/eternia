@@ -17,7 +17,6 @@ slowapi==0.1.8  # For API rate limiting
 # Data Processing
 pyyaml==6.0
 tomli==2.0.1  # Backport of tomllib for Python < 3.11
-tomllib  # Standard library module in Python 3.11+
 
 # Machine Learning
 torch==2.0.1  # PyTorch for neural networks and machine learning

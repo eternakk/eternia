@@ -16,3 +16,6 @@ slowapi==0.1.8  # For API rate limiting
 
 # Data Processing
 pyyaml==6.0
+
+# Machine Learning
+torch==2.0.1  # PyTorch for neural networks and machine learning

@@ -1,0 +1,27 @@
+# Eternia Project Dependencies
+
+# Testing
+pytest==7.3.1
+pytest-asyncio==0.21.0
+hypothesis==6.82.0  # For property-based testing
+pytest-benchmark==4.0.0  # For performance benchmarking
+
+# Web Framework
+fastapi==0.103.1
+httpx==0.24.0  # For testing FastAPI
+pydantic==2.4.0
+email-validator==2.0.0  # For Pydantic's EmailStr validation
+sse-starlette==1.6.1
+slowapi==0.1.8  # For API rate limiting
+python-multipart==0.0.6  # For handling form data
+
+# Data Processing
+pyyaml==6.0
+tomli==2.0.1  # Backport of tomllib for Python < 3.11
+
+# Machine Learning
+torch==2.0.1  # PyTorch for neural networks and machine learning
+
+# Authentication
+bcrypt==4.0.1  # For password hashing
+PyJWT==2.8.0  # For JWT token handling

@@ -1,0 +1,46 @@
+name: GraphQL Security Scanning
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 0 * * 0'  # Run weekly on Sunday at midnight
+
+jobs:
+  gql-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Check if code scanning is enabled
+      run: |
+        echo "Note: If this workflow fails with 'Code scanning is not enabled for this repository', please enable it in the repository settings."
+        echo "Go to: Repository > Settings > Security & analysis > Code scanning > Set up > GitHub Actions"
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '16'
+    
+    - name: Install dependencies
+      run: |
+        npm install @graphql-eslint/eslint-plugin eslint
+    
+    - name: Run GraphQL ESLint
+      run: |
+        npx eslint --ext .graphql,.gql --format json -o gql-results.json .
+      continue-on-error: true
+    
+    - name: Upload scan results
+      uses: actions/upload-artifact@v4
+      with:
+        name: gql-scan-results
+        path: gql-results.json

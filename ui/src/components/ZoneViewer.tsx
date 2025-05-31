@@ -16,7 +16,7 @@ export default function ZoneViewer() {
                     <div key={zone.id} className="bg-gray-100 shadow rounded p-4">
                         <div className="font-semibold">{zone.name}</div>
                         <div>
-                            Modifiers: {zone.modifiers?.join(', ') || 'None'}
+                            Modifiers: {Array.isArray(zone.modifiers) ? zone.modifiers.join(', ') : String(zone.modifiers) || 'None'}
                         </div>
                         <div>
                             Emotion: <span

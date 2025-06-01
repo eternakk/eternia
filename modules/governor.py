@@ -66,7 +66,13 @@ class AlignmentGovernor:
         self._paused = False
         self._shutdown = False
         self.policy_callbacks: list[Callable[[Dict], bool]] = []
-        self.save_interval = save_interval
+
+        # Adaptive checkpoint interval based on simulation size
+        self.base_save_interval = save_interval
+        self.save_interval = self._determine_save_interval()
+        self._last_interval_update = 0
+        self._interval_update_frequency = 1000  # Check if we need to adjust interval every 1000 ticks
+
         self._tick_counter = 0
         self.laws = load_laws()
         self.event_queue = event_queue
@@ -140,6 +146,7 @@ class AlignmentGovernor:
            triggers a rollback and returns False.
         4. It increments the tick counter and creates a checkpoint if the
            save interval has been reached and significant changes have occurred.
+        5. It adaptively adjusts the checkpoint interval based on simulation size.
 
         Args:
             metrics: A dictionary of metrics from the world, including
@@ -182,6 +189,16 @@ class AlignmentGovernor:
 
         # 3) record a safe checkpoint every N ticks or on significant change
         self._tick_counter += 1
+
+        # Adaptively adjust the checkpoint interval based on simulation size
+        if hasattr(self, '_interval_update_frequency') and self._tick_counter % self._interval_update_frequency == 0:
+            # Calculate new interval using the same logic as in _determine_save_interval
+            new_interval = self._determine_save_interval()
+
+            # Update the save interval if it has changed significantly
+            if abs(new_interval - self.save_interval) > self.base_save_interval * 0.1:
+                self.logger.info(f"Adjusting checkpoint interval from {self.save_interval} to {new_interval} ticks based on simulation size")
+                self.save_interval = new_interval
 
         # Create checkpoints less frequently but ensure we create them when needed
         checkpoint_needed = (self._tick_counter >= self.save_interval) or (
@@ -270,6 +287,53 @@ class AlignmentGovernor:
                 self.event_queue.put_nowait(payload)
             except asyncio.QueueFull:
                 pass  # drop on overflow
+
+    def _determine_save_interval(self) -> int:
+        """
+        Determine the appropriate save interval based on simulation size.
+
+        This method calculates an adaptive checkpoint interval based on memory usage
+        and other simulation metrics if available.
+
+        Returns:
+            int: The determined save interval in ticks.
+        """
+        # Start with the base save interval
+        interval = self.base_save_interval
+
+        # Try to adjust based on memory usage if psutil is available
+        try:
+            import psutil
+            process = psutil.Process()
+            memory_usage_mb = process.memory_info().rss / (1024 * 1024)
+
+            # Increase interval for larger memory usage
+            if memory_usage_mb > 1000:  # More than 1GB
+                interval *= 2
+            elif memory_usage_mb > 500:  # More than 500MB
+                interval *= 1.5
+
+            # Adjust based on the size of the state tracker's collections if available
+            if hasattr(self.state_tracker, "memories"):
+                memories_count = len(self.state_tracker.memories)
+                if memories_count > 1000:
+                    interval *= 1.5
+                elif memories_count > 500:
+                    interval *= 1.2
+
+            # Adjust based on the number of zones if available
+            if hasattr(self.world.eterna, "exploration") and hasattr(self.world.eterna.exploration, "registry"):
+                zones_count = len(getattr(self.world.eterna.exploration.registry, "zones", []))
+                if zones_count > 100:
+                    interval *= 1.3
+                elif zones_count > 50:
+                    interval *= 1.1
+
+        except (ImportError, AttributeError):
+            # If psutil is not available or attributes can't be accessed, use the base interval
+            pass
+
+        return max(int(interval), self.base_save_interval)
 
     def _log_event(self, event: str, payload: Any = None) -> None:
         """

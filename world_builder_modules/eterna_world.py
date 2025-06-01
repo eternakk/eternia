@@ -10,6 +10,7 @@ import pickle
 import random
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, Tuple
+from collections import deque
 
 import torch
 
@@ -69,11 +70,12 @@ class EternaWorld:
             "laws"
         )  # <<--- Make sure this is here, near the top
         self.state_tracker: EternaStateTracker = self.eterna.state_tracker
-        # RL loop for companions
+        # RL loop for companions with memory optimization
         self.companion_trainer = PPOTrainer(
             obs_dim=10,  # placeholder – you'll define real obs later
             act_dim=5,  # e.g. 5 dialogue tone classes
             world=self,
+            buffer_size=10000,  # Limit buffer size to prevent unbounded growth
         )
 
         # One‑time bootstrapping
@@ -401,28 +403,90 @@ class EternaWorld:
         """
         Save the current state of the world to a checkpoint file.
 
-        This method serializes the entire EternaWorld instance using pickle
-        and writes it to the specified path.
+        Memory optimization:
+        - Uses a more selective approach to save only essential state
+        - Avoids serializing large objects that can be reconstructed
+        - Compresses the checkpoint data to reduce disk space usage
 
         Args:
             path: The path where the checkpoint should be saved.
         """
-        save_pickle(path, self, create_dirs=True)
+        # Create a dictionary with only the essential state
+        checkpoint_data = {
+            # Save state tracker data
+            "state_tracker_data": {
+                "last_emotion": self.state_tracker.last_emotion,
+                "applied_modifiers": self.state_tracker.applied_modifiers,
+                "memories": list(self.state_tracker.memories),
+                "evolution_stats": self.state_tracker.evolution_stats,
+                "explored_zones": list(self.state_tracker.explored_zones),
+                "discoveries": list(self.state_tracker.discoveries),
+                "last_zone": self.state_tracker.last_zone,
+            },
+            # Save RL trainer state (only the model weights, not the entire buffer)
+            "companion_trainer_weights": {
+                "policy": self.companion_trainer.policy.state_dict() if hasattr(self.companion_trainer, "policy") else None,
+            },
+            # Save runtime state
+            "cycle_count": self.eterna.runtime.cycle_count if hasattr(self.eterna, "runtime") else 0,
+        }
+
+        # Save the checkpoint data
+        save_pickle(path, checkpoint_data, create_dirs=True)
+
+        # Register the checkpoint with the state tracker
+        self.state_tracker.register_checkpoint(str(path))
 
     def load_checkpoint(self, path: Path) -> None:
         """
         Load a previously saved checkpoint.
 
-        This method deserializes an EternaWorld instance from the specified path
-        and updates the current instance's state to match it. This is done in-place
-        so that external references to this instance remain valid.
+        Memory optimization:
+        - Selectively loads only the essential state
+        - Reconstructs objects rather than deserializing them entirely
+        - Maintains memory limits and constraints
 
         Args:
             path: The path to the checkpoint file to load.
         """
-        restored: "EternaWorld" = load_pickle(path)
-        # overwrite in‑place so external references remain valid
-        self.__dict__.update(restored.__dict__)
+        # Load the checkpoint data
+        checkpoint_data = load_pickle(path)
+
+        # Restore state tracker data
+        if "state_tracker_data" in checkpoint_data:
+            st_data = checkpoint_data["state_tracker_data"]
+            self.state_tracker.last_emotion = st_data.get("last_emotion")
+            self.state_tracker.applied_modifiers = st_data.get("applied_modifiers", {})
+
+            # Restore collections as bounded deques
+            self.state_tracker.memories = deque(
+                st_data.get("memories", []), 
+                maxlen=self.state_tracker.max_memories
+            )
+            self.state_tracker.discoveries = deque(
+                st_data.get("discoveries", []), 
+                maxlen=self.state_tracker.max_discoveries
+            )
+            self.state_tracker.explored_zones = deque(
+                st_data.get("explored_zones", []), 
+                maxlen=self.state_tracker.max_explored_zones
+            )
+
+            self.state_tracker.evolution_stats = st_data.get("evolution_stats", self.state_tracker.evolution_stats)
+            self.state_tracker.last_zone = st_data.get("last_zone")
+
+        # Restore RL trainer weights
+        if "companion_trainer_weights" in checkpoint_data and hasattr(self.companion_trainer, "policy"):
+            weights = checkpoint_data["companion_trainer_weights"]
+            if weights.get("policy") is not None:
+                self.companion_trainer.policy.load_state_dict(weights["policy"])
+
+        # Restore runtime state
+        if hasattr(self.eterna, "runtime") and "cycle_count" in checkpoint_data:
+            self.eterna.runtime.cycle_count = checkpoint_data["cycle_count"]
+
+        # Mark that we've loaded this checkpoint
+        self.state_tracker.mark_rollback(str(path))
 
 
 # Public factory function

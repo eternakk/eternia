@@ -64,8 +64,8 @@ a checkbox that can be checked off when completed.
 [x] 30. Add proper error handling and user feedback in the UI
 [x] 31. Optimize rendering performance for the ZoneCanvas component
 [x] 33. Add comprehensive state management (Redux or Context API)
-[ ] 35. Implement proper loading states for asynchronous operations
-[ ] 17. Implement UI component tests for the React frontend
+[x] 35. Implement proper loading states for asynchronous operations
+[x] 17. Implement UI component tests for the React frontend
 
 ### DevOps and Infrastructure (Medium Priority)
 [ ] 43. Set up proper development, staging, and production environments

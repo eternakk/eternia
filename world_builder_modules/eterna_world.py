@@ -144,6 +144,7 @@ class EternaWorld:
         2. Chooses actions based on the policy
         3. Calculates rewards based on emotions
         4. Updates the policy with the new observations
+        5. Trains the model periodically rather than every step
 
         Args:
             companion: The current companion
@@ -179,8 +180,15 @@ class EternaWorld:
         next_obs[0] += 0.01  # Small change to represent state transition
         trainer.observe(obs, action, reward, next_obs)
 
-        # Train the model
-        trainer.step_train(batch_size=32)
+        # Train the model periodically instead of every step
+        # Only train when we have enough samples or every 10 steps
+        if not hasattr(self, '_train_counter'):
+            self._train_counter = 0
+
+        self._train_counter += 1
+        if self._train_counter >= 10 and len(trainer.buffer) >= 32:
+            trainer.step_train(batch_size=min(128, len(trainer.buffer)))
+            self._train_counter = 0
 
         return obs, action, reward
 
@@ -274,19 +282,29 @@ class EternaWorld:
         """
         Log debug information.
 
-        This method logs debug information every 100 ticks.
+        This method logs debug information every 500 ticks to reduce overhead.
+        Weight tracking is only performed in debug mode.
 
         Args:
             emo: The current emotion
             reward: The current reward value
         """
+        # Only log every 500 cycles to reduce overhead
+        if self.eterna.runtime.cycle_count % 500 != 0:
+            return
+
         trainer = self.companion_trainer
 
-        if self.eterna.runtime.cycle_count % 100 == 0:
-            # Force a training step with a larger batch size to ensure weight updates
-            if len(trainer.buffer) >= 64:
-                trainer.step_train(batch_size=64)
+        # Check if we're in debug mode (can be set via environment variable or config)
+        debug_mode = getattr(self.eterna, 'debug_mode', False)
 
+        # Basic logging that's always done
+        print(
+            f"[cycle {self.eterna.runtime.cycle_count}] Emotion: {emo}, Reward: {reward}, Buffer size: {len(trainer.buffer)}"
+        )
+
+        # Detailed weight tracking only in debug mode
+        if debug_mode:
             # Get multiple weights to track changes
             w1 = trainer.policy.net[0].weight[0][0].item()
             w2 = (
@@ -304,9 +322,6 @@ class EternaWorld:
             w2_change = w2 - self.prev_weights["w2"]
 
             # Print detailed debug information
-            print(
-                f"[cycle {self.eterna.runtime.cycle_count}] Emotion: {emo}, Reward: {reward}, Buffer size: {len(trainer.buffer)}"
-            )
             print(f"W[0][0] = {w1:.6f} (change: {w1_change:.6f})")
             print(f"W[0][1] = {w2:.6f} (change: {w2_change:.6f})")
 
@@ -321,33 +336,47 @@ class EternaWorld:
         1. Updates companion emotions
         2. Updates zone emotion tags and modifiers
         3. Randomly triggers rituals
-        """
-        # 1. Agents: If agent has an 'emotion' attribute, change it occasionally for demo/testing.
-        for companion in getattr(self.eterna.companions, "companions", []):
-            if hasattr(companion, "emotion"):
-                if random.random() < 0.18:  # 18% chance per step for visible UI change
-                    companion.emotion = random.choice(
-                        ["happy", "sad", "angry", "neutral"]
-                    )
 
-        # 2. Zones: Randomly change emotion_tag and modifiers for UI feedback
-        if hasattr(self.eterna, "exploration") and hasattr(
+        Optimized to reduce frequency of updates and batch processing.
+        """
+        # Only update UI state every few cycles to reduce overhead
+        cycle_count = self.eterna.runtime.cycle_count
+
+        # 1. Agents: Update emotions less frequently (every 3 cycles)
+        if cycle_count % 3 == 0:
+            companions = getattr(self.eterna.companions, "companions", [])
+            # Process companions in batches
+            for i in range(0, len(companions), 5):  # Process 5 companions at a time
+                batch = companions[i:i+5]
+                for companion in batch:
+                    if hasattr(companion, "emotion"):
+                        if random.random() < 0.4:  # Higher chance but less frequent updates
+                            companion.emotion = random.choice(
+                                ["happy", "sad", "angry", "neutral"]
+                            )
+
+        # 2. Zones: Update zones less frequently (every 5 cycles)
+        if cycle_count % 5 == 0 and hasattr(self.eterna, "exploration") and hasattr(
                 self.eterna.exploration, "registry"
         ):
-            for zone in getattr(self.eterna.exploration.registry, "zones", []):
-                if random.random() < 0.15:
-                    zone.emotion_tag = random.choice(["awe", "grief", "joy", "neutral"])
-                    zone.modifiers = (
-                        ["blessed"]
-                        if zone.emotion_tag == "joy"
-                        else (["cursed"] if zone.emotion_tag == "grief" else [])
-                    )
+            zones = getattr(self.eterna.exploration.registry, "zones", [])
+            # Process zones in batches
+            for i in range(0, len(zones), 3):  # Process 3 zones at a time
+                batch = zones[i:i+3]
+                for zone in batch:
+                    if random.random() < 0.5:  # Higher chance but less frequent updates
+                        zone.emotion_tag = random.choice(["awe", "grief", "joy", "neutral"])
+                        zone.modifiers = (
+                            ["blessed"]
+                            if zone.emotion_tag == "joy"
+                            else (["cursed"] if zone.emotion_tag == "grief" else [])
+                        )
 
-        # 3. Rituals: Randomly trigger a ritual for demo/testing
-        if hasattr(self.eterna, "rituals") and getattr(
+        # 3. Rituals: Trigger rituals less frequently (every 10 cycles)
+        if cycle_count % 10 == 0 and hasattr(self.eterna, "rituals") and getattr(
                 self.eterna.rituals, "rituals", None
         ):
-            if random.random() < 0.08:
+            if random.random() < 0.5:  # Higher chance but less frequent updates
                 ritual = random.choice(list(self.eterna.rituals.rituals.values()))
                 self.eterna.rituals.perform(ritual.name)
 

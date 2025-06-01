@@ -25,7 +25,6 @@ vi.mock('axios', () => {
 import { render, screen } from '../../test/utils';
 import ZoneCanvas from '../../components/ZoneCanvas';
 import { useAppState } from '../../contexts/AppStateContext';
-import { useLoading } from '../../contexts/LoadingContext';
 import axios from 'axios';
 
 // Mock the useAppState hook
@@ -37,14 +36,6 @@ vi.mock('../../contexts/AppStateContext', async () => {
   };
 });
 
-// Mock the useLoading hook
-vi.mock('../../contexts/LoadingContext', async () => {
-  const actual = await vi.importActual('../../contexts/LoadingContext');
-  return {
-    ...actual,
-    useLoading: vi.fn(),
-  };
-});
 
 // Mock the Three.js components
 vi.mock('@react-three/fiber', () => ({
@@ -67,7 +58,7 @@ describe('ZoneCanvas', () => {
     vi.resetAllMocks();
   });
 
-  it('renders loading state when loading', () => {
+  it('renders loading state when state is loading', () => {
     // Mock the useAppState hook to return loading state
     vi.mocked(useAppState).mockReturnValue({
       state: {
@@ -80,18 +71,10 @@ describe('ZoneCanvas', () => {
       refreshState: vi.fn(),
     });
 
-    // Mock the useLoading hook
-    vi.mocked(useLoading).mockReturnValue({
-      loadingOperations: [],
-      startLoading: vi.fn(),
-      stopLoading: vi.fn(),
-      isLoading: () => false,
-    });
-
     render(<ZoneCanvas />);
 
-    // Check that the loading spinner is rendered
-    expect(screen.getByText(/Loading zone/i)).toBeInTheDocument();
+    // Check that the loading message is rendered
+    expect(screen.getByText(/Loading state/i)).toBeInTheDocument();
   });
 
   it('renders error state when there is an error', () => {
@@ -105,14 +88,6 @@ describe('ZoneCanvas', () => {
       },
       dispatch: vi.fn(),
       refreshState: vi.fn(),
-    });
-
-    // Mock the useLoading hook
-    vi.mocked(useLoading).mockReturnValue({
-      loadingOperations: [],
-      startLoading: vi.fn(),
-      stopLoading: vi.fn(),
-      isLoading: () => false,
     });
 
     render(<ZoneCanvas />);

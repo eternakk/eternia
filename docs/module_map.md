@@ -2,6 +2,23 @@
 
 This document provides an overview of the structure and dependencies between modules in the Eternia Project.
 
+## Interfaces
+
+### Module Interfaces
+**File**: `modules/interfaces.py`
+**Description**: Defines standardized interfaces for major system components to improve modularity and maintainability.
+**Key Interfaces**:
+- **ModuleInterface**: Base interface for all modules
+- **EvolutionInterface**: Interface for evolution-related functionality
+- **ConsciousnessInterface**: Interface for consciousness-related functionality
+- **AwarenessInterface**: Interface for awareness-related functionality
+- **SocialInterface**: Interface for social interaction functionality
+- **EmotionalInterface**: Interface for emotional functionality
+- **MemoryInterface**: Interface for memory-related functionality
+- **ExplorationInterface**: Interface for exploration functionality
+- **RuntimeInterface**: Interface for runtime functionality
+- **StateTrackerInterface**: Interface for state tracking functionality
+
 ## Core Modules
 
 ### World Builder
@@ -16,7 +33,7 @@ This document provides an overview of the structure and dependencies between mod
 
 ### Runtime
 **File**: `modules/runtime.py`
-**Description**: Manages the simulation cycle and time progression.
+**Description**: Manages the simulation cycle and time progression. Implements **RuntimeInterface**.
 **Dependencies**: EternaWorld
 
 ## Governance and Safety
@@ -45,7 +62,7 @@ This document provides an overview of the structure and dependencies between mod
 
 ### State Tracker
 **File**: `modules/state_tracker.py`
-**Description**: Tracks the state of the simulation, including checkpoints and rollbacks.
+**Description**: Tracks the state of the simulation, including checkpoints and rollbacks. Implements **StateTrackerInterface**.
 **Dependencies**: EternaWorld
 
 ## Event System
@@ -69,7 +86,7 @@ This document provides an overview of the structure and dependencies between mod
 
 ### Emotional Agent
 **File**: `modules/emotional_agent.py`
-**Description**: Base class for agents with emotional capabilities.
+**Description**: Base class for agents with emotional capabilities. Implements **EmotionalInterface**.
 **Dependencies**: Emotions
 
 ### Emotions
@@ -84,7 +101,7 @@ This document provides an overview of the structure and dependencies between mod
 
 ### Social Interaction
 **File**: `modules/social_interaction.py`
-**Description**: Manages interactions between agents.
+**Description**: Manages interactions between agents. Implements **SocialInterface**.
 **Dependencies**: SocialPresence
 
 ### Social Presence
@@ -96,7 +113,7 @@ This document provides an overview of the structure and dependencies between mod
 
 ### Exploration
 **File**: `modules/exploration.py`
-**Description**: Manages the exploration of zones and discovery of new areas.
+**Description**: Manages the exploration of zones and discovery of new areas. Implements **ExplorationInterface**.
 **Dependencies**: ZoneModifiers
 
 ### Zone Modifiers
@@ -113,12 +130,12 @@ This document provides an overview of the structure and dependencies between mod
 
 ### Memory Integration
 **File**: `modules/memory_integration.py`
-**Description**: Manages the integration of memories for agents.
+**Description**: Manages the integration of memories for agents. Implements **MemoryInterface**.
 **Dependencies**: None
 
 ### Consciousness Replica
 **File**: `modules/consciousness_replica.py`
-**Description**: Models the consciousness of agents.
+**Description**: Models the consciousness of agents. Implements **ConsciousnessInterface**.
 **Dependencies**: Thought
 
 ### Thought
@@ -142,7 +159,7 @@ This document provides an overview of the structure and dependencies between mod
 
 ### Evolution
 **File**: `modules/evolution.py`
-**Description**: Manages the evolution of agents and the environment over time.
+**Description**: Manages the evolution of agents and the environment over time. Implements **EvolutionInterface**.
 **Dependencies**: None
 
 ### Time Dilation
@@ -236,3 +253,7 @@ This document provides an overview of the structure and dependencies between mod
 - **API Server** provides an interface to the **EternaWorld**
 - **API Dependencies** injects dependencies into the **API Server**
 - **API Schemas** defines the data structures for the **API Server**
+
+---
+
+_Updated: June 15 2025_

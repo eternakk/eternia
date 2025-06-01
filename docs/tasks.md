@@ -43,9 +43,9 @@ a checkbox that can be checked off when completed.
 
 ### Performance Optimization (High Priority)
 [x] 36. Profile the simulation loop and optimize bottlenecks
-[ ] 38. Optimize memory usage for large simulations
-[ ] 40. Optimize the state tracking system for large-scale simulations
-[ ] 37. Implement caching for expensive computations
+[x] 38. Optimize memory usage for large simulations
+[x] 40. Optimize the state tracking system for large-scale simulations
+[x] 37. Implement caching for expensive computations
 [ ] 39. Implement parallel processing for independent simulation components
 
 ### Critical Documentation (Medium-High Priority)

@@ -490,8 +490,8 @@ async def list_checkpoints(request: Request, token: str = Depends(auth)):
         List of the 10 most recent checkpoints
     """
     try:
-        checkpoints = world.state_tracker.checkpoints[-10:]  # last 10
-        return checkpoints
+        checkpoints = world.state_tracker.list_checkpoints()
+        return checkpoints[-10:] if checkpoints else []  # last 10 or empty list
     except Exception as e:
         logger.error(f"Error retrieving checkpoints: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve checkpoints")

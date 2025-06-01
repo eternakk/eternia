@@ -810,7 +810,8 @@ class EternaStateTracker(StateTrackerInterface):
         if "evolution" in snapshot:
             self.evolution_stats = snapshot.get("evolution", self.evolution_stats)
             # Update previous intellect for identity_continuity
-            self._prev_intellect = self.evolution_stats["intellect"]
+            # Handle the case when "intellect" key doesn't exist
+            self._prev_intellect = self.evolution_stats.get("intellect", 100)  # Default to 100 if not present
 
         if "last_zone" in snapshot:
             self.last_zone = snapshot.get("last_zone")
@@ -855,9 +856,9 @@ class EternaStateTracker(StateTrackerInterface):
         """
         # TODO: replace with real embedding similarity
         if not hasattr(self, "_prev_intellect"):
-            self._prev_intellect = self.evolution_stats["intellect"]
+            self._prev_intellect = self.evolution_stats.get("intellect", 100)  # Default to 100 if not present
             return 1.0
-        cur = self.evolution_stats["intellect"]
+        cur = self.evolution_stats.get("intellect", 100)  # Default to 100 if not present
         prev = self._prev_intellect
         self._prev_intellect = cur
         return 1.0 - abs(cur - prev) / max(cur, prev, 1)

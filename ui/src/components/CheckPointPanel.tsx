@@ -19,8 +19,8 @@ export default function CheckpointPanel() {
         className="border px-2 py-1 text-sm w-full"
       >
         <option value="">latest</option>
-        {files.map((f) => (
-          <option key={f} value={f}>
+        {files.map((f, index) => (
+          <option key={`${f}-${index}`} value={f}>
             {f.split("/").pop()}
           </option>
         ))}

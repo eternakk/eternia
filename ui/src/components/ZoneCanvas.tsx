@@ -5,8 +5,6 @@ import axios from "axios";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import { useErrorHandler } from "../utils/errorHandling";
 import { useAppState } from "../contexts/AppStateContext";
-import { useLoading } from "../contexts/LoadingContext";
-import { LoadingSpinner } from "./LoadingIndicator";
 
 // Define types for better type safety
 interface Assets {
@@ -53,7 +51,6 @@ const ZoneCanvas = () => {
   const { worldState, isLoading: isStateLoading, error } = state;
   const [assets, setAssets] = useState<Assets | null>(null);
   const { handleApiError } = useErrorHandler();
-  const { startLoading, stopLoading, isLoading } = useLoading();
 
   // Create a ref to store the cache
   const assetsCache = useRef<Record<string, Assets>>({});
@@ -73,7 +70,6 @@ const ZoneCanvas = () => {
       return;
     }
 
-    const loadingId = startLoading('zone-assets', `Loading assets for zone: ${zone}`);
     try {
       const response = await axios.get(`http://localhost:8000/zone/assets`, {
         params: { name: zone },
@@ -84,10 +80,8 @@ const ZoneCanvas = () => {
     } catch (error) {
       handleApiError(error, `Failed to load assets for zone: ${zone}`);
       setAssets(null);
-    } finally {
-      stopLoading(loadingId);
     }
-  }, [startLoading, stopLoading, handleApiError]);
+  }, [handleApiError]);
 
   // Only fetch assets when zone changes
   useEffect(() => {
@@ -104,11 +98,11 @@ const ZoneCanvas = () => {
     );
   }
 
-  // Show loading state outside the Canvas
-  if (isLoading('zone-assets') || isStateLoading) {
+  // Only check for state loading
+  if (isStateLoading) {
     return (
       <div className="h-96 bg-slate-300 flex items-center justify-center">
-        <LoadingSpinner message={`Loading zone: ${worldState?.current_zone || 'unknown'}`} />
+        <div className="text-gray-500">Loading state...</div>
       </div>
     );
   }

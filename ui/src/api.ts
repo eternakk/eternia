@@ -19,3 +19,4 @@ export const sendCommand = (a: string) => api.post(`/command/${a}`);
 export const getCheckpoints = () => api.get<string[]>("/checkpoints").then(r => r.data);
 export const rollbackTo = (file?: string) =>
   api.post("/command/rollback", null, { params: { file } });
+export const triggerRitual = (id: number) => api.post(`/api/rituals/trigger/${id}`);

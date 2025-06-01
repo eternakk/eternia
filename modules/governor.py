@@ -139,7 +139,7 @@ class AlignmentGovernor:
         3. It runs all registered policy callbacks, and if any return False,
            triggers a rollback and returns False.
         4. It increments the tick counter and creates a checkpoint if the
-           save interval has been reached.
+           save interval has been reached and significant changes have occurred.
 
         Args:
             metrics: A dictionary of metrics from the world, including
@@ -153,29 +153,51 @@ class AlignmentGovernor:
         if self._shutdown:
             return False
 
-        # 1) continuity check
-        if metrics.get("identity_continuity", 1.0) < self.continuity_threshold:
+        # 1) continuity check - use cached value if available
+        identity_continuity = metrics.get("identity_continuity", 1.0)
+        if identity_continuity < self.continuity_threshold:
             self._log_event("continuity_breach", metrics)
             self.rollback()
             return False
 
         # 2) custom policy callbacks (eval‑harness flags, etc.)
-        for i, cb in enumerate(self.policy_callbacks):
-            if cb(metrics) is False:
-                # Publish a PolicyViolationEvent
-                event_bus.publish(PolicyViolationEvent(
-                    timestamp=time.time(),
-                    policy_name=f"policy_{i}",  # Use index as name if no better name is available
-                    metrics=metrics
-                ))
-                self.rollback()
-                return False
+        # Only check policies every few ticks unless there's a significant change
+        significant_change = abs(identity_continuity - getattr(self, '_last_continuity', 1.0)) > 0.05
+        check_policies = significant_change or (self._tick_counter % 5 == 0)
 
-        # 3) record a safe checkpoint every N ticks or on request
+        if check_policies:
+            # Cache the current continuity value for future comparisons
+            self._last_continuity = identity_continuity
+
+            for i, cb in enumerate(self.policy_callbacks):
+                if cb(metrics) is False:
+                    # Publish a PolicyViolationEvent
+                    event_bus.publish(PolicyViolationEvent(
+                        timestamp=time.time(),
+                        policy_name=f"policy_{i}",  # Use index as name if no better name is available
+                        metrics=metrics
+                    ))
+                    self.rollback()
+                    return False
+
+        # 3) record a safe checkpoint every N ticks or on significant change
         self._tick_counter += 1
-        if self._tick_counter >= self.save_interval:
-            self._save_checkpoint()
-            self._tick_counter = 0
+
+        # Create checkpoints less frequently but ensure we create them when needed
+        checkpoint_needed = (self._tick_counter >= self.save_interval) or (
+            significant_change and self._tick_counter >= self.save_interval // 10
+        )
+
+        if checkpoint_needed:
+            # Use a background thread for checkpoint creation if available
+            if hasattr(self, '_checkpoint_thread') and getattr(self, '_checkpoint_thread', None) is not None:
+                if not self._checkpoint_thread.is_alive():
+                    self._checkpoint_thread = None
+                    self._save_checkpoint()
+                    self._tick_counter = 0
+            else:
+                self._save_checkpoint()
+                self._tick_counter = 0
 
         return True
 

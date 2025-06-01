@@ -8,6 +8,7 @@ for saving and loading the world state.
 
 import pickle
 import random
+import concurrent.futures
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, Tuple
 from collections import deque
@@ -63,6 +64,7 @@ class EternaWorld:
         3. Gets the state tracker from the interface
         4. Sets up the companion trainer for reinforcement learning
         5. Performs one-time bootstrapping of the world by calling various setup functions
+        6. Creates a thread pool executor for parallel processing
         """
         # Core interface
         self.eterna = EternaInterface()
@@ -88,6 +90,10 @@ class EternaWorld:
         setup_resonance_engine(self.eterna)
         setup_time_and_agents(self.eterna)
 
+        # Create a thread pool executor for parallel processing
+        # Using max_workers=3 as we have 3 main components to parallelize
+        self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=3)
+
     # ---------- runtime hooks ---------- #
     def step(self, dt: float = 1.0) -> None:
         """
@@ -97,9 +103,8 @@ class EternaWorld:
         1. Advances the physics and emotions by running a cycle
         2. Updates the RL companion system
         3. Handles law compliance and agent evolution
-        4. Performs debug logging every 100 ticks
-        5. Updates agent and zone states for UI feedback
-        6. Saves the current state
+        4. Performs debug logging, UI state updates, and metrics collection in parallel
+        5. Saves the current state
 
         Args:
             dt: The time delta for this step. Defaults to 1.0.
@@ -128,11 +133,18 @@ class EternaWorld:
         # Update agent evolution
         self._update_agent_evolution(companion)
 
-        # Log debug information
-        self._log_debug_info(emo, reward)
+        # Execute independent components in parallel
+        # Submit tasks to the executor
+        debug_future = self.executor.submit(self._log_debug_info, emo, reward)
+        ui_future = self.executor.submit(self._update_ui_state)
+        metrics_future = self.executor.submit(self.collect_metrics)
 
-        # Update UI state
-        self._update_ui_state()
+        # Wait for all tasks to complete
+        # This ensures we don't proceed until all parallel tasks are done
+        concurrent.futures.wait([debug_future, ui_future, metrics_future])
+
+        # Get metrics result if needed (for governor or other components)
+        metrics = metrics_future.result()
 
         # Save current state
         self.state_tracker.save()
@@ -487,6 +499,16 @@ class EternaWorld:
 
         # Mark that we've loaded this checkpoint
         self.state_tracker.mark_rollback(str(path))
+
+    def __del__(self) -> None:
+        """
+        Clean up resources when the EternaWorld instance is garbage collected.
+
+        This method ensures that the thread pool executor is properly shut down
+        to prevent resource leaks.
+        """
+        if hasattr(self, 'executor'):
+            self.executor.shutdown(wait=True)
 
 
 # Public factory function

@@ -11,4 +11,4 @@ on_event = ["cycle"]
 conditions = []  # apply unconditionally every tick
 
 [effects]
-# placeholder—add effects like apply_emotion or symbolic_modifier here
+# placeholder—add effects like change_emotion or symbolic_modifier here

@@ -9,36 +9,42 @@ export interface GovEvent {
 
 export function useGovEvents() {
   const [log, setLog] = useState<GovEvent[]>([]);
- // Initialize with null to make it explicit
-const wsRef = useRef<ReconnectingWebSocket | null>(null);
+  // Initialize with null to make it explicit
+  const wsRef = useRef<ReconnectingWebSocket | null>(null);
 
-useEffect(() => {
-  // Close any existing connection before creating a new one
-  if (wsRef.current) {
-    wsRef.current.close();
-  }
-
-  const ws = new ReconnectingWebSocket("ws://localhost:8000/ws");
-  wsRef.current = ws;
-
-  ws.onmessage = (evt) => {
-    try {
-      const data: GovEvent = JSON.parse(evt.data);
-      setLog((prev) => [...prev.slice(-200), data]);
-    } catch (error) {
-      console.error("Failed to parse WebSocket message:", error);
+  useEffect(() => {
+    // Close any existing connection before creating a new one
+    if (wsRef.current) {
+      wsRef.current.close();
     }
-  };
 
-  ws.onerror = (error) => {
-    console.error("WebSocket error:", error);
-  };
+    const TOKEN = import.meta.env.VITE_ETERNA_TOKEN;
+    const ws = new ReconnectingWebSocket("ws://localhost:8000/ws");
+    wsRef.current = ws;
 
-  return () => {
-    ws.close();
-    wsRef.current = null;
-  };
-}, []);
+    ws.onopen = () => {
+      // Send authentication token when connection is established
+      ws.send(JSON.stringify({ token: TOKEN }));
+    };
+
+    ws.onmessage = (evt) => {
+      try {
+        const data: GovEvent = JSON.parse(evt.data);
+        setLog((prev) => [...prev.slice(-200), data]);
+      } catch (error) {
+        console.error("Failed to parse WebSocket message:", error);
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error("WebSocket error:", error);
+    };
+
+    return () => {
+      ws.close();
+      wsRef.current = null;
+    };
+  }, []);
 
   return log;
 }

@@ -1,12 +1,23 @@
 import useSWR from 'swr';
 
-const fetcher = (url: string) => fetch(url).then(res => res.json());
+const TOKEN = import.meta.env.VITE_ETERNA_TOKEN;
+
+const fetcher = (url: string) => fetch(url, {
+    headers: {
+        "Authorization": `Bearer ${TOKEN}`
+    }
+}).then(res => res.json());
 
 export default function RitualPanel() {
     const {data: rituals, error, mutate} = useSWR('/api/rituals', fetcher, {refreshInterval: 5000});
 
     const triggerRitual = async (id: string) => {
-        await fetch(`/api/rituals/trigger/${id}`, {method: "POST"});
+        await fetch(`/api/rituals/trigger/${id}`, {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${TOKEN}`
+            }
+        });
         mutate(); // Revalidate rituals after triggering
     };
 

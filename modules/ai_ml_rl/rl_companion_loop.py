@@ -176,39 +176,57 @@ class PPOTrainer:
         """
         Perform a training step using a batch of transitions from the replay buffer.
 
-        This method has been updated to avoid in-place operations and ensure
-        proper gradient flow.
+        This method implements a single step of the PPO algorithm:
+        1. Sample a batch of transitions from the replay buffer
+        2. Compute the PPO loss for the batch
+        3. Perform a gradient descent step to update the policy network
+
+        The method includes several optimizations and safeguards to ensure
+        stable and efficient training.
 
         Args:
             batch_size: The number of transitions to sample for training.
         """
+        # Check if we have enough data to perform a meaningful training step
         if len(self.buffer) < batch_size:
             return  # not enough data yet
 
-        # Enable anomaly detection to help identify the operation causing the issue
+        # Enable PyTorch's anomaly detection to help debug gradient flow issues
+        # This helps identify operations that might be causing numerical instability
         torch.autograd.set_detect_anomaly(True)
 
-        # Sample batch
+        # Sample a batch of transitions from the replay buffer
+        # Using the cached version for efficiency when called with the same batch_size
         batch = self._sample_batch(batch_size)
 
-        # Compute loss
+        # Compute the PPO loss for the batch
+        # This includes policy loss and entropy bonus
         loss = self._ppo_loss(batch)
 
         # Add a small constant to ensure the loss is not too close to zero
+        # This prevents underflow issues and helps maintain gradient flow
         # Using addition creates a new tensor, not an in-place operation
         loss = loss + 0.01
 
-        # Zero gradients, compute backward pass, and update weights
+        # Prepare for gradient descent:
+        # 1. Zero out existing gradients to prevent accumulation
         self.optimizer.zero_grad()
-        loss.backward()  # Removed retain_graph=True to avoid memory issues
 
-        # Apply gradient clipping to prevent numerical instability
+        # 2. Compute gradients through backpropagation
+        # We removed retain_graph=True to avoid memory leaks
+        loss.backward()
+
+        # 3. Apply gradient clipping to prevent exploding gradients
+        # This is crucial for training stability in RL algorithms
         torch.nn.utils.clip_grad_norm_(self.policy.parameters(), max_norm=1.0)
 
-        # Update model parameters
+        # 4. Update model parameters using the optimizer (Adam)
+        # This applies the computed gradients to the model weights
         self.optimizer.step()
 
-        # Clear sample batch cache periodically
+        # Memory management: Clear sample batch cache periodically
+        # This prevents the cache from growing too large over time
+        # We use a random chance (10%) to avoid clearing it too frequently
         if random.random() < 0.1:  # 10% chance to clear caches
             if hasattr(self._sample_batch, 'clear_cache'):
                 self._sample_batch.clear_cache()
@@ -221,6 +239,10 @@ class PPOTrainer:
         This method has been completely rewritten to avoid in-place operations
         and ensure proper gradient flow.
 
+        The PPO loss consists of two main components:
+        1. Policy loss: Encourages actions that lead to higher returns
+        2. Entropy bonus: Encourages exploration by maximizing action entropy
+
         Args:
             batch: A list of transitions.
 
@@ -231,49 +253,62 @@ class PPOTrainer:
         batch_list = list(batch)
 
         # Extract states and actions as new tensors
+        # These will be used as inputs to the policy network
         states = torch.tensor([t.state for t in batch_list], dtype=torch.float32)
         actions = torch.tensor([t.action for t in batch_list], dtype=torch.long)
 
         # Extract rewards with small noise for variance
+        # Adding small noise helps prevent overfitting and improves generalization
         rewards = []
         for t in batch_list:
             # Use a deterministic approach to avoid randomness issues
+            # The hash function ensures the same transition always gets the same noise
             reward_noise = 0.01 * ((hash(str(t)) % 100) / 100 - 0.5)
             rewards.append(t.reward + reward_noise)
 
-        # Compute discounted returns
+        # Compute discounted returns using the Bellman equation
+        # R_t = r_t + gamma * R_{t+1}
+        # We compute this in reverse order, starting from the last reward
         returns = []
-        acc = 0.0
+        acc = 0.0  # Accumulated return
         for r in reversed(rewards):
+            # Apply the Bellman equation: current reward + discounted future returns
             acc = r + self.gamma * acc
-            returns.insert(0, acc)
+            returns.insert(0, acc)  # Insert at the beginning to maintain temporal order
         returns = torch.tensor(returns, dtype=torch.float32)
 
         # Normalize returns if there's more than one
+        # This improves training stability by reducing the variance of returns
         if len(returns) > 1:
             returns_mean = returns.mean()
-            returns_std = returns.std() + 1e-8
-            returns = (returns - returns_mean) / returns_std
+            returns_std = returns.std() + 1e-8  # Add small epsilon to prevent division by zero
+            returns = (returns - returns_mean) / returns_std  # Z-score normalization
 
-        # Forward pass through the policy network
+        # Forward pass through the policy network to get action probabilities
         probs = self.policy(states)
 
-        # Add small epsilon to prevent log(0)
+        # Add small epsilon to prevent log(0) which would cause numerical instability
         eps = 1e-8
         probs_safe = torch.clamp(probs, eps, 1.0 - eps)
 
-        # Get action probabilities
+        # Get the probabilities of the actions that were actually taken
+        # gather() selects the probability corresponding to each action
         action_probs = probs_safe.gather(1, actions.unsqueeze(-1)).squeeze(-1)
 
         # Compute negative log-likelihood loss
+        # This is the standard policy gradient objective: maximize E[log(π(a|s)) * R]
+        # We negate it because we're minimizing loss rather than maximizing objective
         log_probs = torch.log(action_probs)
         policy_loss = -(log_probs * returns).mean()
 
-        # Compute entropy bonus
+        # Compute entropy bonus to encourage exploration
+        # Entropy is defined as H(π) = -Σ π(a|s) * log(π(a|s))
+        # Higher entropy means more uniform action distribution (more exploration)
         entropy = -torch.sum(probs_safe * torch.log(probs_safe), dim=1).mean()
-        entropy_bonus = 0.05 * entropy  # Exploration coefficient
+        entropy_bonus = 0.05 * entropy  # Exploration coefficient (hyperparameter)
 
-        # Compute total loss
+        # Compute total loss: policy loss - entropy bonus
+        # We subtract entropy bonus because higher entropy is better for exploration
         loss = policy_loss - entropy_bonus
 
         return loss

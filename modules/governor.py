@@ -155,67 +155,96 @@ class AlignmentGovernor:
         Returns:
             bool: True if the world may continue this step, False otherwise.
         """
+        # First, check if the simulation is paused or shut down
+        # These are the most basic conditions that prevent the simulation from continuing
         if self._paused:
-            return False
+            return False  # Simulation is paused, don't proceed
         if self._shutdown:
-            return False
+            return False  # Simulation is shut down, don't proceed
 
-        # 1) continuity check - use cached value if available
+        # ---- SAFETY CHECK 1: Identity Continuity ----
+        # Identity continuity measures how much the world's identity has changed
+        # If it drops below the threshold, the world has changed too much and we need to roll back
         identity_continuity = metrics.get("identity_continuity", 1.0)
+
+        # If continuity is below threshold, log the breach, roll back, and halt the simulation
         if identity_continuity < self.continuity_threshold:
+            # Log the continuity breach event with the current metrics
             self._log_event("continuity_breach", metrics)
+            # Roll back to the last safe checkpoint
             self.rollback()
+            # Prevent the simulation from continuing
             return False
 
-        # 2) custom policy callbacks (eval‑harness flags, etc.)
-        # Only check policies every few ticks unless there's a significant change
+        # ---- SAFETY CHECK 2: Policy Callbacks ----
+        # Determine if we need to check policies on this tick
+        # We check policies either when there's a significant change in continuity
+        # or periodically (every 5 ticks) to balance safety and performance
         significant_change = abs(identity_continuity - getattr(self, '_last_continuity', 1.0)) > 0.05
         check_policies = significant_change or (self._tick_counter % 5 == 0)
 
         if check_policies:
             # Cache the current continuity value for future comparisons
+            # This allows us to detect significant changes in the next tick
             self._last_continuity = identity_continuity
 
+            # Run all registered policy callbacks
+            # These are custom safety checks that can trigger a rollback
             for i, cb in enumerate(self.policy_callbacks):
+                # If any policy callback returns False, the simulation should roll back
                 if cb(metrics) is False:
-                    # Publish a PolicyViolationEvent
+                    # Publish a PolicyViolationEvent to notify other components
                     event_bus.publish(PolicyViolationEvent(
                         timestamp=time.time(),
                         policy_name=f"policy_{i}",  # Use index as name if no better name is available
                         metrics=metrics
                     ))
+                    # Roll back to the last safe checkpoint
                     self.rollback()
+                    # Prevent the simulation from continuing
                     return False
 
-        # 3) record a safe checkpoint every N ticks or on significant change
+        # ---- CHECKPOINT MANAGEMENT ----
+        # Increment the tick counter for checkpoint scheduling
         self._tick_counter += 1
 
-        # Adaptively adjust the checkpoint interval based on simulation size
+        # Adaptive checkpoint interval: adjust based on simulation size
+        # This ensures efficient resource usage for different simulation scales
         if hasattr(self, '_interval_update_frequency') and self._tick_counter % self._interval_update_frequency == 0:
-            # Calculate new interval using the same logic as in _determine_save_interval
+            # Calculate new interval based on current simulation metrics
             new_interval = self._determine_save_interval()
 
-            # Update the save interval if it has changed significantly
+            # Only update if the change is significant (more than 10% of base interval)
+            # This prevents frequent small adjustments that wouldn't meaningfully impact performance
             if abs(new_interval - self.save_interval) > self.base_save_interval * 0.1:
                 self.logger.info(f"Adjusting checkpoint interval from {self.save_interval} to {new_interval} ticks based on simulation size")
                 self.save_interval = new_interval
 
-        # Create checkpoints less frequently but ensure we create them when needed
+        # Determine if we need to create a checkpoint
+        # We create checkpoints either:
+        # 1. When we reach the regular save interval, OR
+        # 2. When there's a significant change and at least 1/10th of the interval has passed
+        #    (this ensures we capture important state changes without creating too many checkpoints)
         checkpoint_needed = (self._tick_counter >= self.save_interval) or (
             significant_change and self._tick_counter >= self.save_interval // 10
         )
 
         if checkpoint_needed:
             # Use a background thread for checkpoint creation if available
+            # This prevents the checkpoint creation from blocking the main simulation loop
             if hasattr(self, '_checkpoint_thread') and getattr(self, '_checkpoint_thread', None) is not None:
+                # Only create a new checkpoint if the previous thread has finished
                 if not self._checkpoint_thread.is_alive():
                     self._checkpoint_thread = None
                     self._save_checkpoint()
-                    self._tick_counter = 0
+                    self._tick_counter = 0  # Reset the counter after creating a checkpoint
             else:
+                # If no background thread is available, create the checkpoint directly
                 self._save_checkpoint()
-                self._tick_counter = 0
+                self._tick_counter = 0  # Reset the counter after creating a checkpoint
 
+        # If we've reached this point, all safety checks have passed
+        # and the simulation can continue
         return True
 
     # -------- helper methods -------- #
@@ -292,47 +321,76 @@ class AlignmentGovernor:
         """
         Determine the appropriate save interval based on simulation size.
 
-        This method calculates an adaptive checkpoint interval based on memory usage
-        and other simulation metrics if available.
+        This method implements an adaptive checkpoint interval algorithm that considers:
+        1. Memory usage of the process (if psutil is available)
+        2. Size of the state tracker's memory collections
+        3. Number of zones in the simulation
+
+        The algorithm increases the checkpoint interval for larger simulations to:
+        - Reduce disk I/O overhead
+        - Prevent performance degradation from frequent checkpointing
+        - Balance safety (frequent checkpoints) with performance
 
         Returns:
             int: The determined save interval in ticks.
         """
-        # Start with the base save interval
+        # Start with the base save interval as our foundation
+        # This is the default interval specified during initialization
         interval = self.base_save_interval
 
-        # Try to adjust based on memory usage if psutil is available
+        # Try to adjust based on system metrics
         try:
+            # --- MEMORY-BASED ADJUSTMENT ---
+            # Use psutil to get accurate memory usage of the current process
             import psutil
             process = psutil.Process()
+            # Calculate memory usage in megabytes for easier threshold comparison
             memory_usage_mb = process.memory_info().rss / (1024 * 1024)
 
-            # Increase interval for larger memory usage
-            if memory_usage_mb > 1000:  # More than 1GB
-                interval *= 2
-            elif memory_usage_mb > 500:  # More than 500MB
-                interval *= 1.5
+            # Scaling factor: Increase checkpoint interval for larger memory footprints
+            # This is because larger memory states take longer to serialize/deserialize
+            # and consume more disk space per checkpoint
+            if memory_usage_mb > 1000:  # More than 1GB: large simulation
+                interval *= 2            # Double the interval
+                # Rationale: Very large simulations need much less frequent checkpoints
+                # to maintain performance
+            elif memory_usage_mb > 500:  # More than 500MB: medium-large simulation
+                interval *= 1.5          # Increase by 50%
+                # Rationale: Medium-large simulations need moderately less frequent checkpoints
 
-            # Adjust based on the size of the state tracker's collections if available
+            # --- STATE COMPLEXITY ADJUSTMENT ---
+            # Check the size of the memories collection as an indicator of state complexity
             if hasattr(self.state_tracker, "memories"):
                 memories_count = len(self.state_tracker.memories)
-                if memories_count > 1000:
-                    interval *= 1.5
-                elif memories_count > 500:
-                    interval *= 1.2
+                # More memories means more complex state to checkpoint
+                if memories_count > 1000:  # Very complex state
+                    interval *= 1.5        # Increase by 50%
+                elif memories_count > 500:  # Moderately complex state
+                    interval *= 1.2        # Increase by 20%
+                # Rationale: More memories mean larger checkpoint files and longer
+                # serialization/deserialization times
 
-            # Adjust based on the number of zones if available
+            # --- WORLD SIZE ADJUSTMENT ---
+            # Check the number of zones as an indicator of world size
             if hasattr(self.world.eterna, "exploration") and hasattr(self.world.eterna.exploration, "registry"):
+                # Get the number of zones in the world
                 zones_count = len(getattr(self.world.eterna.exploration.registry, "zones", []))
-                if zones_count > 100:
-                    interval *= 1.3
-                elif zones_count > 50:
-                    interval *= 1.1
+                # More zones means larger world state to checkpoint
+                if zones_count > 100:    # Very large world
+                    interval *= 1.3      # Increase by 30%
+                elif zones_count > 50:   # Medium-large world
+                    interval *= 1.1      # Increase by 10%
+                # Rationale: More zones mean more objects to serialize and more
+                # complex relationships to maintain in checkpoints
 
         except (ImportError, AttributeError):
-            # If psutil is not available or attributes can't be accessed, use the base interval
+            # If psutil is not available or attributes can't be accessed,
+            # we fall back to the base interval without adjustments
+            # This ensures the system still works even without these optimizations
             pass
 
+        # Ensure we never go below the base interval, even if calculation errors occur
+        # This provides a safety guarantee for minimum checkpoint frequency
         return max(int(interval), self.base_save_interval)
 
     def _log_event(self, event: str, payload: Any = None) -> None:

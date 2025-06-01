@@ -154,18 +154,30 @@ The Eternia project follows a layered architecture:
 
 ### Running the Simulation
 
-1. Start the API server:
+1. Start the API server (backend):
    ```bash
-   python services/api/server.py
+   ./run_api.py
    ```
+   This will start the server on http://0.0.0.0:8000. The server provides API endpoints for the UI to interact with the Eternia simulation.
 
 2. Start the frontend development server:
    ```bash
    cd ui
+   npm install  # Only needed the first time or when dependencies change
    npm run dev
    ```
+   This will start the UI development server on http://localhost:5173.
 
 3. Access the dashboard at http://localhost:5173
+
+### Troubleshooting
+
+If you encounter any issues:
+
+1. Make sure both the API server and UI are running.
+2. Check the console output for any error messages.
+3. If you see "connection refused" errors, make sure the API server is running on port 8000.
+4. If the UI is not showing the list of files for rollback cycles, make sure the API server is running and accessible.
 
 ### Making Changes
 

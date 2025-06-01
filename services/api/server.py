@@ -95,12 +95,18 @@ app.add_middleware(
     ],  # Restrict to only necessary headers
 )
 
+# Load zone assets once at startup
 ASSET_MAP = load_json("assets/zone_assets.json", {})
+# Create a cache for zone assets with TTL (time-to-live)
+ZONE_ASSETS_CACHE = {}
+ZONE_ASSETS_CACHE_TTL = {}  # Store expiration timestamps
+ZONE_ASSETS_CACHE_DURATION = 3600  # Cache duration in seconds (1 hour)
+
 app.mount("/static", StaticFiles(directory="assets/static"), name="static")
 
 
 @app.get("/zone/assets")
-@limiter.limit("60/minute")
+@limiter.limit("120/minute")
 async def zone_assets(request: Request, name: str):
     """
     Get assets for a specific zone.
@@ -121,7 +127,22 @@ async def zone_assets(request: Request, name: str):
         logger.warning(f"Possible path traversal attempt with zone name: {name}")
         raise HTTPException(status_code=400, detail="Invalid zone name")
 
-    return ASSET_MAP.get(name, {})
+    # Get current time for cache validation
+    current_time = time.time()
+
+    # Check if the zone assets are in the cache and not expired
+    if name in ZONE_ASSETS_CACHE and ZONE_ASSETS_CACHE_TTL.get(name, 0) > current_time:
+        # Return cached assets
+        return ZONE_ASSETS_CACHE[name]
+
+    # Get assets from the ASSET_MAP
+    assets = ASSET_MAP.get(name, {})
+
+    # Cache the assets with TTL
+    ZONE_ASSETS_CACHE[name] = assets
+    ZONE_ASSETS_CACHE_TTL[name] = current_time + ZONE_ASSETS_CACHE_DURATION
+
+    return assets
 
 
 # ─────────────────────────────  STATE  ──────────────────────────────

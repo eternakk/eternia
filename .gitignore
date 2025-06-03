@@ -13,7 +13,7 @@ logs/
 artifacts/
 *.ckpt
 *.pth
-logs/eterna_cycles.log
+*.log
 
 # Env / editor
 .env

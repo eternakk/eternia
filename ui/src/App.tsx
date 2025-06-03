@@ -7,9 +7,10 @@ import AgentDashboard from "./components/AgentDashboard";
 import ZoneViewer from "./components/ZoneViewer";
 import RitualPanel from "./components/RitualPanel";
 import NotificationContainer from "./components/NotificationContainer";
-import { NotificationProvider } from "./contexts/NotificationContext";
-import { AppStateProvider } from "./contexts/AppStateContext";
-import { LoadingProvider } from "./contexts/LoadingContext";
+import {NotificationProvider} from "./contexts/NotificationContext";
+import {AppStateProvider} from "./contexts/AppStateContext";
+import {ZoneProvider} from "./contexts/ZoneContext";
+import {LoadingProvider} from "./contexts/LoadingContext";
 import GlobalLoadingIndicator from "./components/GlobalLoadingIndicator";
 import './index.css';
 
@@ -17,7 +18,7 @@ export default function App() {
     return (
         <NotificationProvider>
             <LoadingProvider>
-                <AppStateProvider refreshInterval={1000}>
+                <AppStateProvider refreshInterval={3000}>
                     <div className="min-h-screen bg-slate-100 flex flex-col">
                         <header className="p-4 bg-slate-900 text-white text-lg font-bold">
                             Eterna Mission‑Control
@@ -29,10 +30,12 @@ export default function App() {
                             <ControlPanel/>
                             <CheckpointPanel/>
 
-                            <div className="md:col-span-3">
-                                <ZoneCanvas/>
-                            </div>
-                            <ZoneViewer/>
+                            <ZoneProvider>
+                                <div className="md:col-span-3">
+                                    <ZoneCanvas/>
+                                </div>
+                                <ZoneViewer/>
+                            </ZoneProvider>
 
                             <div className="md:col-span-3">
                                 <LogConsole/>
@@ -41,10 +44,10 @@ export default function App() {
                         </main>
 
                         {/* Notification container for displaying error messages and other notifications */}
-                        <NotificationContainer />
+                        <NotificationContainer/>
 
                         {/* Global loading indicator */}
-                        <GlobalLoadingIndicator />
+                        <GlobalLoadingIndicator/>
                     </div>
                 </AppStateProvider>
             </LoadingProvider>

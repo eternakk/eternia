@@ -1,7 +1,8 @@
 import axios from "axios";
 import { createSafeApiCall } from "./utils/errorHandling";
 
-const TOKEN = import.meta.env.VITE_ETERNA_TOKEN;
+// We'll fetch the token from the server
+let TOKEN = '';
 
 export interface State {
   cycle: number;
@@ -19,27 +20,137 @@ export interface ApiError {
 // Create axios instance with default configuration
 const api = axios.create({
   baseURL: "http://localhost:8000",
-  headers: { Authorization: `Bearer ${TOKEN}` },
 });
 
-// Add response interceptor for global error handling
+// Add a cleanup function to cancel all pending requests
+export const cancelAllRequests = () => {
+  // Create a new CancelToken source
+  const source = axios.CancelToken.source();
+
+  // Cancel all pending requests
+  source.cancel('Application is closing');
+
+  console.log('All pending API requests cancelled');
+
+  // Clear token from localStorage
+  localStorage.removeItem('token');
+  TOKEN = '';
+};
+
+// Function to fetch the token from the server
+export const fetchToken = async () => {
+  try {
+    // Check if we already have a token in localStorage
+    const storedToken = localStorage.getItem('token');
+    if (storedToken) {
+      TOKEN = storedToken;
+      api.defaults.headers.common['Authorization'] = `Bearer ${TOKEN}`;
+      console.log('Using stored token');
+      return TOKEN;
+    }
+
+    // If no stored token, fetch a new one
+    console.log('No stored token, fetching new token...');
+    const response = await axios.get('http://localhost:8000/api/token');
+
+    if (!response.data || !response.data.token) {
+      throw new Error('Invalid response from token endpoint');
+    }
+
+    TOKEN = response.data.token;
+
+    // Store the token in localStorage for persistence
+    localStorage.setItem('token', TOKEN);
+
+    // Update the default headers with the new token
+    api.defaults.headers.common['Authorization'] = `Bearer ${TOKEN}`;
+    console.log('Token fetched and stored successfully');
+    return TOKEN;
+  } catch (error) {
+    console.error('Failed to fetch token:', error);
+    // Clear any existing token to prevent using an invalid one
+    localStorage.removeItem('token');
+    TOKEN = '';
+    return null;
+  }
+};
+
+// Add response interceptor for global error handling and token refresh
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     console.error("API Error:", error);
+
+    // Check if the error is due to an invalid token (401 Unauthorized)
+    if (error.response && error.response.status === 401) {
+      console.log("Token invalid, clearing and refreshing...");
+
+      // Clear the stored token
+      localStorage.removeItem('token');
+      TOKEN = '';
+
+      // Try to get a new token
+      try {
+        await fetchToken();
+
+        // If the token was refreshed successfully, retry the original request
+        if (TOKEN) {
+          // Get the original request configuration
+          const originalRequest = error.config;
+          // Update the Authorization header with the new token
+          originalRequest.headers['Authorization'] = `Bearer ${TOKEN}`;
+          // Retry the request with the new token
+          return axios(originalRequest);
+        }
+      } catch (refreshError) {
+        console.error("Failed to refresh token:", refreshError);
+      }
+    }
+
     return Promise.reject(error);
   }
 );
 
+// Function to ensure token is fetched before making API calls
+const ensureToken = async () => {
+  if (!TOKEN) {
+    const token = await fetchToken();
+    if (!token) {
+      throw new Error('Failed to fetch authentication token');
+    }
+  }
+};
+
 // Base API functions
-const baseGetState = () => api.get<State>("/state").then(r => r.data);
-const baseSendCommand = (a: string) => api.post(`/command/${a}`);
-const baseGetCheckpoints = () => api.get<string[]>("/checkpoints").then(r => r.data);
-const baseRollbackTo = (file?: string) =>
-  api.post("/command/rollback", null, { params: { file } });
-const baseTriggerRitual = (id: number) => api.post(`/api/rituals/trigger/${id}`);
-const baseSendReward = (companionName: string, value: number) => 
-  api.post(`/reward/${companionName}`, { value });
+const baseGetState = async () => {
+  await ensureToken();
+  return api.get<State>("/state").then(r => r.data);
+};
+
+const baseSendCommand = async (a: string) => {
+  await ensureToken();
+  return api.post(`/command/${a}`);
+};
+
+const baseGetCheckpoints = async () => {
+  await ensureToken();
+  return api.get<string[]>("/checkpoints").then(r => r.data);
+};
+
+const baseRollbackTo = async (file?: string) => {
+  await ensureToken();
+  return api.post("/command/rollback", null, { params: { file } });
+};
+
+const baseTriggerRitual = async (id: number) => {
+  await ensureToken();
+  return api.post(`/api/rituals/trigger/${id}`);
+};
+
+const baseSendReward = async (companionName: string, value: number) => {
+  await ensureToken();
+  return api.post(`/reward/${companionName}`, { value });
+};
 
 // Exported API functions with error handling
 // Note: These functions will log errors but won't show notifications
@@ -72,4 +183,95 @@ export const triggerRitual = createSafeApiCall(
 export const sendReward = createSafeApiCall(
   baseSendReward,
   "Failed to send reward"
+);
+
+// Define the Zone interface
+export interface Zone {
+  id: number;
+  name: string;
+  origin: string;
+  complexity: number;
+  explored: boolean;
+  emotion: string;
+  modifiers: string[];
+}
+
+// Add function to fetch zones
+const baseGetZones = async () => {
+  await ensureToken();
+  return api.get<Zone[]>("/api/zones").then(r => r.data);
+};
+
+export const getZones = createSafeApiCall(
+  baseGetZones,
+  "Failed to fetch zones"
+);
+
+// Add function to fetch zone assets
+export interface ZoneAssets {
+  model?: string;
+  skybox?: string;
+}
+
+const baseGetZoneAssets = async (zoneName: string) => {
+  await ensureToken();
+  return api.get<ZoneAssets>("/zone/assets", {
+    params: { name: zoneName }
+  }).then(r => r.data);
+};
+
+export const getZoneAssets = createSafeApiCall(
+  baseGetZoneAssets,
+  "Failed to fetch zone assets"
+);
+
+// Add function to change the current zone
+const baseChangeZone = async (zoneName: string) => {
+  await ensureToken();
+  return api.post("/api/change_zone", { zone: zoneName });
+};
+
+export const changeZone = createSafeApiCall(
+  baseChangeZone,
+  "Failed to change zone"
+);
+
+// Define the Ritual interface
+export interface Ritual {
+  id: number;
+  name: string;
+  purpose: string;
+  steps: string[];
+  symbolic_elements: string[];
+}
+
+// Add function to fetch rituals
+const baseGetRituals = async () => {
+  await ensureToken();
+  return api.get<Ritual[]>("/api/rituals").then(r => r.data);
+};
+
+export const getRituals = createSafeApiCall(
+  baseGetRituals,
+  "Failed to fetch rituals"
+);
+
+// Define the Agent interface
+export interface Agent {
+  name: string;
+  role: string;
+  emotion: string | null;
+  zone: string | object | null;
+  memory: any;
+}
+
+// Add function to fetch agents
+const baseGetAgents = async () => {
+  await ensureToken();
+  return api.get<Agent[]>("/api/agents").then(r => r.data);
+};
+
+export const getAgents = createSafeApiCall(
+  baseGetAgents,
+  "Failed to fetch agents"
 );

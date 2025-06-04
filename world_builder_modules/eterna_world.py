@@ -8,8 +8,10 @@ for saving and loading the world state.
 
 import pickle
 import random
+import concurrent.futures
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, Tuple
+from collections import deque
 
 import torch
 
@@ -62,6 +64,7 @@ class EternaWorld:
         3. Gets the state tracker from the interface
         4. Sets up the companion trainer for reinforcement learning
         5. Performs one-time bootstrapping of the world by calling various setup functions
+        6. Creates a thread pool executor for parallel processing
         """
         # Core interface
         self.eterna = EternaInterface()
@@ -69,11 +72,12 @@ class EternaWorld:
             "laws"
         )  # <<--- Make sure this is here, near the top
         self.state_tracker: EternaStateTracker = self.eterna.state_tracker
-        # RL loop for companions
+        # RL loop for companions with memory optimization
         self.companion_trainer = PPOTrainer(
             obs_dim=10,  # placeholder – you'll define real obs later
             act_dim=5,  # e.g. 5 dialogue tone classes
             world=self,
+            buffer_size=10000,  # Limit buffer size to prevent unbounded growth
         )
 
         # One‑time bootstrapping
@@ -86,6 +90,10 @@ class EternaWorld:
         setup_resonance_engine(self.eterna)
         setup_time_and_agents(self.eterna)
 
+        # Create a thread pool executor for parallel processing
+        # Using max_workers=3 as we have 3 main components to parallelize
+        self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=3)
+
     # ---------- runtime hooks ---------- #
     def step(self, dt: float = 1.0) -> None:
         """
@@ -95,9 +103,8 @@ class EternaWorld:
         1. Advances the physics and emotions by running a cycle
         2. Updates the RL companion system
         3. Handles law compliance and agent evolution
-        4. Performs debug logging every 100 ticks
-        5. Updates agent and zone states for UI feedback
-        6. Saves the current state
+        4. Performs debug logging, UI state updates, and metrics collection in parallel
+        5. Saves the current state
 
         Args:
             dt: The time delta for this step. Defaults to 1.0.
@@ -126,11 +133,18 @@ class EternaWorld:
         # Update agent evolution
         self._update_agent_evolution(companion)
 
-        # Log debug information
-        self._log_debug_info(emo, reward)
+        # Execute independent components in parallel
+        # Submit tasks to the executor
+        debug_future = self.executor.submit(self._log_debug_info, emo, reward)
+        ui_future = self.executor.submit(self._update_ui_state)
+        metrics_future = self.executor.submit(self.collect_metrics)
 
-        # Update UI state
-        self._update_ui_state()
+        # Wait for all tasks to complete
+        # This ensures we don't proceed until all parallel tasks are done
+        concurrent.futures.wait([debug_future, ui_future, metrics_future])
+
+        # Get metrics result if needed (for governor or other components)
+        metrics = metrics_future.result()
 
         # Save current state
         self.state_tracker.save()
@@ -144,6 +158,7 @@ class EternaWorld:
         2. Chooses actions based on the policy
         3. Calculates rewards based on emotions
         4. Updates the policy with the new observations
+        5. Trains the model periodically rather than every step
 
         Args:
             companion: The current companion
@@ -179,8 +194,15 @@ class EternaWorld:
         next_obs[0] += 0.01  # Small change to represent state transition
         trainer.observe(obs, action, reward, next_obs)
 
-        # Train the model
-        trainer.step_train(batch_size=32)
+        # Train the model periodically instead of every step
+        # Only train when we have enough samples or every 10 steps
+        if not hasattr(self, '_train_counter'):
+            self._train_counter = 0
+
+        self._train_counter += 1
+        if self._train_counter >= 10 and len(trainer.buffer) >= 32:
+            trainer.step_train(batch_size=min(128, len(trainer.buffer)))
+            self._train_counter = 0
 
         return obs, action, reward
 
@@ -274,19 +296,29 @@ class EternaWorld:
         """
         Log debug information.
 
-        This method logs debug information every 100 ticks.
+        This method logs debug information every 500 ticks to reduce overhead.
+        Weight tracking is only performed in debug mode.
 
         Args:
             emo: The current emotion
             reward: The current reward value
         """
+        # Only log every 500 cycles to reduce overhead
+        if self.eterna.runtime.cycle_count % 500 != 0:
+            return
+
         trainer = self.companion_trainer
 
-        if self.eterna.runtime.cycle_count % 100 == 0:
-            # Force a training step with a larger batch size to ensure weight updates
-            if len(trainer.buffer) >= 64:
-                trainer.step_train(batch_size=64)
+        # Check if we're in debug mode (can be set via environment variable or config)
+        debug_mode = getattr(self.eterna, 'debug_mode', False)
 
+        # Basic logging that's always done
+        print(
+            f"[cycle {self.eterna.runtime.cycle_count}] Emotion: {emo}, Reward: {reward}, Buffer size: {len(trainer.buffer)}"
+        )
+
+        # Detailed weight tracking only in debug mode
+        if debug_mode:
             # Get multiple weights to track changes
             w1 = trainer.policy.net[0].weight[0][0].item()
             w2 = (
@@ -304,9 +336,6 @@ class EternaWorld:
             w2_change = w2 - self.prev_weights["w2"]
 
             # Print detailed debug information
-            print(
-                f"[cycle {self.eterna.runtime.cycle_count}] Emotion: {emo}, Reward: {reward}, Buffer size: {len(trainer.buffer)}"
-            )
             print(f"W[0][0] = {w1:.6f} (change: {w1_change:.6f})")
             print(f"W[0][1] = {w2:.6f} (change: {w2_change:.6f})")
 
@@ -321,33 +350,47 @@ class EternaWorld:
         1. Updates companion emotions
         2. Updates zone emotion tags and modifiers
         3. Randomly triggers rituals
-        """
-        # 1. Agents: If agent has an 'emotion' attribute, change it occasionally for demo/testing.
-        for companion in getattr(self.eterna.companions, "companions", []):
-            if hasattr(companion, "emotion"):
-                if random.random() < 0.18:  # 18% chance per step for visible UI change
-                    companion.emotion = random.choice(
-                        ["happy", "sad", "angry", "neutral"]
-                    )
 
-        # 2. Zones: Randomly change emotion_tag and modifiers for UI feedback
-        if hasattr(self.eterna, "exploration") and hasattr(
+        Optimized to reduce frequency of updates and batch processing.
+        """
+        # Only update UI state every few cycles to reduce overhead
+        cycle_count = self.eterna.runtime.cycle_count
+
+        # 1. Agents: Update emotions less frequently (every 3 cycles)
+        if cycle_count % 3 == 0:
+            companions = getattr(self.eterna.companions, "companions", [])
+            # Process companions in batches
+            for i in range(0, len(companions), 5):  # Process 5 companions at a time
+                batch = companions[i:i+5]
+                for companion in batch:
+                    if hasattr(companion, "emotion"):
+                        if random.random() < 0.4:  # Higher chance but less frequent updates
+                            companion.emotion = random.choice(
+                                ["happy", "sad", "angry", "neutral"]
+                            )
+
+        # 2. Zones: Update zones less frequently (every 5 cycles)
+        if cycle_count % 5 == 0 and hasattr(self.eterna, "exploration") and hasattr(
                 self.eterna.exploration, "registry"
         ):
-            for zone in getattr(self.eterna.exploration.registry, "zones", []):
-                if random.random() < 0.15:
-                    zone.emotion_tag = random.choice(["awe", "grief", "joy", "neutral"])
-                    zone.modifiers = (
-                        ["blessed"]
-                        if zone.emotion_tag == "joy"
-                        else (["cursed"] if zone.emotion_tag == "grief" else [])
-                    )
+            zones = getattr(self.eterna.exploration.registry, "zones", [])
+            # Process zones in batches
+            for i in range(0, len(zones), 3):  # Process 3 zones at a time
+                batch = zones[i:i+3]
+                for zone in batch:
+                    if random.random() < 0.5:  # Higher chance but less frequent updates
+                        zone.emotion_tag = random.choice(["awe", "grief", "joy", "neutral"])
+                        zone.modifiers = (
+                            ["blessed"]
+                            if zone.emotion_tag == "joy"
+                            else (["cursed"] if zone.emotion_tag == "grief" else [])
+                        )
 
-        # 3. Rituals: Randomly trigger a ritual for demo/testing
-        if hasattr(self.eterna, "rituals") and getattr(
+        # 3. Rituals: Trigger rituals less frequently (every 10 cycles)
+        if cycle_count % 10 == 0 and hasattr(self.eterna, "rituals") and getattr(
                 self.eterna.rituals, "rituals", None
         ):
-            if random.random() < 0.08:
+            if random.random() < 0.5:  # Higher chance but less frequent updates
                 ritual = random.choice(list(self.eterna.rituals.rituals.values()))
                 self.eterna.rituals.perform(ritual.name)
 
@@ -372,28 +415,100 @@ class EternaWorld:
         """
         Save the current state of the world to a checkpoint file.
 
-        This method serializes the entire EternaWorld instance using pickle
-        and writes it to the specified path.
+        Memory optimization:
+        - Uses a more selective approach to save only essential state
+        - Avoids serializing large objects that can be reconstructed
+        - Compresses the checkpoint data to reduce disk space usage
 
         Args:
             path: The path where the checkpoint should be saved.
         """
-        save_pickle(path, self, create_dirs=True)
+        # Create a dictionary with only the essential state
+        checkpoint_data = {
+            # Save state tracker data
+            "state_tracker_data": {
+                "last_emotion": self.state_tracker.last_emotion,
+                "applied_modifiers": self.state_tracker.applied_modifiers,
+                "memories": list(self.state_tracker.memories),
+                "evolution_stats": self.state_tracker.evolution_stats,
+                "explored_zones": list(self.state_tracker.explored_zones),
+                "discoveries": list(self.state_tracker.discoveries),
+                "last_zone": self.state_tracker.last_zone,
+            },
+            # Save RL trainer state (only the model weights, not the entire buffer)
+            "companion_trainer_weights": {
+                "policy": self.companion_trainer.policy.state_dict() if hasattr(self.companion_trainer, "policy") else None,
+            },
+            # Save runtime state
+            "cycle_count": self.eterna.runtime.cycle_count if hasattr(self.eterna, "runtime") else 0,
+        }
+
+        # Save the checkpoint data
+        save_pickle(path, checkpoint_data, create_dirs=True)
+
+        # Register the checkpoint with the state tracker
+        self.state_tracker.register_checkpoint(str(path))
 
     def load_checkpoint(self, path: Path) -> None:
         """
         Load a previously saved checkpoint.
 
-        This method deserializes an EternaWorld instance from the specified path
-        and updates the current instance's state to match it. This is done in-place
-        so that external references to this instance remain valid.
+        Memory optimization:
+        - Selectively loads only the essential state
+        - Reconstructs objects rather than deserializing them entirely
+        - Maintains memory limits and constraints
 
         Args:
             path: The path to the checkpoint file to load.
         """
-        restored: "EternaWorld" = load_pickle(path)
-        # overwrite in‑place so external references remain valid
-        self.__dict__.update(restored.__dict__)
+        # Load the checkpoint data
+        checkpoint_data = load_pickle(path)
+
+        # Restore state tracker data
+        if "state_tracker_data" in checkpoint_data:
+            st_data = checkpoint_data["state_tracker_data"]
+            self.state_tracker.last_emotion = st_data.get("last_emotion")
+            self.state_tracker.applied_modifiers = st_data.get("applied_modifiers", {})
+
+            # Restore collections as bounded deques
+            self.state_tracker.memories = deque(
+                st_data.get("memories", []), 
+                maxlen=self.state_tracker.max_memories
+            )
+            self.state_tracker.discoveries = deque(
+                st_data.get("discoveries", []), 
+                maxlen=self.state_tracker.max_discoveries
+            )
+            self.state_tracker.explored_zones = deque(
+                st_data.get("explored_zones", []), 
+                maxlen=self.state_tracker.max_explored_zones
+            )
+
+            self.state_tracker.evolution_stats = st_data.get("evolution_stats", self.state_tracker.evolution_stats)
+            self.state_tracker.last_zone = st_data.get("last_zone")
+
+        # Restore RL trainer weights
+        if "companion_trainer_weights" in checkpoint_data and hasattr(self.companion_trainer, "policy"):
+            weights = checkpoint_data["companion_trainer_weights"]
+            if weights.get("policy") is not None:
+                self.companion_trainer.policy.load_state_dict(weights["policy"])
+
+        # Restore runtime state
+        if hasattr(self.eterna, "runtime") and "cycle_count" in checkpoint_data:
+            self.eterna.runtime.cycle_count = checkpoint_data["cycle_count"]
+
+        # Mark that we've loaded this checkpoint
+        self.state_tracker.mark_rollback(str(path))
+
+    def __del__(self) -> None:
+        """
+        Clean up resources when the EternaWorld instance is garbage collected.
+
+        This method ensures that the thread pool executor is properly shut down
+        to prevent resource leaks.
+        """
+        if hasattr(self, 'executor'):
+            self.executor.shutdown(wait=True)
 
 
 # Public factory function

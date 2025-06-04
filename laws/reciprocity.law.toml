@@ -14,5 +14,5 @@ conditions  = [
 ]
 
 [effects]
-apply_emotion = { type = "gratitude", delta = "++" }
-grant_energy  = { amount = 5, target = "agent" }
+change_emotion = { emotion = "gratitude", delta = "++" }
+adjust_score  = { value = 5, target = "agent" }

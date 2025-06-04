@@ -1,12 +1,16 @@
+import copy
 import datetime
 import json
 import math
 import os
 import random
-from typing import Any, Dict, List, Optional, Union
+import time
+from typing import Any, Dict, List, Optional, Union, Deque
+from collections import deque
 
 from modules.interfaces import StateTrackerInterface
 from modules.utilities.file_utils import save_json, load_json
+from modules.database import EternaDatabase
 
 
 class EternaStateTracker(StateTrackerInterface):
@@ -21,43 +25,100 @@ class EternaStateTracker(StateTrackerInterface):
     The state tracker is used by the AlignmentGovernor to monitor the world's
     state and ensure it remains within acceptable parameters.
 
+    Memory optimization features:
+    - Uses deque for bounded collections (memories, discoveries, modifiers, checkpoints)
+    - Configurable maximum sizes for collections
+    - Automatic pruning of old data when limits are reached
+    - Memory-efficient storage of zone and modifier information
+
     Attributes:
         save_path: Path where the state snapshot is saved.
         last_emotion: The most recent emotion experienced in the world.
         applied_modifiers: Dictionary mapping zone names to lists of modifiers.
-        memories: List of memories integrated into the world.
+        memories: Deque of memories integrated into the world (bounded).
         evolution_stats: Dictionary of evolution statistics (intellect, senses).
-        discoveries: List of discoveries made in the world.
-        explored_zones: List of zones that have been explored.
+        discoveries: Deque of discoveries made in the world (bounded).
+        explored_zones: Deque of zones that have been explored (bounded).
         last_zone: The most recently explored zone.
-        modifiers: List of modifiers applied to zones.
-        checkpoints: List of checkpoint paths.
+        modifiers: Deque of modifiers applied to zones (bounded).
+        checkpoints: Deque of checkpoint paths (bounded).
         last_intensity: The intensity of the last emotion.
         last_dominance: The dominance of the last emotion.
+        max_memories: Maximum number of memories to store.
+        max_discoveries: Maximum number of discoveries to store.
+        max_explored_zones: Maximum number of explored zones to store.
+        max_modifiers: Maximum number of modifiers to store.
+        max_checkpoints: Maximum number of checkpoints to store.
     """
 
-    def __init__(self, save_path="logs/state_snapshot.json"):
+    def __init__(self, save_path="logs/state_snapshot.json", 
+                 max_memories=100, max_discoveries=50, 
+                 max_explored_zones=20, max_modifiers=50, 
+                 max_checkpoints=10,
+                 db_path="data/eternia.db",
+                 use_database=True,
+                 use_lazy_loading=True):
         """
-        Initialize the EternaStateTracker.
+        Initialize the EternaStateTracker with memory optimization.
 
         Args:
             save_path: Path where the state snapshot will be saved.
                 Defaults to "logs/state_snapshot.json".
+            max_memories: Maximum number of memories to store. Defaults to 100.
+            max_discoveries: Maximum number of discoveries to store. Defaults to 50.
+            max_explored_zones: Maximum number of explored zones to store. Defaults to 20.
+            max_modifiers: Maximum number of modifiers to store. Defaults to 50.
+            max_checkpoints: Maximum number of checkpoints to store. Defaults to 10.
+            db_path: Path to the SQLite database file. Defaults to "data/eternia.db".
+            use_database: Whether to use the database for persistence. Defaults to True.
+                If False, will fall back to JSON-based persistence.
+            use_lazy_loading: Whether to use lazy loading for collections. Defaults to True.
+                This can significantly reduce memory usage for large states.
         """
         self.save_path = save_path
+        self.db_path = db_path
+        self.use_database = use_database
+        self.use_lazy_loading = use_lazy_loading
         self.last_emotion = None
         self.applied_modifiers = {}  # {zone_name: [modifier1, modifier2]}
-        self.memories = []
+
+        # Initialize database if enabled
+        self.db = None
+        if self.use_database:
+            self.db = EternaDatabase(db_path=self.db_path)
+
+        # Memory optimization: use bounded deques instead of unbounded lists
+        self.max_memories = max_memories
+        self.max_discoveries = max_discoveries
+        self.max_explored_zones = max_explored_zones
+        self.max_modifiers = max_modifiers
+        self.max_checkpoints = max_checkpoints
+
+        self.memories = deque(maxlen=self.max_memories)
+        self.discoveries = deque(maxlen=self.max_discoveries)
+        self.explored_zones = deque(maxlen=self.max_explored_zones)
+        self.modifiers = deque(maxlen=self.max_modifiers)
+        self.checkpoints = deque(maxlen=self.max_checkpoints)
+
+        # Efficient indexing for state queries
+        self._zone_index = set()  # Fast lookup for explored zones
+        self._memory_index = {}   # Index memories by emotional_quality
+        self._discovery_index = {}  # Index discoveries by category
+        self._modifier_index = {}   # Index modifiers by type
+
+        # Initialize cache for frequently accessed data
+        self._cache = {}
+        self._cache_ttl = {}  # Time-to-live for cached items
+        self._cache_default_ttl = 100  # Default TTL in ticks
+
+        # Lazy loading state
+        self._lazy_state = None
+        self._collections_accessed = set()
+
         self.evolution_stats = {"intellect": 100, "senses": 100}
-        self.discoveries = []
         # initialize previous intellect for identity_continuity()
         self._prev_intellect = self.evolution_stats["intellect"]
-        self.explored_zones = []
         self.last_zone = None
-        self.explored_zones = []
-        self.modifiers = []
-        self.discoveries = []
-        self.checkpoints: list[str] = []
         self.last_emotion: str | None = None
         self.last_intensity: float = 0.0
         self.last_dominance: float = 0.0
@@ -68,11 +129,71 @@ class EternaStateTracker(StateTrackerInterface):
         # Load the state from disk if it exists
         self.load()
 
+        # Initialize cache maintenance counters
+        self._cache_maintenance_counter = 0
+        self._cache_maintenance_interval = 1000  # Check cache every 1000 operations
+
     def shutdown(self) -> None:
         """Perform any cleanup operations when shutting down."""
         print("🛑 Shutting down EternaStateTracker")
-        # Save the current state to disk
+        # Clear the cache before saving to reduce file size
+        self._clear_cache()
+        # Save the current state to disk or database
         self.save()
+        # Close the database connection if it exists
+        if self.use_database and self.db:
+            self.db.close()
+            print("🔌 Closed database connection")
+
+    def _maintain_cache(self):
+        """
+        Perform cache maintenance operations.
+
+        This method:
+        1. Increments the maintenance counter
+        2. Checks if maintenance is due
+        3. Clears expired cache entries
+        4. Limits the cache size
+
+        Should be called by methods that use the cache.
+        """
+        # Increment the counter
+        self._cache_maintenance_counter += 1
+
+        # Check if maintenance is due
+        if self._cache_maintenance_counter >= self._cache_maintenance_interval:
+            # Clear expired cache entries
+            expired_keys = [k for k, ttl in self._cache_ttl.items() if ttl <= 0]
+            for key in expired_keys:
+                if key in self._cache:
+                    del self._cache[key]
+                if key in self._cache_ttl:
+                    del self._cache_ttl[key]
+
+            # Limit cache size (keep only the most recently used entries)
+            if len(self._cache) > 100:  # Arbitrary limit
+                # Sort by TTL (higher TTL means more recently used)
+                sorted_keys = sorted(self._cache_ttl.keys(), key=lambda k: self._cache_ttl.get(k, 0), reverse=True)
+                # Keep only the top 100
+                keys_to_remove = sorted_keys[100:]
+                for key in keys_to_remove:
+                    if key in self._cache:
+                        del self._cache[key]
+                    if key in self._cache_ttl:
+                        del self._cache_ttl[key]
+
+            # Reset the counter
+            self._cache_maintenance_counter = 0
+
+    def _clear_cache(self):
+        """
+        Clear the entire cache.
+
+        This method completely empties the cache and TTL dictionaries.
+        Should be called during shutdown or when a major state change occurs.
+        """
+        self._cache = {}
+        self._cache_ttl = {}
 
     def log_emotional_impact(self, emotion_name, score):
         """
@@ -146,39 +267,322 @@ class EternaStateTracker(StateTrackerInterface):
         """
         Add a modifier to a specific zone.
 
+        Memory optimization:
+        - Maintains an index by modifier type for efficient queries
+        - Uses dictionary structure for O(1) lookups by zone
+
         Args:
             zone: The name of the zone to add the modifier to.
-            modifier: The modifier to add.
+            modifier: The modifier to add. Expected to be a dictionary with at least
+                     'type' and 'effect' keys, or a string.
         """
+        # Add to the applied_modifiers dictionary
         self.applied_modifiers.setdefault(zone, []).append(modifier)
+
+        # Add to the modifiers deque for tracking all modifiers
+        modifier_entry = {"zone": zone, "modifier": modifier}
+        self.modifiers.append(modifier_entry)
+
+        # Update the modifier index for efficient lookups
+        modifier_type = None
+        if isinstance(modifier, dict) and 'type' in modifier:
+            modifier_type = modifier['type']
+        elif isinstance(modifier, str):
+            modifier_type = modifier
+
+        if modifier_type:
+            if modifier_type not in self._modifier_index:
+                self._modifier_index[modifier_type] = []
+            self._modifier_index[modifier_type].append(modifier_entry)
+
+            # If the deque is at capacity and removed an item, we need to update the index
+            if len(self.modifiers) == self.max_modifiers:
+                # Rebuild the entire index to ensure consistency
+                self._rebuild_modifier_index()
+
+    def _rebuild_modifier_index(self):
+        """
+        Rebuild the modifier index from scratch.
+
+        This ensures the index stays consistent with the modifiers deque,
+        especially after items are removed due to capacity limits.
+        """
+        self._modifier_index = {}
+        for entry in self.modifiers:
+            modifier = entry.get("modifier")
+            modifier_type = None
+            if isinstance(modifier, dict) and 'type' in modifier:
+                modifier_type = modifier['type']
+            elif isinstance(modifier, str):
+                modifier_type = modifier
+
+            if modifier_type:
+                if modifier_type not in self._modifier_index:
+                    self._modifier_index[modifier_type] = []
+                self._modifier_index[modifier_type].append(entry)
+
+    def get_modifiers_by_type(self, modifier_type):
+        """
+        Get all modifiers of the specified type.
+
+        Uses the modifier index for efficient O(1) lookups instead of
+        scanning all zones and their modifiers.
+
+        Args:
+            modifier_type: The type of modifier to search for.
+
+        Returns:
+            A list of modifier entries, each containing 'zone' and 'modifier' keys.
+        """
+        # Ensure modifiers are loaded if using lazy loading
+        self._ensure_collection_loaded("modifiers")
+
+        # Perform cache maintenance
+        self._maintain_cache()
+
+        # Check the cache first
+        cache_key = f"modifiers_{modifier_type}"
+        if cache_key in self._cache and self._cache_ttl.get(cache_key, 0) > 0:
+            self._cache_ttl[cache_key] -= 1
+            return self._cache[cache_key]
+
+        # Use the index for efficient lookup
+        result = self._modifier_index.get(modifier_type, [])
+
+        # Cache the result for future queries
+        self._cache[cache_key] = result
+        self._cache_ttl[cache_key] = self._cache_default_ttl
+
+        return result
 
     def add_memory(self, memory):
         """
         Add a memory to the world.
 
+        Memory optimization: 
+        - Uses a bounded deque that automatically removes the oldest memories
+        - Maintains an index by emotional_quality for efficient queries
+        - Handles index updates when items are removed due to capacity limits
+
         Args:
-            memory: The memory to add.
+            memory: The memory to add. Expected to be a dictionary with at least
+                   'description' and 'emotional_quality' keys.
         """
+        # The deque will automatically handle removing old items when maxlen is reached
         self.memories.append(memory)
+
+        # Update the memory index for efficient lookups
+        if isinstance(memory, dict) and 'emotional_quality' in memory:
+            emotional_quality = memory['emotional_quality']
+            if emotional_quality not in self._memory_index:
+                self._memory_index[emotional_quality] = []
+            self._memory_index[emotional_quality].append(memory)
+
+            # If the deque is at capacity and removed an item, we need to update the index
+            if len(self.memories) == self.max_memories:
+                # Rebuild the entire index to ensure consistency
+                self._rebuild_memory_index()
+
+    def _rebuild_memory_index(self):
+        """
+        Rebuild the memory index from scratch.
+
+        This ensures the index stays consistent with the memories deque,
+        especially after items are removed due to capacity limits.
+        """
+        self._memory_index = {}
+        for memory in self.memories:
+            if isinstance(memory, dict) and 'emotional_quality' in memory:
+                emotional_quality = memory['emotional_quality']
+                if emotional_quality not in self._memory_index:
+                    self._memory_index[emotional_quality] = []
+                self._memory_index[emotional_quality].append(memory)
+
+    def _ensure_collection_loaded(self, collection_name):
+        """
+        Ensure a collection is loaded if using lazy loading.
+
+        Args:
+            collection_name: The name of the collection to ensure is loaded.
+        """
+        if not self.use_lazy_loading or not self.use_database or not self.db or not self._lazy_state:
+            # Not using lazy loading or no lazy state available
+            return
+
+        if collection_name in self._collections_accessed:
+            # Already accessed this collection
+            return
+
+        # Mark as accessed
+        self._collections_accessed.add(collection_name)
+
+        # Load the collection
+        if collection_name == "memories":
+            memories = self.db.lazy_load_collection(self._lazy_state, "memories")
+            self.memories = deque(memories, maxlen=self.max_memories)
+            self._rebuild_memory_index()
+            # Update last_saved_state
+            self._last_saved_state["memories"] = list(self.memories)
+        elif collection_name == "discoveries":
+            discoveries = self.db.lazy_load_collection(self._lazy_state, "discoveries")
+            self.discoveries = deque(discoveries, maxlen=self.max_discoveries)
+            self._rebuild_discovery_index()
+            # Update last_saved_state
+            self._last_saved_state["discoveries"] = list(self.discoveries)
+        elif collection_name == "explored_zones":
+            explored_zones = self.db.lazy_load_collection(self._lazy_state, "explored_zones")
+            self.explored_zones = deque(explored_zones, maxlen=self.max_explored_zones)
+            self._zone_index = set(self.explored_zones)
+            # Update last_saved_state
+            self._last_saved_state["explored_zones"] = list(self.explored_zones)
+        elif collection_name == "modifiers":
+            modifiers_dict = self.db.lazy_load_collection(self._lazy_state, "modifiers")
+            # Update applied_modifiers
+            self.applied_modifiers = modifiers_dict
+            # Rebuild modifiers deque
+            self.modifiers = deque(maxlen=self.max_modifiers)
+            for zone, mods in modifiers_dict.items():
+                for mod in mods:
+                    self.modifiers.append({"zone": zone, "modifier": mod})
+            self._rebuild_modifier_index()
+        elif collection_name == "checkpoints":
+            checkpoints = self.db.lazy_load_collection(self._lazy_state, "checkpoints")
+            self.checkpoints = deque(checkpoints, maxlen=self.max_checkpoints)
+
+    def get_memories_by_emotion(self, emotional_quality):
+        """
+        Get all memories with the specified emotional quality.
+
+        Uses the memory index for efficient O(1) lookups instead of
+        scanning the entire memories collection.
+
+        Args:
+            emotional_quality: The emotional quality to search for.
+
+        Returns:
+            A list of memories with the specified emotional quality.
+        """
+        # Ensure memories are loaded if using lazy loading
+        self._ensure_collection_loaded("memories")
+
+        # Perform cache maintenance
+        self._maintain_cache()
+
+        # Check the cache first
+        cache_key = f"memories_{emotional_quality}"
+        if cache_key in self._cache and self._cache_ttl.get(cache_key, 0) > 0:
+            self._cache_ttl[cache_key] -= 1
+            return self._cache[cache_key]
+
+        # Use the index for efficient lookup
+        result = self._memory_index.get(emotional_quality, [])
+
+        # Cache the result for future queries
+        self._cache[cache_key] = result
+        self._cache_ttl[cache_key] = self._cache_default_ttl
+
+        return result
 
     def record_discovery(self, discovery):
         """
         Record a discovery made in the world.
 
+        Memory optimization: 
+        - Uses a bounded deque that automatically removes the oldest discoveries
+        - Maintains an index by category for efficient queries
+        - Handles index updates when items are removed due to capacity limits
+
         Args:
-            discovery: The discovery to record.
+            discovery: The discovery to record. Expected to be a dictionary with at least
+                      'name' and 'category' keys.
         """
+        # The deque will automatically handle removing old items when maxlen is reached
         self.discoveries.append(discovery)
+
+        # Update the discovery index for efficient lookups
+        if isinstance(discovery, dict) and 'category' in discovery:
+            category = discovery['category']
+            if category not in self._discovery_index:
+                self._discovery_index[category] = []
+            self._discovery_index[category].append(discovery)
+
+            # If the deque is at capacity and removed an item, we need to update the index
+            if len(self.discoveries) == self.max_discoveries:
+                # Rebuild the entire index to ensure consistency
+                self._rebuild_discovery_index()
+
+    def _rebuild_discovery_index(self):
+        """
+        Rebuild the discovery index from scratch.
+
+        This ensures the index stays consistent with the discoveries deque,
+        especially after items are removed due to capacity limits.
+        """
+        self._discovery_index = {}
+        for discovery in self.discoveries:
+            if isinstance(discovery, dict) and 'category' in discovery:
+                category = discovery['category']
+                if category not in self._discovery_index:
+                    self._discovery_index[category] = []
+                self._discovery_index[category].append(discovery)
+
+    def get_discoveries_by_category(self, category):
+        """
+        Get all discoveries in the specified category.
+
+        Uses the discovery index for efficient O(1) lookups instead of
+        scanning the entire discoveries collection.
+
+        Args:
+            category: The category to search for.
+
+        Returns:
+            A list of discoveries in the specified category.
+        """
+        # Ensure discoveries are loaded if using lazy loading
+        self._ensure_collection_loaded("discoveries")
+
+        # Perform cache maintenance
+        self._maintain_cache()
+
+        # Check the cache first
+        cache_key = f"discoveries_{category}"
+        if cache_key in self._cache and self._cache_ttl.get(cache_key, 0) > 0:
+            self._cache_ttl[cache_key] -= 1
+            return self._cache[cache_key]
+
+        # Use the index for efficient lookup
+        result = self._discovery_index.get(category, [])
+
+        # Cache the result for future queries
+        self._cache[cache_key] = result
+        self._cache_ttl[cache_key] = self._cache_default_ttl
+
+        return result
 
     def mark_zone_explored(self, zone_name):
         """
         Mark a zone as explored.
 
+        Memory optimization: 
+        - Uses a bounded deque that automatically removes the oldest explored zones
+        - Uses a set index for O(1) lookups
+        - Only adds the zone if it's not already tracked
+
         Args:
             zone_name: The name of the zone to mark as explored.
         """
-        if zone_name not in self.explored_zones:
+        # Check if zone is already in the index (O(1) operation)
+        if zone_name not in self._zone_index:
+            # Add to the deque (which will automatically handle removing old items when maxlen is reached)
             self.explored_zones.append(zone_name)
+            # Add to the index for fast lookups
+            self._zone_index.add(zone_name)
+
+            # If the deque is at capacity and removed an item, we need to update the index
+            if len(self.explored_zones) == self.max_explored_zones:
+                # Rebuild the index to match the current deque contents
+                self._zone_index = set(self.explored_zones)
 
     def update_evolution(self, intellect, senses):
         """
@@ -191,44 +595,238 @@ class EternaStateTracker(StateTrackerInterface):
         self.evolution_stats["intellect"] = intellect
         self.evolution_stats["senses"] = senses
 
-    def save(self):
+    def save(self, incremental=True):
         """
-        Save the current state to a JSON file.
+        Save the current state to persistent storage.
 
         This method creates a snapshot of the current state and saves it to
-        the file specified by save_path. It creates the directory if it doesn't exist.
+        either the database (if use_database is True) or a JSON file (if use_database is False).
+        It creates the directory if it doesn't exist.
+
+        Memory optimization: 
+        - Converts deques to lists before serialization
+        - Limits the amount of data saved
+        - Supports incremental updates to avoid saving unchanged data
+        - Uses a more compact JSON representation
+
+        Args:
+            incremental: If True, only save data that has changed since the last save.
+                         If False, save the entire state. Defaults to True.
         """
+        # Initialize the snapshot with metadata
         snapshot = {
-            "emotion": self.last_emotion,
-            "modifiers": self.applied_modifiers,
-            "memories": self.memories,
-            "evolution": self.evolution_stats,
-            "explored_zones": self.explored_zones,
-            "discoveries": self.discoveries,
-            "last_zone": self.last_zone,  # Add this line
+            "timestamp": time.time(),
+            "version": getattr(self, "_state_version", 0) + 1,
+            "last_intensity": self.last_intensity,
+            "last_dominance": self.last_dominance
         }
-        save_json(self.save_path, snapshot, create_dirs=True, indent=2)
-        print(f"💾 Eterna state saved to {self.save_path}")
+
+        # Store the current version for future comparisons
+        self._state_version = snapshot["version"]
+
+        # If this is the first save or a full save is requested, save everything
+        if not incremental or not hasattr(self, "_last_saved_state"):
+            # Convert deques to lists for serialization
+            snapshot.update({
+                "emotion": self.last_emotion,
+                "modifiers": self.applied_modifiers,
+                "memories": list(self.memories),
+                "evolution": self.evolution_stats,
+                "explored_zones": list(self.explored_zones),
+                "discoveries": list(self.discoveries),
+                "last_zone": self.last_zone,
+                # Save configuration for when we load
+                "max_memories": self.max_memories,
+                "max_discoveries": self.max_discoveries,
+                "max_explored_zones": self.max_explored_zones,
+                "max_modifiers": self.max_modifiers,
+                "max_checkpoints": self.max_checkpoints,
+                "checkpoints": list(self.checkpoints)
+            })
+
+            # Store a copy of the current state for future incremental saves
+            self._last_saved_state = {
+                "emotion": copy.deepcopy(self.last_emotion) if self.last_emotion else None,
+                "modifiers": copy.deepcopy(self.applied_modifiers),
+                "memories": list(self.memories),
+                "evolution": copy.deepcopy(self.evolution_stats),
+                "explored_zones": list(self.explored_zones),
+                "discoveries": list(self.discoveries),
+                "last_zone": self.last_zone,
+            }
+        else:
+            # Incremental save: only include data that has changed
+            if self.last_emotion != self._last_saved_state["emotion"]:
+                snapshot["emotion"] = self.last_emotion
+                self._last_saved_state["emotion"] = copy.deepcopy(self.last_emotion) if self.last_emotion else None
+
+            # Check if modifiers have changed
+            if self.applied_modifiers != self._last_saved_state["modifiers"]:
+                snapshot["modifiers"] = self.applied_modifiers
+                self._last_saved_state["modifiers"] = copy.deepcopy(self.applied_modifiers)
+
+            # For collections, check if they've changed in size or content
+            current_memories = list(self.memories)
+            if len(current_memories) != len(self._last_saved_state["memories"]) or set(str(m) for m in current_memories) != set(str(m) for m in self._last_saved_state["memories"]):
+                snapshot["memories"] = current_memories
+                self._last_saved_state["memories"] = current_memories
+
+            # Check if evolution stats have changed
+            if self.evolution_stats != self._last_saved_state["evolution"]:
+                snapshot["evolution"] = self.evolution_stats
+                self._last_saved_state["evolution"] = copy.deepcopy(self.evolution_stats)
+
+            # Check if explored zones have changed
+            current_zones = list(self.explored_zones)
+            if set(current_zones) != set(self._last_saved_state["explored_zones"]):
+                snapshot["explored_zones"] = current_zones
+                self._last_saved_state["explored_zones"] = current_zones
+
+            # Check if discoveries have changed
+            current_discoveries = list(self.discoveries)
+            if set(str(d) for d in current_discoveries) != set(str(d) for d in self._last_saved_state["discoveries"]):
+                snapshot["discoveries"] = current_discoveries
+                self._last_saved_state["discoveries"] = current_discoveries
+
+            # Check if last zone has changed
+            if self.last_zone != self._last_saved_state["last_zone"]:
+                snapshot["last_zone"] = self.last_zone
+                self._last_saved_state["last_zone"] = self.last_zone
+
+            # Always include checkpoints in the snapshot
+            snapshot["checkpoints"] = list(self.checkpoints)
+
+        # Save to database if enabled, otherwise save to JSON file
+        if self.use_database and self.db:
+            # Save to database
+            state_id = self.db.save_state(snapshot)
+            print(f"💾 Eterna state saved to database (ID: {state_id}, version {snapshot['version']}, {'incremental' if incremental else 'full'})")
+        else:
+            # Use a more compact JSON representation (no indent) to save space
+            save_json(self.save_path, snapshot, create_dirs=True, indent=None)
+            print(f"💾 Eterna state saved to {self.save_path} (version {snapshot['version']}, {'incremental' if incremental else 'full'})")
 
     def load(self):
         """
-        Load the state from a JSON file.
+        Load the state from persistent storage.
 
-        This method loads a previously saved state from the file specified by
-        save_path. If the file doesn't exist, it prints a warning message.
+        This method loads a previously saved state from either the database
+        (if use_database is True) or a JSON file (if use_database is False).
+        If no saved state is found, it prints a warning message.
+
+        Memory optimization: 
+        - Converts loaded lists to bounded deques
+        - Respects the configured maximum sizes
+        - Handles incremental state updates
+        - Maintains a cache of the loaded state for future incremental saves
+        - Supports lazy loading of collections for reduced memory usage
         """
-        snapshot = load_json(self.save_path)
-        if snapshot:
+        snapshot = None
+
+        # Try to load from database if enabled
+        if self.use_database and self.db:
+            # Use lazy loading if enabled
+            snapshot = self.db.load_latest_state(lazy_load=self.use_lazy_loading)
+            if snapshot:
+                print(f"📂 Loaded Eterna state from database (version {snapshot.get('version', 'unknown')}, {'lazy' if self.use_lazy_loading else 'eager'} loading)")
+
+                # Store the lazy-loaded state for future access
+                if self.use_lazy_loading:
+                    self._lazy_state = snapshot
+                    self._collections_accessed = set()
+
+        # Fall back to JSON file if database load failed or is disabled
+        if not snapshot:
+            snapshot = load_json(self.save_path)
+            if snapshot:
+                print(f"📂 Loaded Eterna state from {self.save_path} (version {snapshot.get('version', 'unknown')})")
+            else:
+                print(f"⚠️ No saved state found at {self.save_path}")
+                return
+
+        # Check if this is an incremental update (has version and timestamp)
+        is_incremental = "version" in snapshot and "timestamp" in snapshot
+
+        # Store the version for future saves
+        if is_incremental:
+            self._state_version = snapshot.get("version", 0)
+
+        # Update configuration parameters if present
+        if "max_memories" in snapshot:
+            self.max_memories = snapshot.get("max_memories", self.max_memories)
+            self.max_discoveries = snapshot.get("max_discoveries", self.max_discoveries)
+            self.max_explored_zones = snapshot.get("max_explored_zones", self.max_explored_zones)
+            self.max_modifiers = snapshot.get("max_modifiers", self.max_modifiers)
+            self.max_checkpoints = snapshot.get("max_checkpoints", self.max_checkpoints)
+
+        # Update state attributes if present in the snapshot
+        if "emotion" in snapshot:
             self.last_emotion = snapshot.get("emotion")
+
+        if "last_intensity" in snapshot:
+            self.last_intensity = snapshot.get("last_intensity", 0.0)
+
+        if "last_dominance" in snapshot:
+            self.last_dominance = snapshot.get("last_dominance", 0.0)
+
+        if "modifiers" in snapshot:
             self.applied_modifiers = snapshot.get("modifiers", {})
-            self.memories = snapshot.get("memories", [])
-            self.evolution_stats = snapshot.get("evolution", self.evolution_stats)
-            self.explored_zones = snapshot.get("explored_zones", [])
-            self.discoveries = snapshot.get("discoveries", [])
-            self.last_zone = snapshot.get("last_zone")  # Add this line
-            print(f"📂 Loaded Eterna state from {self.save_path}")
+
+        # If using lazy loading with database, don't load collections now
+        if self.use_lazy_loading and self.use_database and self.db and self._lazy_state:
+            # Initialize empty collections
+            self.memories = deque(maxlen=self.max_memories)
+            self.discoveries = deque(maxlen=self.max_discoveries)
+            self.explored_zones = deque(maxlen=self.max_explored_zones)
+            self.modifiers = deque(maxlen=self.max_modifiers)
+            self.checkpoints = deque(maxlen=self.max_checkpoints)
+
+            # Clear indexes
+            self._zone_index = set()
+            self._memory_index = {}
+            self._discovery_index = {}
+            self._modifier_index = {}
         else:
-            print(f"⚠️ No saved state found at {self.save_path}")
+            # Load collections eagerly
+            if "memories" in snapshot:
+                # Reset deques with new max sizes
+                self.memories = deque(snapshot.get("memories", []), maxlen=self.max_memories)
+                # Rebuild memory index
+                self._rebuild_memory_index()
+
+            if "discoveries" in snapshot:
+                self.discoveries = deque(snapshot.get("discoveries", []), maxlen=self.max_discoveries)
+                # Rebuild discovery index
+                self._rebuild_discovery_index()
+
+            if "explored_zones" in snapshot:
+                self.explored_zones = deque(snapshot.get("explored_zones", []), maxlen=self.max_explored_zones)
+                # Rebuild zone index
+                self._zone_index = set(self.explored_zones)
+
+            if "checkpoints" in snapshot:
+                self.checkpoints = deque(snapshot.get("checkpoints", []), maxlen=self.max_checkpoints)
+
+        if "evolution" in snapshot:
+            self.evolution_stats = snapshot.get("evolution", self.evolution_stats)
+            # Update previous intellect for identity_continuity
+            # Handle the case when "intellect" key doesn't exist
+            self._prev_intellect = self.evolution_stats.get("intellect", 100)  # Default to 100 if not present
+
+        if "last_zone" in snapshot:
+            self.last_zone = snapshot.get("last_zone")
+
+        # Store a copy of the current state for future incremental saves
+        # For lazy loading, we'll update this as collections are loaded
+        self._last_saved_state = {
+            "emotion": copy.deepcopy(self.last_emotion) if self.last_emotion else None,
+            "modifiers": copy.deepcopy(self.applied_modifiers),
+            "memories": [] if self.use_lazy_loading and self.use_database and self.db and self._lazy_state else list(self.memories),
+            "evolution": copy.deepcopy(self.evolution_stats),
+            "explored_zones": [] if self.use_lazy_loading and self.use_database and self.db and self._lazy_state else list(self.explored_zones),
+            "discoveries": [] if self.use_lazy_loading and self.use_database and self.db and self._lazy_state else list(self.discoveries),
+            "last_zone": self.last_zone,
+        }
 
     # --- quick‑and‑dirty identity drift metric -------------------------------
     # ------------------------------------------------------------------
@@ -236,9 +834,13 @@ class EternaStateTracker(StateTrackerInterface):
     # ------------------------------------------------------------------
     def register_checkpoint(self, path: str):
         """
-        Append a new checkpoint path to the internal list so the UI and
+        Append a new checkpoint path to the internal deque so the UI and
         governor rollback logic can query available snapshots.
+
+        Memory optimization: Uses a bounded deque that automatically removes
+        the oldest checkpoints when the maximum size is reached.
         """
+        # The deque will automatically handle removing old items when maxlen is reached
         self.checkpoints.append(str(path))
 
     def identity_continuity(self) -> float:
@@ -254,9 +856,9 @@ class EternaStateTracker(StateTrackerInterface):
         """
         # TODO: replace with real embedding similarity
         if not hasattr(self, "_prev_intellect"):
-            self._prev_intellect = self.evolution_stats["intellect"]
+            self._prev_intellect = self.evolution_stats.get("intellect", 100)  # Default to 100 if not present
             return 1.0
-        cur = self.evolution_stats["intellect"]
+        cur = self.evolution_stats.get("intellect", 100)  # Default to 100 if not present
         prev = self._prev_intellect
         self._prev_intellect = cur
         return 1.0 - abs(cur - prev) / max(cur, prev, 1)
@@ -268,6 +870,13 @@ class EternaStateTracker(StateTrackerInterface):
         This method prints information about the current emotion, evolution stats,
         explored zones, applied modifiers, discoveries, and memories.
         """
+        # Ensure all collections are loaded if using lazy loading
+        self._ensure_collection_loaded("memories")
+        self._ensure_collection_loaded("discoveries")
+        self._ensure_collection_loaded("explored_zones")
+        self._ensure_collection_loaded("modifiers")
+        self._ensure_collection_loaded("checkpoints")
+
         print("🧾 Eterna State Report:")
         print("Last Emotion:", self.last_emotion)
         print("Evolution Stats:", self.evolution_stats)
@@ -325,6 +934,242 @@ class EternaStateTracker(StateTrackerInterface):
         # optional: reset any per‑run counters
         if hasattr(self, "current_cycle"):
             self.current_cycle = 0
+
+    def list_checkpoints(self) -> List[str]:
+        """
+        Get a list of all registered checkpoint paths.
+
+        Returns:
+            List[str]: A list of checkpoint paths as strings.
+        """
+        # Ensure checkpoints are loaded if using lazy loading
+        self._ensure_collection_loaded("checkpoints")
+
+        return list(self.checkpoints)
+
+    def backup_state(self, backup_path=None) -> Optional[str]:
+        """
+        Create a backup of the current state.
+
+        If using the database, this creates a backup of the database file.
+        If using JSON files, this creates a copy of the state snapshot file.
+
+        Args:
+            backup_path: Path where the backup will be saved. If None, a default path
+                        will be generated based on the current timestamp.
+
+        Returns:
+            Optional[str]: The path to the backup file, or None if the backup failed.
+        """
+        # Save the current state first to ensure it's up to date
+        self.save(incremental=False)
+
+        if self.use_database and self.db:
+            # Use the database backup functionality
+            return self.db.backup_state(backup_path)
+        else:
+            # Create a backup of the JSON file
+            if backup_path is None:
+                # Generate a default backup path with timestamp
+                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                backup_dir = os.path.join(os.path.dirname(self.save_path), "backups")
+                os.makedirs(backup_dir, exist_ok=True)
+                backup_path = os.path.join(backup_dir, f"eternia_state_{timestamp}.json")
+
+            # Ensure the backup directory exists
+            os.makedirs(os.path.dirname(backup_path), exist_ok=True)
+
+            try:
+                # Copy the state snapshot file to the backup path
+                import shutil
+                shutil.copy2(self.save_path, backup_path)
+                print(f"✅ State backup created at {backup_path}")
+                return backup_path
+            except Exception as e:
+                print(f"❌ State backup failed: {e}")
+                return None
+
+    def restore_from_backup(self, backup_path) -> bool:
+        """
+        Restore the state from a backup.
+
+        If using the database, this restores the database from a backup file.
+        If using JSON files, this restores the state snapshot from a backup file.
+
+        Args:
+            backup_path: Path to the backup file to restore from.
+
+        Returns:
+            bool: True if the restore was successful, False otherwise.
+        """
+        if not os.path.exists(backup_path):
+            print(f"❌ Backup file not found: {backup_path}")
+            return False
+
+        if self.use_database and self.db:
+            # Use the database restore functionality
+            return self.db.restore_from_backup(backup_path)
+        else:
+            # Create a backup of the current state snapshot before restoring
+            current_backup = None
+            if os.path.exists(self.save_path):
+                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                current_backup = f"{self.save_path}.{timestamp}.bak"
+                try:
+                    import shutil
+                    shutil.copy2(self.save_path, current_backup)
+                    print(f"✅ Created backup of current state at {current_backup}")
+                except Exception as e:
+                    print(f"⚠️ Failed to create backup of current state: {e}")
+
+            try:
+                # Copy the backup file to the state snapshot path
+                import shutil
+                shutil.copy2(backup_path, self.save_path)
+
+                # Load the restored state
+                self.load()
+
+                print(f"✅ State restored from {backup_path}")
+                return True
+            except Exception as e:
+                print(f"❌ State restore failed: {e}")
+
+                # Try to restore from the backup of the current state
+                if current_backup and os.path.exists(current_backup):
+                    try:
+                        shutil.copy2(current_backup, self.save_path)
+                        self.load()  # Reload the state
+                        print(f"✅ Reverted to previous state from {current_backup}")
+                    except Exception as e2:
+                        print(f"❌ Failed to revert to previous state: {e2}")
+
+                return False
+
+    def list_backups(self) -> List[str]:
+        """
+        List all available state backups.
+
+        Returns:
+            List[str]: A list of backup file paths.
+        """
+        if self.use_database and self.db:
+            # Use the database list_backups functionality
+            return self.db.list_backups()
+        else:
+            # List JSON backups
+            backup_dir = os.path.join(os.path.dirname(self.save_path), "backups")
+            if not os.path.exists(backup_dir):
+                return []
+
+            backups = []
+            for file in os.listdir(backup_dir):
+                if file.startswith("eternia_state_") and file.endswith(".json"):
+                    backups.append(os.path.join(backup_dir, file))
+
+            # Sort by modification time (newest first)
+            backups.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+            return backups
+
+    def export_to_json(self, output_path=None) -> Optional[str]:
+        """
+        Export the current state to a JSON file.
+
+        This is useful for data migration between different storage formats
+        or for creating human-readable backups.
+
+        Args:
+            output_path: Path where the JSON file will be saved. If None, a default path
+                        will be generated based on the current timestamp.
+
+        Returns:
+            Optional[str]: The path to the JSON file, or None if the export failed.
+        """
+        if self.use_database and self.db:
+            # Use the database export functionality
+            return self.db.export_to_json(output_path)
+        else:
+            # For JSON-based storage, create a copy of the state file
+            if output_path is None:
+                # Generate a default output path with timestamp
+                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                export_dir = os.path.join(os.path.dirname(self.save_path), "exports")
+                os.makedirs(export_dir, exist_ok=True)
+                output_path = os.path.join(export_dir, f"eternia_export_{timestamp}.json")
+
+            # Ensure the export directory exists
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+            try:
+                # Save the current state first to ensure it's up to date
+                self.save(incremental=False)
+
+                # Read the state file
+                snapshot = load_json(self.save_path)
+
+                if not snapshot:
+                    print("❌ No state data to export")
+                    return None
+
+                # Add metadata
+                export_data = {
+                    "export_timestamp": time.time(),
+                    "schema_version": 1,  # Use version 1 for JSON exports
+                    "state": snapshot
+                }
+
+                # Write to JSON file with indentation for readability
+                with open(output_path, 'w') as f:
+                    json.dump(export_data, f, indent=2)
+
+                print(f"✅ State exported to {output_path}")
+                return output_path
+            except Exception as e:
+                print(f"❌ State export failed: {e}")
+                return None
+
+    def import_from_json(self, input_path) -> bool:
+        """
+        Import state data from a JSON file.
+
+        This is useful for data migration between different storage formats.
+
+        Args:
+            input_path: Path to the JSON file to import.
+
+        Returns:
+            bool: True if the import was successful, False otherwise.
+        """
+        if not os.path.exists(input_path):
+            print(f"❌ Import file not found: {input_path}")
+            return False
+
+        try:
+            # Read the JSON file
+            with open(input_path, 'r') as f:
+                import_data = json.load(f)
+
+            # Get the state data
+            state_data = import_data.get("state")
+            if not state_data:
+                print("❌ No state data found in import file")
+                return False
+
+            if self.use_database and self.db:
+                # Use the database import functionality
+                return self.db.import_from_json(input_path)
+            else:
+                # For JSON-based storage, save the state data to the state file
+                save_json(self.save_path, state_data, create_dirs=True)
+
+                # Reload the state
+                self.load()
+
+                print(f"✅ Data imported from {input_path}")
+                return True
+        except Exception as e:
+            print(f"❌ Data import failed: {e}")
+            return False
 
     def current_zone(self):
         """

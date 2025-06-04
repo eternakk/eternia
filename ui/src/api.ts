@@ -51,7 +51,8 @@ export const fetchToken = async () => {
 
     // If no stored token, fetch a new one
     console.log('No stored token, fetching new token...');
-    const response = await axios.get('http://localhost:8000/api/token');
+    const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000";
+    const response = await axios.get(`${apiUrl}/api/token`);
 
     if (!response.data || !response.data.token) {
       throw new Error('Invalid response from token endpoint');

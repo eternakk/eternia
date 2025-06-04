@@ -1,6 +1,16 @@
-# React + TypeScript + Vite
+# Eternia UI
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This is the user interface for the Eternia project, built with React, TypeScript, and Vite.
+
+## Environment Variables
+
+The application uses the following environment variables:
+
+- `VITE_ETERNA_TOKEN`: Authentication token for the WebSocket connection
+- `VITE_WS_URL`: WebSocket URL (default: `ws://localhost:8000/ws`)
+- `VITE_API_URL`: API base URL (default: `http://localhost:8000`)
+
+You can configure these variables in the `.env` file in the root of the UI directory. A `.env.example` file is provided as a template.
 
 Currently, two official plugins are available:
 

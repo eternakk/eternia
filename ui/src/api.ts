@@ -3,6 +3,9 @@ import { createSafeApiCall } from "./utils/errorHandling";
 
 // We'll fetch the token from the server
 let TOKEN = '';
+// Add a cooldown mechanism to prevent infinite token fetch attempts
+let lastTokenFetchTime = 0;
+const TOKEN_FETCH_COOLDOWN = 5000; // 5 seconds cooldown
 
 export interface State {
   cycle: number;
@@ -49,6 +52,16 @@ export const fetchToken = async () => {
       return TOKEN;
     }
 
+    // Check if we're within the cooldown period
+    const currentTime = Date.now();
+    if (currentTime - lastTokenFetchTime < TOKEN_FETCH_COOLDOWN) {
+      console.log(`Token fetch on cooldown. Please wait ${(TOKEN_FETCH_COOLDOWN - (currentTime - lastTokenFetchTime)) / 1000} seconds.`);
+      return null;
+    }
+
+    // Update the last fetch time
+    lastTokenFetchTime = currentTime;
+
     // If no stored token, fetch a new one
     console.log('No stored token, fetching new token...');
     const response = await axios.get('http://localhost:8000/api/token');
@@ -71,6 +84,8 @@ export const fetchToken = async () => {
     // Clear any existing token to prevent using an invalid one
     localStorage.removeItem('token');
     TOKEN = '';
+    // Still update the last fetch time to enforce cooldown even on failures
+    lastTokenFetchTime = Date.now();
     return null;
   }
 };
@@ -116,39 +131,60 @@ const ensureToken = async () => {
   if (!TOKEN) {
     const token = await fetchToken();
     if (!token) {
-      throw new Error('Failed to fetch authentication token');
+      // Instead of throwing an error, return a specific error object
+      // This allows the calling function to handle the error appropriately
+      return { error: 'Token fetch on cooldown or failed' };
     }
   }
+  return { success: true };
 };
 
 // Base API functions
 const baseGetState = async () => {
-  await ensureToken();
+  const tokenResult = await ensureToken();
+  if (tokenResult.error) {
+    throw new Error(tokenResult.error);
+  }
   return api.get<State>("/state").then(r => r.data);
 };
 
 const baseSendCommand = async (a: string) => {
-  await ensureToken();
+  const tokenResult = await ensureToken();
+  if (tokenResult.error) {
+    throw new Error(tokenResult.error);
+  }
   return api.post(`/command/${a}`);
 };
 
 const baseGetCheckpoints = async () => {
-  await ensureToken();
+  const tokenResult = await ensureToken();
+  if (tokenResult.error) {
+    throw new Error(tokenResult.error);
+  }
   return api.get<string[]>("/checkpoints").then(r => r.data);
 };
 
 const baseRollbackTo = async (file?: string) => {
-  await ensureToken();
+  const tokenResult = await ensureToken();
+  if (tokenResult.error) {
+    throw new Error(tokenResult.error);
+  }
   return api.post("/command/rollback", null, { params: { file } });
 };
 
 const baseTriggerRitual = async (id: number) => {
-  await ensureToken();
+  const tokenResult = await ensureToken();
+  if (tokenResult.error) {
+    throw new Error(tokenResult.error);
+  }
   return api.post(`/api/rituals/trigger/${id}`);
 };
 
 const baseSendReward = async (companionName: string, value: number) => {
-  await ensureToken();
+  const tokenResult = await ensureToken();
+  if (tokenResult.error) {
+    throw new Error(tokenResult.error);
+  }
   return api.post(`/reward/${companionName}`, { value });
 };
 
@@ -198,7 +234,10 @@ export interface Zone {
 
 // Add function to fetch zones
 const baseGetZones = async () => {
-  await ensureToken();
+  const tokenResult = await ensureToken();
+  if (tokenResult.error) {
+    throw new Error(tokenResult.error);
+  }
   return api.get<Zone[]>("/api/zones").then(r => r.data);
 };
 
@@ -214,7 +253,10 @@ export interface ZoneAssets {
 }
 
 const baseGetZoneAssets = async (zoneName: string) => {
-  await ensureToken();
+  const tokenResult = await ensureToken();
+  if (tokenResult.error) {
+    throw new Error(tokenResult.error);
+  }
   return api.get<ZoneAssets>("/zone/assets", {
     params: { name: zoneName }
   }).then(r => r.data);
@@ -227,7 +269,10 @@ export const getZoneAssets = createSafeApiCall(
 
 // Add function to change the current zone
 const baseChangeZone = async (zoneName: string) => {
-  await ensureToken();
+  const tokenResult = await ensureToken();
+  if (tokenResult.error) {
+    throw new Error(tokenResult.error);
+  }
   return api.post("/api/change_zone", { zone: zoneName });
 };
 
@@ -247,7 +292,10 @@ export interface Ritual {
 
 // Add function to fetch rituals
 const baseGetRituals = async () => {
-  await ensureToken();
+  const tokenResult = await ensureToken();
+  if (tokenResult.error) {
+    throw new Error(tokenResult.error);
+  }
   return api.get<Ritual[]>("/api/rituals").then(r => r.data);
 };
 
@@ -267,7 +315,10 @@ export interface Agent {
 
 // Add function to fetch agents
 const baseGetAgents = async () => {
-  await ensureToken();
+  const tokenResult = await ensureToken();
+  if (tokenResult.error) {
+    throw new Error(tokenResult.error);
+  }
   return api.get<Agent[]>("/api/agents").then(r => r.data);
 };
 

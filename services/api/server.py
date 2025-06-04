@@ -151,13 +151,16 @@ async def zone_assets(request: Request, name: str):
 # ─────────────────────────────  TOKEN  ──────────────────────────────
 
 @app.get("/api/token")
-@limiter.limit("10/minute")
+@limiter.limit("3/minute")
 async def get_token(request: Request):
     """
     Get the API token for authentication.
 
     This endpoint returns the DEV_TOKEN that should be used for authentication.
     It's intended for development and testing purposes only.
+
+    Rate limited to 3 requests per minute to prevent abuse.
+    Clients should cache the token and reuse it rather than requesting it frequently.
 
     Returns:
         The DEV_TOKEN for authentication

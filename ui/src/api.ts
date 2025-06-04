@@ -22,7 +22,7 @@ export interface ApiError {
 
 // Create axios instance with default configuration
 const api = axios.create({
-  baseURL: "http://localhost:8000",
+  baseURL: import.meta.env.VITE_API_URL || "http://localhost:8000",
 });
 
 // Add a cleanup function to cancel all pending requests

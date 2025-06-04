@@ -102,10 +102,7 @@ ZONE_ASSETS_CACHE = {}
 ZONE_ASSETS_CACHE_TTL = {}  # Store expiration timestamps
 ZONE_ASSETS_CACHE_DURATION = 3600  # Cache duration in seconds (1 hour)
 
-# Use absolute path for static files
-base_dir = Path(__file__).parent.parent.parent  # Go up to the project root
-static_dir = base_dir / "assets" / "static"
-app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+app.mount("/static", StaticFiles(directory="assets/static"), name="static")
 
 
 @app.get("/zone/assets")
@@ -147,22 +144,6 @@ async def zone_assets(request: Request, name: str):
 
     return assets
 
-
-# ─────────────────────────────  TOKEN  ──────────────────────────────
-
-@app.get("/api/token")
-@limiter.limit("10/minute")
-async def get_token(request: Request):
-    """
-    Get the API token for authentication.
-
-    This endpoint returns the DEV_TOKEN that should be used for authentication.
-    It's intended for development and testing purposes only.
-
-    Returns:
-        The DEV_TOKEN for authentication
-    """
-    return {"token": DEV_TOKEN}
 
 # ─────────────────────────────  STATE  ──────────────────────────────
 
@@ -697,64 +678,6 @@ async def list_zones(request: Request):
         logger.error(f"Error retrieving zones: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve zones")
 
-
-@app.post("/api/change_zone")
-@limiter.limit("30/minute")
-async def change_zone(request: Request, body: dict = Body(...), current_user: Union[str, User] = Depends(auth)):
-    """
-    Change the current active zone.
-
-    Args:
-        request: The request object (for rate limiting)
-        body: The request body containing the zone name
-        current_user: The authenticated user or legacy token
-
-    Returns:
-        Confirmation of the zone change
-    """
-    # Check permissions if using JWT authentication
-    if isinstance(current_user, User) and not current_user.has_permission(Permission.WRITE):
-        logger.warning(f"User {current_user.username} attempted to change zone without permission")
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions. WRITE permission required.",
-        )
-
-    # Validate zone name
-    zone_name = body.get("zone")
-    if not zone_name or not isinstance(zone_name, str):
-        raise HTTPException(status_code=400, detail="Invalid zone name")
-
-    # Prevent injection attacks
-    if any(char in zone_name for char in "\"'\\;:,.<>/{}[]()"):
-        logger.warning(f"Possible injection attempt with zone name: {zone_name}")
-        raise HTTPException(status_code=400, detail="Invalid zone name")
-
-    try:
-        # Check if zone exists
-        zones = world.eterna.exploration.registry.zones
-        zone_exists = False
-        for zone in zones:
-            if zone.name == zone_name:
-                zone_exists = True
-                break
-
-        if not zone_exists:
-            raise HTTPException(status_code=404, detail="Zone not found")
-
-        # Log the user who changed the zone
-        user_info = current_user.username if isinstance(current_user, User) else "legacy_token"
-
-        # Update the current zone
-        world.state_tracker.mark_zone(zone_name)
-        logger.info(f"Zone changed to {zone_name} by {user_info}")
-
-        return {"status": "success", "message": f"Zone changed to {zone_name}"}
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error changing zone to {zone_name}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to change zone")
 
 @app.get("/api/rituals")
 @limiter.limit("60/minute")

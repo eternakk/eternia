@@ -178,13 +178,7 @@ class EternaWorld:
         obs = [valence, 0, 0] + [0] * 7  # length 10
 
         # Get observation from state tracker
-        # Use default observation if companion is None
-        if companion is None:
-            # Use the default observation vector
-            pass
-        else:
-            obs = self.state_tracker.observation_vector(companion)
-
+        obs = self.state_tracker.observation_vector(companion)
         obs_tensor = torch.tensor(obs, dtype=torch.float32)
 
         # Choose action from policy
@@ -242,10 +236,6 @@ class EternaWorld:
         """
         law_blocked = False
 
-        # Skip law compliance check if companion is None
-        if companion is None:
-            return law_blocked
-
         # Check each law for compliance
         for law in self.law_registry.values():
             if getattr(law, "enabled", False) and chosen_action_name in getattr(
@@ -274,10 +264,6 @@ class EternaWorld:
             companion: The current companion
             chosen_action_name: The name of the chosen action
         """
-        # Skip action execution if companion is None
-        if companion is None:
-            return
-
         if chosen_action_name == "move_zone":
             possible_zones = [
                 z
@@ -301,9 +287,6 @@ class EternaWorld:
         Args:
             companion: The current companion
         """
-        if companion is None:
-            return  # Skip evolution update if no companion is active
-
         if hasattr(companion, "evolution_level"):
             companion.evolution_level += 1
         else:

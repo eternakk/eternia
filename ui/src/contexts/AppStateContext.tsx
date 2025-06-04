@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, ReactNode, useEffect } from 'react';
+import React, {createContext, useContext, useReducer, ReactNode, useEffect, useRef} from 'react';
 import { getState, State } from '../api';
 import { useErrorHandler } from '../utils/errorHandling';
 
@@ -80,12 +80,24 @@ export const AppStateProvider: React.FC<AppStateProviderProps> = ({
   const [state, dispatch] = useReducer(appStateReducer, initialState);
   const { handleApiError } = useErrorHandler();
 
+  // Keep track of the previous state to avoid unnecessary updates
+  const prevStateRef = useRef<State | null>(null);
+
   const refreshState = async () => {
     dispatch({ type: 'FETCH_STATE_START' });
     try {
       const data = await getState();
       if (data) {
-        dispatch({ type: 'FETCH_STATE_SUCCESS', payload: data });
+        // Check if the state has actually changed
+        if (!prevStateRef.current || 
+            JSON.stringify(data) !== JSON.stringify(prevStateRef.current)) {
+          console.log("AppStateContext: State has changed, updating...");
+          prevStateRef.current = data;
+          dispatch({ type: 'FETCH_STATE_SUCCESS', payload: data });
+        } else {
+          // State hasn't changed, just update the loading state
+          dispatch({ type: 'SET_LOADING', payload: false });
+        }
       } else {
         throw new Error('Failed to fetch state data');
       }

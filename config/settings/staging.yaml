@@ -1,0 +1,74 @@
+# Staging environment configuration for Eternia
+# This file contains settings specific to the staging environment.
+# It overrides values from default.yaml.
+
+# User acceptance thresholds - same as production
+user_acceptance:
+  intellect_threshold: 110
+  emotional_maturity_threshold: 110
+
+# Staging-specific settings
+staging:
+  debug: false
+  log_level: "INFO"
+  auto_reload: false
+  show_detailed_errors: false
+
+# Zone configurations - close to production values
+zones:
+  quantum_forest:
+    complexity: 120  # Full complexity for staging testing
+
+  orikum_sea:
+    complexity: 80  # Full complexity for staging testing
+
+  library_of_shared_minds:
+    complexity: 100  # Full complexity for staging testing
+
+  void_spiral:
+    complexity: 150  # Full complexity for staging testing
+
+# Physics profiles - same as production
+physics_profiles:
+  dreamspace:
+    time_flow: 0.6  # Normal production time flow
+
+  unstable_rift:
+    conscious_safe: false  # Real safety settings for testing
+
+# Test users for staging
+users:
+  staging_tester:
+    name: "Staging Tester"
+    intellect: 120
+    emotional_maturity: 120
+    consent: true
+    is_test_account: true
+
+# Simulation configurations - close to production values
+simulation:
+  emotional_events:
+    intensity: 9  # Full intensity for staging testing
+
+# API settings
+api:
+  base_url: "https://staging-api.eternia.example.com"
+  timeout: 20
+  rate_limit: 500  # Moderate rate limit for staging
+
+# Database settings
+database:
+  host: "staging-db.eternia.example.com"
+  port: 5432
+  name: "eternia_staging"
+  user: "staging_user"
+  password: "staging_password"  # In production, use environment variables
+  pool_size: 10
+  debug: false
+
+# Security settings - close to production
+security:
+  token_expiration: 43200  # 12 hours in seconds
+  password_min_length: 10
+  enable_cors: true
+  cors_origins: ["https://staging.eternia.example.com"]  # Restricted origins

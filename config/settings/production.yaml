@@ -1,0 +1,84 @@
+# Production environment configuration for Eternia
+# This file contains settings specific to the production environment.
+# It overrides values from default.yaml.
+
+# User acceptance thresholds - full production values
+user_acceptance:
+  intellect_threshold: 110
+  emotional_maturity_threshold: 110
+
+# Production-specific settings
+production:
+  debug: false
+  log_level: "WARNING"  # Only log warnings and errors in production
+  auto_reload: false
+  show_detailed_errors: false
+
+# Zone configurations - full production values
+zones:
+  quantum_forest:
+    complexity: 120
+
+  orikum_sea:
+    complexity: 80
+
+  library_of_shared_minds:
+    complexity: 100
+
+  void_spiral:
+    complexity: 150
+
+# Physics profiles - full production values
+physics_profiles:
+  dreamspace:
+    time_flow: 0.6
+
+  unstable_rift:
+    conscious_safe: false  # Real safety settings
+
+# Simulation configurations - full production values
+simulation:
+  emotional_events:
+    intensity: 9
+
+# API settings
+api:
+  base_url: "https://api.eternia.example.com"
+  timeout: 15  # Shorter timeout for production
+  rate_limit: 200  # Stricter rate limit for production
+
+# Database settings
+database:
+  host: "db.eternia.example.com"
+  port: 5432
+  name: "eternia_prod"
+  user: "${DB_USER}"  # Use environment variables in production
+  password: "${DB_PASSWORD}"  # Use environment variables in production
+  pool_size: 20
+  debug: false
+
+# Security settings - strict for production
+security:
+  token_expiration: 21600  # 6 hours in seconds
+  password_min_length: 12
+  enable_cors: true
+  cors_origins: ["https://eternia.example.com"]  # Only allow the main domain
+
+# Performance settings
+performance:
+  cache_ttl: 3600  # 1 hour cache TTL
+  worker_processes: 8
+  connection_timeout: 10
+  keep_alive_timeout: 65
+  max_requests_per_worker: 10000
+
+# Monitoring and logging
+monitoring:
+  enable_metrics: true
+  metrics_endpoint: "/metrics"
+  log_retention_days: 90
+  alert_thresholds:
+    cpu_usage: 80
+    memory_usage: 85
+    error_rate: 5
+    response_time: 2000  # milliseconds

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: eternia-production
+  labels:
+    name: eternia-production
+    environment: production

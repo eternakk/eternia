@@ -1,0 +1,74 @@
+# Development environment configuration for Eternia
+# This file contains settings specific to the development environment.
+# It overrides values from default.yaml.
+
+# User acceptance thresholds - lowered for development
+user_acceptance:
+  intellect_threshold: 90  # Lower threshold for development
+  emotional_maturity_threshold: 90  # Lower threshold for development
+
+# Development-specific settings
+development:
+  debug: true
+  log_level: "DEBUG"
+  auto_reload: true
+  show_detailed_errors: true
+
+# Zone configurations - simplified for development
+zones:
+  quantum_forest:
+    complexity: 80  # Reduced complexity for faster development testing
+
+  orikum_sea:
+    complexity: 60  # Reduced complexity for faster development testing
+
+  library_of_shared_minds:
+    complexity: 70  # Reduced complexity for faster development testing
+
+  void_spiral:
+    complexity: 100  # Reduced complexity for faster development testing
+
+# Physics profiles - simplified for development
+physics_profiles:
+  dreamspace:
+    time_flow: 1.0  # Normal time flow for easier debugging
+
+  unstable_rift:
+    conscious_safe: true  # Make unsafe zones safe in development
+
+# Test users
+users:
+  test_user:
+    name: "Test User"
+    intellect: 120
+    emotional_maturity: 120
+    consent: true
+    is_test_account: true
+
+# Simulation configurations - simplified for development
+simulation:
+  emotional_events:
+    intensity: 5  # Lower intensity for development testing
+
+# API settings
+api:
+  base_url: "http://localhost:8000"
+  timeout: 30
+  rate_limit: 1000  # Higher rate limit for development
+
+# Database settings
+database:
+  host: "localhost"
+  port: 5432
+  name: "eternia_dev"
+  user: "dev_user"
+  password: "dev_password"
+  pool_size: 5
+  debug: true
+
+# Security settings - relaxed for development
+security:
+  token_expiration: 86400  # 24 hours in seconds
+  password_min_length: 6  # Shorter passwords allowed in development
+  enable_cors: true
+  cors_origins: ["*"]  # Allow all origins in development

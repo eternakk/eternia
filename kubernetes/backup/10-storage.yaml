@@ -1,0 +1,108 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backup-storage
+  namespace: backup
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: standard
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backup-config
+  namespace: backup
+data:
+  backup-script.sh: |
+    #!/bin/bash
+    set -e
+
+    # Configuration
+    BACKUP_DIR="/backups"
+    TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+    BACKUP_FILE="${BACKUP_DIR}/eternia-backup-${TIMESTAMP}.tar.gz"
+    
+    # Ensure backup directory exists
+    mkdir -p ${BACKUP_DIR}
+    
+    echo "Starting backup at $(date)"
+    
+    # Backup database
+    echo "Backing up database..."
+    PGPASSWORD=${DB_PASSWORD} pg_dump -h ${DB_HOST} -U ${DB_USER} -d ${DB_NAME} -F c -f ${BACKUP_DIR}/database.dump
+    
+    # Backup configuration
+    echo "Backing up configuration..."
+    mkdir -p ${BACKUP_DIR}/config
+    kubectl get configmap -n eternia-production -o yaml > ${BACKUP_DIR}/config/configmaps.yaml
+    kubectl get secret -n eternia-production -o yaml > ${BACKUP_DIR}/config/secrets.yaml
+    
+    # Create compressed archive
+    echo "Creating compressed archive..."
+    tar -czf ${BACKUP_FILE} -C ${BACKUP_DIR} database.dump config
+    
+    # Clean up temporary files
+    rm -rf ${BACKUP_DIR}/database.dump ${BACKUP_DIR}/config
+    
+    # Upload to cloud storage if configured
+    if [ ! -z "${S3_BUCKET}" ]; then
+      echo "Uploading to S3 bucket ${S3_BUCKET}..."
+      aws s3 cp ${BACKUP_FILE} s3://${S3_BUCKET}/backups/
+    fi
+    
+    # Rotate old backups (keep last 7 days)
+    echo "Rotating old backups..."
+    find ${BACKUP_DIR} -name "eternia-backup-*.tar.gz" -type f -mtime +7 -delete
+    
+    echo "Backup completed at $(date)"
+    echo "Backup saved to ${BACKUP_FILE}"
+  
+  restore-script.sh: |
+    #!/bin/bash
+    set -e
+    
+    # Configuration
+    BACKUP_DIR="/backups"
+    
+    # Check if backup file is provided
+    if [ -z "$1" ]; then
+      echo "Usage: $0 <backup-file>"
+      echo "Available backups:"
+      ls -la ${BACKUP_DIR}
+      exit 1
+    fi
+    
+    BACKUP_FILE="$1"
+    
+    if [ ! -f "${BACKUP_FILE}" ]; then
+      echo "Backup file ${BACKUP_FILE} not found"
+      exit 1
+    fi
+    
+    echo "Starting restore from ${BACKUP_FILE} at $(date)"
+    
+    # Create temporary directory
+    TEMP_DIR=$(mktemp -d)
+    
+    # Extract backup
+    echo "Extracting backup..."
+    tar -xzf ${BACKUP_FILE} -C ${TEMP_DIR}
+    
+    # Restore database
+    echo "Restoring database..."
+    PGPASSWORD=${DB_PASSWORD} pg_restore -h ${DB_HOST} -U ${DB_USER} -d ${DB_NAME} -c ${TEMP_DIR}/database.dump
+    
+    # Restore configuration
+    echo "Restoring configuration..."
+    kubectl apply -f ${TEMP_DIR}/config/configmaps.yaml
+    kubectl apply -f ${TEMP_DIR}/config/secrets.yaml
+    
+    # Clean up
+    rm -rf ${TEMP_DIR}
+    
+    echo "Restore completed at $(date)"
+    echo "You may need to restart deployments to apply the restored configuration"

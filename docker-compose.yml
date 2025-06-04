@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  # Backend service
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: eternia-backend
+    container_name: eternia-backend
+    command: api
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - ETERNIA_ENV=development
+      - PYTHONPATH=/app
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Frontend service
+  frontend:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile
+    image: eternia-frontend
+    container_name: eternia-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Development frontend service (hot reloading)
+  frontend-dev:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile.dev
+    image: eternia-frontend-dev
+    container_name: eternia-frontend-dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./ui:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+    depends_on:
+      - backend
+    restart: unless-stopped
+    command: npm run dev
+    profiles:
+      - dev
+
+  # Simulation service (optional, only started when needed)
+  simulation:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: eternia-backend
+    container_name: eternia-simulation
+    command: simulation --cycles 100
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - ETERNIA_ENV=development
+      - PYTHONPATH=/app
+    profiles:
+      - simulation
+
+networks:
+  default:
+    name: eternia-network

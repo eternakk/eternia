@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eternia-frontend
+  namespace: eternia-staging
+  labels:
+    app: eternia-frontend
+    environment: staging
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: eternia-frontend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: eternia-frontend
+    spec:
+      containers:
+      - name: frontend
+        image: ghcr.io/username/eternia/frontend:latest  # This will be replaced by the CI/CD pipeline
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 80
+          name: http
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 20
+          periodSeconds: 15
+        env:
+        - name: API_URL
+          value: "http://eternia-backend:8000"
+        - name: ENVIRONMENT
+          value: "staging"
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101  # nginx user
+      imagePullSecrets:
+      - name: github-registry
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: eternia-frontend
+  namespace: eternia-staging
+  labels:
+    app: eternia-frontend
+    environment: staging
+spec:
+  selector:
+    app: eternia-frontend
+  ports:
+  - port: 80
+    targetPort: 80
+    name: http
+  type: ClusterIP

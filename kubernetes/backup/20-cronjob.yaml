@@ -1,0 +1,191 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: database-backup
+  namespace: backup
+spec:
+  schedule: "0 2 * * *"  # Run daily at 2 AM
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: backup-sa
+          containers:
+          - name: backup
+            image: postgres:14-alpine
+            command:
+            - /bin/sh
+            - -c
+            - /scripts/backup-script.sh
+            env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: backup-credentials
+                  key: db-host
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: backup-credentials
+                  key: db-user
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: backup-credentials
+                  key: db-password
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: backup-credentials
+                  key: db-name
+            - name: S3_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: backup-credentials
+                  key: s3-bucket
+                  optional: true
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: backup-credentials
+                  key: aws-access-key
+                  optional: true
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: backup-credentials
+                  key: aws-secret-key
+                  optional: true
+            volumeMounts:
+            - name: backup-storage
+              mountPath: /backups
+            - name: backup-scripts
+              mountPath: /scripts
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                cpu: 500m
+                memory: 512Mi
+          volumes:
+          - name: backup-storage
+            persistentVolumeClaim:
+              claimName: backup-storage
+          - name: backup-scripts
+            configMap:
+              name: backup-config
+              defaultMode: 0755
+          restartPolicy: OnFailure
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: backup-credentials
+  namespace: backup
+type: Opaque
+stringData:
+  db-host: "postgres.eternia-production.svc.cluster.local"
+  db-user: "postgres"
+  db-password: "change-me-in-production"
+  db-name: "eternia"
+  s3-bucket: "eternia-backups"
+  aws-access-key: "change-me-in-production"
+  aws-secret-key: "change-me-in-production"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: backup-sa
+  namespace: backup
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: backup-role
+rules:
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: backup-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: backup-role
+subjects:
+- kind: ServiceAccount
+  name: backup-sa
+  namespace: backup
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: manual-restore
+  namespace: backup
+spec:
+  template:
+    spec:
+      serviceAccountName: backup-sa
+      containers:
+      - name: restore
+        image: postgres:14-alpine
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "This is a manual restore job. To restore from a backup, run:"
+          echo "kubectl exec -it jobs/manual-restore -n backup -- /scripts/restore-script.sh /backups/eternia-backup-YYYYMMDD-HHMMSS.tar.gz"
+          sleep 3600  # Keep the pod running for 1 hour to allow manual intervention
+        env:
+        - name: DB_HOST
+          valueFrom:
+            secretKeyRef:
+              name: backup-credentials
+              key: db-host
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: backup-credentials
+              key: db-user
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: backup-credentials
+              key: db-password
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: backup-credentials
+              key: db-name
+        volumeMounts:
+        - name: backup-storage
+          mountPath: /backups
+        - name: backup-scripts
+          mountPath: /scripts
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+      volumes:
+      - name: backup-storage
+        persistentVolumeClaim:
+          claimName: backup-storage
+      - name: backup-scripts
+        configMap:
+          name: backup-config
+          defaultMode: 0755
+      restartPolicy: Never
+  backoffLimit: 0

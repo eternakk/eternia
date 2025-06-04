@@ -1,80 +1,13 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { getAgents, Agent } from '../api';
-import { useErrorHandler } from '../utils/errorHandling';
+import useSWR from 'swr';
 
-// Cache duration in milliseconds (5 minutes)
-const CACHE_DURATION = 5 * 60 * 1000;
+const fetcher = (url: string) => fetch(url).then(res => res.json());
 
 export default function AgentDashboard() {
-    const [agents, setAgents] = useState<Agent[]>([]);
-    const [error, setError] = useState<Error | null>(null);
-    const [isLoading, setIsLoading] = useState<boolean>(true);
-    const { handleApiError } = useErrorHandler();
-
-    // Cache reference
-    const cacheRef = useRef<{
-        data: Agent[] | null;
-        timestamp: number;
-    }>({
-        data: null,
-        timestamp: 0
-    });
-
-    // Last request time reference for debouncing
-    const lastRequestTimeRef = useRef<number>(0);
-    const minRequestInterval = 2000; // Minimum 2 seconds between requests
-
-    const fetchAgents = useCallback(async () => {
-        // Check if we should use cached data
-        const now = Date.now();
-        const cache = cacheRef.current;
-
-        // Use cache if it's valid and not expired
-        if (cache.data && now - cache.timestamp < CACHE_DURATION) {
-            setAgents(cache.data);
-            setIsLoading(false);
-            return;
-        }
-
-        // Debounce requests
-        if (now - lastRequestTimeRef.current < minRequestInterval) {
-            return; // Skip this request if it's too soon
-        }
-
-        lastRequestTimeRef.current = now;
-
-        try {
-            setIsLoading(true);
-            const data = await getAgents();
-            if (data) {
-                // Update state and cache
-                setAgents(data);
-                cacheRef.current = {
-                    data,
-                    timestamp: now
-                };
-            }
-            setError(null);
-        } catch (err) {
-            handleApiError(err, 'Failed to fetch agents');
-            setError(err as Error);
-        } finally {
-            setIsLoading(false);
-        }
-    }, [handleApiError]);
-
-    useEffect(() => {
-        fetchAgents();
-
-        // Set up polling
-        const intervalId = setInterval(fetchAgents, 10000);
-
-        // Clean up interval on unmount
-        return () => clearInterval(intervalId);
-    }, [fetchAgents]);
-
+    const {data: agents, error} = useSWR('/api/agents', fetcher, {refreshInterval: 5000}); // Poll every 5s for live
+    console.log(agents);
+    console.log("error", error);
     if (error) return <div>Error loading agents.</div>;
-    if (isLoading && !agents.length) return <div>Loading agents...</div>;
+    if (!agents) return <div>Loading agents...</div>;
 
     return (
         <div className="p-4">

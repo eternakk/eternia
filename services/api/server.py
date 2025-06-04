@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 from typing import List, Dict, Optional, Union
 
-from fastapi import Body, Request
+from fastapi import Body, Request, Response
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi import Query
 from fastapi import WebSocket, WebSocketDisconnect
@@ -16,8 +16,11 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from sse_starlette.sse import EventSourceResponse
+from starlette_exporter import PrometheusMiddleware, handle_metrics
 
 from modules.utilities.file_utils import load_json
+from modules.monitoring import metrics, http_metrics_middleware
+from modules.backup_manager import backup_manager
 from .deps import run_world  # background sim loop
 from .deps import world, governor, event_queue, DEV_TOKEN
 from .auth import auth_router, get_current_active_user, check_permission, Permission, User, UserRole
@@ -94,6 +97,17 @@ app.add_middleware(
         "Content-Type",
     ],  # Restrict to only necessary headers
 )
+
+# Add Prometheus middleware for metrics collection
+app.add_middleware(
+    PrometheusMiddleware,
+    app_name="eternia",
+    group_paths=True,
+    prefix="eternia",
+)
+
+# Add custom HTTP metrics middleware
+http_metrics_middleware(app)
 
 # Load zone assets once at startup
 ASSET_MAP = load_json("assets/zone_assets.json", {})
@@ -626,11 +640,73 @@ async def toggle_law(
         raise HTTPException(status_code=500, detail="Failed to toggle law")
 
 
+# Metrics endpoint
+@app.get("/metrics")
+async def metrics_endpoint():
+    """
+    Expose Prometheus metrics.
+
+    This endpoint exposes metrics in the Prometheus format for scraping.
+    It doesn't require authentication to allow Prometheus to scrape it.
+
+    Returns:
+        Metrics in Prometheus format
+    """
+    return Response(
+        content=metrics.generate_latest_metrics(),
+        media_type="text/plain"
+    )
+
+
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    """
+    Health check endpoint.
+
+    This endpoint returns a simple health check response.
+    It doesn't require authentication to allow monitoring systems to check it.
+
+    Returns:
+        Health check status
+    """
+    try:
+        # Check if the world is running
+        is_running = not governor.is_paused() and not governor.is_shutdown()
+
+        # Check if the database is accessible (if applicable)
+        # db_status = check_database_connection()
+
+        return {
+            "status": "healthy" if is_running else "degraded",
+            "version": "0.1.0",
+            "timestamp": time.time(),
+            "components": {
+                "world": "running" if is_running else "paused" if governor.is_paused() else "shutdown",
+                # "database": "connected" if db_status else "disconnected",
+            }
+        }
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return Response(
+            content=f"Health check failed: {str(e)}",
+            status_code=500,
+            media_type="text/plain"
+        )
+
+
 # register startup task
 @app.on_event("startup")
 async def startup_event():
+    # Initialize the backup manager with the state tracker
+    backup_manager.set_state_tracker(world.state_tracker)
+
+    # Start the backup scheduler if backups are enabled
+    backup_manager.start_scheduler()
+
+    # Start the broadcaster and world loop
     asyncio.create_task(broadcaster())
-    asyncio.create_task(run_world())  # ← new line
+    asyncio.create_task(run_world())
 
 
 @app.get("/api/agents")

@@ -1,0 +1,133 @@
+# Production environment configuration for Eternia
+# This file contains settings specific to the production environment.
+# It overrides the default settings in default.yaml.
+
+# Simulation configurations for production
+simulation:
+  # Disable debug mode in production
+  debug_mode: false
+  # Use optimal timeouts for production
+  timeouts:
+    api_request: 30  # seconds
+    simulation_step: 0.5  # seconds
+  # Enable minimal logging
+  logging:
+    level: "WARNING"
+    console_output: false
+    file_output: true
+    detailed_errors: false
+
+# API configurations for production
+api:
+  host: "0.0.0.0"  # Listen on all interfaces
+  port: 8000
+  # Enable CORS for production frontend
+  cors:
+    enabled: true
+    allow_origins: ["https://eternia.example.com"]
+    allow_methods: ["GET", "POST", "PUT", "DELETE"]
+    allow_headers: ["Authorization", "Content-Type"]
+  # Disable API documentation in production
+  docs:
+    enabled: false
+  # Disable debug endpoints
+  debug_endpoints: false
+
+# Database configurations for production
+database:
+  type: "postgresql"
+  host: "db.eternia.example.com"
+  port: 5432
+  name: "eternia_production"
+  user: "eternia_app"
+  password: "${DB_PASSWORD}"  # Use environment variable
+  # Disable automatic migrations in production
+  migrations:
+    auto_migrate: false
+    create_demo_data: false
+  # Enable connection pooling
+  pool:
+    min_connections: 5
+    max_connections: 20
+    connection_timeout: 30  # seconds
+
+# Frontend configurations for production
+frontend:
+  # Disable development features
+  hot_reload: false
+  dev_tools: false
+  # No mock API responses
+  mock_api:
+    enabled: false
+
+# Security configurations for production
+security:
+  # Enable strict authentication for production
+  authentication:
+    enabled: true
+    jwt_secret: "${JWT_SECRET}"  # Use environment variable
+    token_expiry: 3600  # 1 hour in seconds
+    refresh_token_enabled: true
+    refresh_token_expiry: 604800  # 7 days in seconds
+  # Enable strict rate limiting for production
+  rate_limiting:
+    enabled: true
+    requests_per_minute: 60
+  # Enable additional security measures
+  ssl:
+    enabled: true
+    redirect_http_to_https: true
+  content_security_policy:
+    enabled: true
+  xss_protection:
+    enabled: true
+  frame_options:
+    enabled: true
+    option: "DENY"
+
+# Feature flags for production
+features:
+  experimental:
+    enabled: false  # Disable experimental features in production
+  new_ui:
+    enabled: true  # Only enable stable features
+  performance_monitoring:
+    enabled: true
+
+# Monitoring configurations for production
+monitoring:
+  enabled: true
+  metrics_collection: true
+  error_tracking: true
+  performance_tracking: true
+  alert_notifications: true
+  alert_email: "ops-team@example.com"
+  alert_sms: "+1234567890"
+  health_check:
+    enabled: true
+    endpoint: "/health"
+    interval: 60  # seconds
+
+# Backup configurations for production
+backup:
+  enabled: true
+  frequency: "hourly"
+  retention_days: 30
+  storage_path: "/backups/production"
+  cloud_backup:
+    enabled: true
+    provider: "aws"
+    bucket: "eternia-backups"
+    region: "us-west-2"
+
+# Scaling configurations for production
+scaling:
+  auto_scaling:
+    enabled: true
+    min_instances: 3
+    max_instances: 10
+    cpu_threshold: 70  # percent
+    memory_threshold: 80  # percent
+  load_balancing:
+    enabled: true
+    algorithm: "round_robin"

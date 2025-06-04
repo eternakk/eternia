@@ -25,3 +25,10 @@ torch==2.0.1  # PyTorch for neural networks and machine learning
 # Authentication
 bcrypt==4.0.1  # For password hashing
 PyJWT==2.8.0  # For JWT token handling
+
+# Monitoring
+prometheus-client==0.17.1  # For metrics collection and exposition
+starlette-exporter==0.16.0  # For FastAPI/Starlette metrics
+
+# Backup and Storage
+boto3==1.28.38  # For AWS S3 integration

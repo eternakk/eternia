@@ -1,0 +1,75 @@
+name: Docker Build and Test
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  pull_request:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build backend image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        push: false
+        tags: eternia-backend:test
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Build frontend image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./ui
+        file: ./ui/Dockerfile
+        push: false
+        tags: eternia-frontend:test
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Set up test environment
+      run: |
+        # Create a .env file for testing
+        echo "ETERNIA_ENV=development" > .env
+        echo "DB_PASSWORD=postgres" >> .env
+        echo "JWT_SECRET=test_secret" >> .env
+
+    - name: Start containers
+      run: docker-compose up -d
+
+    - name: Wait for containers to be ready
+      run: |
+        # Wait for backend to be ready
+        timeout 60s bash -c 'until curl -s http://localhost:8000/health; do sleep 1; done'
+        # Wait for frontend to be ready
+        timeout 60s bash -c 'until curl -s http://localhost; do sleep 1; done'
+
+    - name: Run integration tests
+      run: |
+        # Run integration tests against the running containers
+        docker-compose exec -T backend pytest tests/integration/
+
+    - name: Check container logs
+      if: always()
+      run: |
+        docker-compose logs
+
+    - name: Stop containers
+      if: always()
+      run: docker-compose down

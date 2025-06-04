@@ -1,0 +1,22 @@
+# Grafana datasource configuration for Eternia
+
+apiVersion: 1
+
+# List of datasources to insert/update
+datasources:
+  # Prometheus datasource
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 15s
+      httpMethod: GET
+      manageAlerts: true
+      prometheusType: Prometheus
+      prometheusVersion: 2.40.0
+      exemplarTraceIdDestinations:
+        - name: traceID
+          datasourceUid: tempo

@@ -1,0 +1,73 @@
+# Development environment configuration for Eternia
+# This file contains settings specific to the development environment.
+# It overrides the default settings in default.yaml.
+
+# Simulation configurations for development
+simulation:
+  # Enable debug mode in development
+  debug_mode: true
+  # Use shorter timeouts for faster development cycles
+  timeouts:
+    api_request: 5  # seconds
+    simulation_step: 0.1  # seconds
+  # Enable detailed logging
+  logging:
+    level: "DEBUG"
+    console_output: true
+    file_output: true
+    detailed_errors: true
+
+# API configurations for development
+api:
+  host: "localhost"
+  port: 8000
+  # Enable CORS for local development
+  cors:
+    enabled: true
+    allow_origins: ["http://localhost:5173"]
+    allow_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    allow_headers: ["*"]
+  # Enable API documentation
+  docs:
+    enabled: true
+    path: "/docs"
+  # Enable debug endpoints
+  debug_endpoints: true
+
+# Database configurations for development
+database:
+  type: "sqlite"
+  path: "./data/dev.db"
+  # Enable database migrations
+  migrations:
+    auto_migrate: true
+    create_demo_data: true
+
+# Frontend configurations for development
+frontend:
+  # Enable hot reloading
+  hot_reload: true
+  # Enable React developer tools
+  dev_tools: true
+  # Mock API responses for faster development
+  mock_api:
+    enabled: false  # Set to true to use mock data instead of real API
+    delay: 500  # milliseconds
+
+# Security configurations for development
+security:
+  # Disable authentication for development
+  authentication:
+    enabled: false
+  # Disable rate limiting for development
+  rate_limiting:
+    enabled: false
+
+# Feature flags for development
+features:
+  experimental:
+    enabled: true
+  new_ui:
+    enabled: true
+  performance_monitoring:
+    enabled: true

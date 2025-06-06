@@ -12,5 +12,10 @@ export default defineConfig({
             "^/command": "http://localhost:8000",
             "^/api": "http://localhost:8000"
         }
+    },
+    build: {
+        rollupOptions: {
+            input: './index.html'
+        }
     }
 });

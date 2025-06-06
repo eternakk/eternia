@@ -77,9 +77,10 @@ const mockCanvasContext = {
   globalCompositeOperation: 'source-over',
 };
 
+// Type assertion to match the expected signature of HTMLCanvasElement.prototype.getContext
 HTMLCanvasElement.prototype.getContext = vi.fn((contextId) => {
   if (contextId === '2d') {
     return mockCanvasContext as unknown as CanvasRenderingContext2D;
   }
   return null;
-});
+}) as unknown as HTMLCanvasElement['getContext'];

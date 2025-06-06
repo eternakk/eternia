@@ -33,7 +33,7 @@ const generateItems = (count: number): ListItem[] => {
 export const Default: Story = {
   args: {
     items: generateItems(1000),
-    renderItem: (item: unknown, index: number) => {
+    renderItem: (item: unknown) => {
       const typedItem = item as ListItem;
       return (
         <div className="p-2 border-b border-gray-200">
@@ -51,7 +51,7 @@ export const Default: Story = {
 export const CustomStyling: Story = {
   args: {
     items: generateItems(1000),
-    renderItem: (item: unknown, index: number) => {
+    renderItem: (item: unknown) => {
       const typedItem = item as ListItem;
       return (
         <div className="p-3 border-b border-blue-200 hover:bg-blue-50">
@@ -70,7 +70,7 @@ export const CustomStyling: Story = {
 export const VeryLargeDataset: Story = {
   args: {
     items: generateItems(10000),
-    renderItem: (item: unknown, index: number) => {
+    renderItem: (item: unknown) => {
       const typedItem = item as ListItem;
       return (
         <div className="p-2 border-b border-gray-200">
@@ -88,7 +88,7 @@ export const VeryLargeDataset: Story = {
 export const SmallItems: Story = {
   args: {
     items: generateItems(1000),
-    renderItem: (item: unknown, index: number) => {
+    renderItem: (item: unknown) => {
       const typedItem = item as ListItem;
       return (
         <div className="py-1 px-2 border-b border-gray-200 text-sm">

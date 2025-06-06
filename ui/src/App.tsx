@@ -1,4 +1,3 @@
-import { Suspense, lazy } from 'react';
 import StatePanel from "./components/StatePanel";
 import ControlPanel from "./components/ControlPanel";
 import CheckpointPanel from "./components/CheckPointPanel.tsx";
@@ -11,7 +10,7 @@ import {ZoneProvider} from "./contexts/ZoneContext";
 import {LoadingProvider} from "./contexts/LoadingContext";
 import {FeatureFlagProvider} from "./contexts/FeatureFlagContext";
 import GlobalLoadingIndicator from "./components/GlobalLoadingIndicator";
-import { createLazyComponent } from "./components/LazyLoad";
+import {createLazyComponent} from "./components/LazyLoad";
 import featureFlags from "./config/featureFlags";
 import './index.css';
 
@@ -37,17 +36,19 @@ export default function App() {
                                 <ControlPanel/>
                                 <CheckpointPanel/>
 
+                                <div className="md:col-span-3">
+                                    <ZoneProvider>
+                                        <LazyZoneCanvas/>
+                                    </ZoneProvider>
+                                </div>
                                 <ZoneProvider>
-                                    <div className="md:col-span-3">
-                                        <LazyZoneCanvas />
-                                    </div>
                                     <ZoneViewer/>
                                 </ZoneProvider>
 
                                 <div className="md:col-span-3">
-                                    <LazyLogConsole />
+                                    <LazyLogConsole/>
                                 </div>
-                                <LazyRitualPanel />
+                                <LazyRitualPanel/>
                             </main>
 
                             {/* Notification container for displaying error messages and other notifications */}

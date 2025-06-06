@@ -69,10 +69,46 @@ The Eternia project is organized into several key directories:
    npm install
    ```
 
-3. Start the development server:
+3. Create a `.env` file for environment variables:
+   ```bash
+   echo "VITE_API_URL=http://localhost:8000" > .env
+   ```
+
+4. Start the development server:
    ```bash
    npm run dev
    ```
+
+5. Access the UI at http://localhost:5173
+
+### UI Development Workflow
+
+1. **Component Development**:
+   - UI components are located in `ui/src/components/`
+   - Each component should be in its own file with a `.tsx` extension
+   - Use TypeScript interfaces for prop types
+   - Follow the component design principles in the [UI Architecture Documentation](ui_architecture.md)
+
+2. **State Management**:
+   - The UI uses React's Context API for state management
+   - Context providers are located in `ui/src/contexts/`
+   - Use the appropriate context in your components
+
+3. **API Integration**:
+   - The UI communicates with the backend through the API client in `ui/src/api.ts`
+   - Use the API client for all backend communication
+   - Handle loading states and errors appropriately
+
+4. **Styling**:
+   - The UI uses Tailwind CSS for styling
+   - Use Tailwind's utility classes for styling components
+   - For complex components, consider using component composition
+
+5. **Testing UI Components**:
+   - UI tests are located in `ui/src/__tests__/`
+   - Use Vitest and React Testing Library for testing
+   - Write tests for all components
+   - Run UI tests with `npm test`
 
 ## Architecture Overview
 
@@ -250,6 +286,9 @@ For production deployment, the project should be containerized using Docker and 
 - [Event System Documentation](event_system.md): Documentation for the event system.
 - [Governor Documentation](governor.md): Documentation for the AlignmentGovernor component.
 - [Governor Events Documentation](governor_events.md): Documentation for the governor events system.
+- [UI Architecture Documentation](ui_architecture.md): Documentation for the UI architecture.
+- [UI Components Documentation](ui_components.md): Documentation for the UI components.
+- [Running the Server and UI](running_the_server.md): Instructions for running the server and UI.
 
 ## Getting Help
 

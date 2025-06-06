@@ -32,46 +32,96 @@ export const cancelAllRequests = () => {
 
   console.log('All pending API requests cancelled');
 
-  // Clear token from localStorage
+  // Clear token data from localStorage
+  localStorage.removeItem('tokenData');
+  // Also clear old format token if it exists
   localStorage.removeItem('token');
   TOKEN = '';
+  // Reset token fetch tracking
+  lastTokenFetch = 0;
+  tokenFetchPromise = null;
 };
+
+// Track the last token fetch time and pending promise
+let lastTokenFetch = 0;
+let tokenFetchPromise: Promise<string | null> | null = null;
+const TOKEN_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
 
 // Function to fetch the token from the server
 export const fetchToken = async () => {
+  const now = Date.now();
+
   try {
-    // Check if we already have a token in localStorage
-    const storedToken = localStorage.getItem('token');
-    if (storedToken) {
-      TOKEN = storedToken;
-      api.defaults.headers.common['Authorization'] = `Bearer ${TOKEN}`;
-      console.log('Using stored token');
-      return TOKEN;
+    // Check if we already have a token in localStorage with timestamp
+    const storedTokenData = localStorage.getItem('tokenData');
+    if (storedTokenData) {
+      try {
+        const { token, timestamp } = JSON.parse(storedTokenData);
+
+        // If token exists and is not expired
+        if (token && timestamp && (now - timestamp < TOKEN_CACHE_DURATION)) {
+          TOKEN = token;
+          api.defaults.headers.common['Authorization'] = `Bearer ${TOKEN}`;
+          console.log('Using cached token');
+          return TOKEN;
+        }
+        console.log('Cached token expired, fetching new token...');
+      } catch (e) {
+        console.warn('Invalid token data in localStorage, fetching new token...');
+      }
+    } else {
+      console.log('No cached token, fetching new token...');
     }
 
-    // If no stored token, fetch a new one
-    console.log('No stored token, fetching new token...');
-    const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000";
-    const response = await axios.get(`${apiUrl}/api/token`);
-
-    if (!response.data || !response.data.token) {
-      throw new Error('Invalid response from token endpoint');
+    // If there's already a token fetch in progress, return that promise
+    if (tokenFetchPromise && (now - lastTokenFetch < 5000)) {
+      console.log('Token fetch already in progress, reusing request');
+      return tokenFetchPromise;
     }
 
-    TOKEN = response.data.token;
+    // Set the last fetch time and create a new fetch promise
+    lastTokenFetch = now;
+    tokenFetchPromise = (async () => {
+      try {
+        const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000";
+        const response = await axios.get(`${apiUrl}/api/token`);
 
-    // Store the token in localStorage for persistence
-    localStorage.setItem('token', TOKEN);
+        if (!response.data || !response.data.token) {
+          throw new Error('Invalid response from token endpoint');
+        }
 
-    // Update the default headers with the new token
-    api.defaults.headers.common['Authorization'] = `Bearer ${TOKEN}`;
-    console.log('Token fetched and stored successfully');
-    return TOKEN;
+        TOKEN = response.data.token;
+
+        // Store the token with timestamp in localStorage
+        localStorage.setItem('tokenData', JSON.stringify({
+          token: TOKEN,
+          timestamp: Date.now()
+        }));
+
+        // Update the default headers with the new token
+        api.defaults.headers.common['Authorization'] = `Bearer ${TOKEN}`;
+        console.log('Token fetched and stored successfully');
+        return TOKEN;
+      } catch (error) {
+        console.error('Failed to fetch token:', error);
+        // Clear any existing token to prevent using an invalid one
+        localStorage.removeItem('tokenData');
+        TOKEN = '';
+        return null;
+      } finally {
+        // Clear the promise after a short delay to allow concurrent requests to use it
+        setTimeout(() => {
+          tokenFetchPromise = null;
+        }, 5000);
+      }
+    })();
+
+    return tokenFetchPromise;
   } catch (error) {
-    console.error('Failed to fetch token:', error);
-    // Clear any existing token to prevent using an invalid one
-    localStorage.removeItem('token');
+    console.error('Unexpected error in fetchToken:', error);
+    localStorage.removeItem('tokenData');
     TOKEN = '';
+    tokenFetchPromise = null;
     return null;
   }
 };
@@ -86,9 +136,14 @@ api.interceptors.response.use(
     if (error.response && error.response.status === 401) {
       console.log("Token invalid, clearing and refreshing...");
 
-      // Clear the stored token
+      // Clear the stored token data
+      localStorage.removeItem('tokenData');
+      // Also clear old format token if it exists
       localStorage.removeItem('token');
       TOKEN = '';
+      // Reset token fetch tracking
+      lastTokenFetch = 0;
+      tokenFetchPromise = null;
 
       // Try to get a new token
       try {
@@ -114,7 +169,27 @@ api.interceptors.response.use(
 
 // Function to ensure token is fetched before making API calls
 const ensureToken = async () => {
+  // Check if we have a valid token in memory
   if (!TOKEN) {
+    // Try to get token from localStorage first
+    const storedTokenData = localStorage.getItem('tokenData');
+    if (storedTokenData) {
+      try {
+        const { token, timestamp } = JSON.parse(storedTokenData);
+        const now = Date.now();
+
+        // If token exists and is not expired, use it
+        if (token && timestamp && (now - timestamp < TOKEN_CACHE_DURATION)) {
+          TOKEN = token;
+          api.defaults.headers.common['Authorization'] = `Bearer ${TOKEN}`;
+          return;
+        }
+      } catch (e) {
+        // Invalid token data, will fetch a new one
+      }
+    }
+
+    // If no valid token in memory or localStorage, fetch a new one
     const token = await fetchToken();
     if (!token) {
       throw new Error('Failed to fetch authentication token');
@@ -262,7 +337,7 @@ export interface Agent {
   name: string;
   role: string;
   emotion: string | null;
-  zone: string | object | null;
+  zone: string | Zone | null;
   memory: any;
 }
 

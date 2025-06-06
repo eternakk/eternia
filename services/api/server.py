@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List, Dict, Optional, Union
 
 from fastapi import Body, Request, Response
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi import Query
 from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -84,17 +84,25 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # Include the authentication router
 app.include_router(auth_router, prefix="/auth")
 
-# Configure CORS - restrict to only necessary origins
-origins = ["http://localhost:5173"]  # Vite dev server
+# Configure CORS - allow necessary origins
+origins = [
+    "http://localhost:5173",  # Vite dev server
+    "http://localhost:8000",  # API server (for same-origin requests)
+    "http://localhost",       # For requests without port specified
+    "https://eternia.example.com",  # Production
+    "https://staging.eternia.example.com",  # Staging
+    "*",  # Allow all origins temporarily to debug CORS issues
+]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST"],  # Restrict to only necessary methods
+    allow_methods=["GET", "POST", "OPTIONS"],  # Include OPTIONS for preflight requests
     allow_headers=[
         "Authorization",
         "Content-Type",
+        "Access-Control-Allow-Origin",
     ],  # Restrict to only necessary headers
 )
 
@@ -124,42 +132,52 @@ app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 @app.get("/zone/assets")
 @limiter.limit("120/minute")
-async def zone_assets(request: Request, name: str):
+async def zone_assets(request: Request, name: str, current_user: Union[str, User] = Depends(auth)):
     """
     Get assets for a specific zone.
 
     Args:
         request: The request object (for rate limiting)
         name: The name of the zone
+        current_user: The authenticated user or legacy token
 
     Returns:
         The assets for the specified zone
     """
-    # Validate and sanitize the zone name
-    if not name or not isinstance(name, str):
-        raise HTTPException(status_code=400, detail="Invalid zone name")
+    try:
+        # Validate and sanitize the zone name
+        if not name or not isinstance(name, str):
+            raise HTTPException(status_code=400, detail="Invalid zone name")
 
-    # Prevent directory traversal
-    if ".." in name or "/" in name or "\\" in name:
-        logger.warning(f"Possible path traversal attempt with zone name: {name}")
-        raise HTTPException(status_code=400, detail="Invalid zone name")
+        # Prevent directory traversal
+        if ".." in name or "/" in name or "\\" in name:
+            logger.warning(f"Possible path traversal attempt with zone name: {name}")
+            raise HTTPException(status_code=400, detail="Invalid zone name")
 
-    # Get current time for cache validation
-    current_time = time.time()
+        # Get current time for cache validation
+        current_time = time.time()
 
-    # Check if the zone assets are in the cache and not expired
-    if name in ZONE_ASSETS_CACHE and ZONE_ASSETS_CACHE_TTL.get(name, 0) > current_time:
-        # Return cached assets
-        return ZONE_ASSETS_CACHE[name]
+        # Check if the zone assets are in the cache and not expired
+        if name in ZONE_ASSETS_CACHE and ZONE_ASSETS_CACHE_TTL.get(name, 0) > current_time:
+            # Return cached assets
+            return ZONE_ASSETS_CACHE[name]
 
-    # Get assets from the ASSET_MAP
-    assets = ASSET_MAP.get(name, {})
+        # Check if ASSET_MAP is properly initialized
+        if not isinstance(ASSET_MAP, dict):
+            logger.error("ASSET_MAP is not properly initialized")
+            return {}
 
-    # Cache the assets with TTL
-    ZONE_ASSETS_CACHE[name] = assets
-    ZONE_ASSETS_CACHE_TTL[name] = current_time + ZONE_ASSETS_CACHE_DURATION
+        # Get assets from the ASSET_MAP
+        assets = ASSET_MAP.get(name, {})
 
-    return assets
+        # Cache the assets with TTL
+        ZONE_ASSETS_CACHE[name] = assets
+        ZONE_ASSETS_CACHE_TTL[name] = current_time + ZONE_ASSETS_CACHE_DURATION
+
+        return assets
+    except Exception as e:
+        logger.error(f"Error retrieving zone assets for {name}: {e}")
+        return {}
 
 
 # ─────────────────────────────  TOKEN  ──────────────────────────────
@@ -248,18 +266,55 @@ async def send_reward(
 
 @app.get("/state", response_model=StateOut)
 @limiter.limit("120/minute")
-async def get_state(request: Request):
+async def get_state(request: Request, current_user: Union[str, User] = Depends(auth)):
     """
     Get the current state of the system.
 
     Args:
         request: The request object (for rate limiting)
+        current_user: The authenticated user or legacy token
 
     Returns:
         The current state of the system
     """
     try:
+        # Check if world and state_tracker are properly initialized
+        if not hasattr(world, 'state_tracker') or not world.state_tracker:
+            logger.error("State tracker not initialized")
+            raise HTTPException(status_code=500, detail="State tracker not initialized")
+
         tracker = world.state_tracker
+
+        # Check if world.eterna and runtime are properly initialized
+        if not hasattr(world, 'eterna') or not world.eterna:
+            logger.error("World or Eterna not initialized")
+            raise HTTPException(status_code=500, detail="World not initialized")
+
+        if not hasattr(world.eterna, 'runtime') or not world.eterna.runtime:
+            logger.error("Runtime not initialized")
+            raise HTTPException(status_code=500, detail="Runtime not initialized")
+
+        if not hasattr(world.eterna.runtime, 'cycle_count'):
+            logger.error("cycle_count not found in runtime")
+            raise HTTPException(status_code=500, detail="Cycle count not found")
+
+        # Check if required methods and attributes exist in tracker
+        if not hasattr(tracker, 'identity_continuity'):
+            logger.error("identity_continuity method not found in state tracker")
+            raise HTTPException(status_code=500, detail="Method not found")
+
+        if not hasattr(tracker, 'applied_modifiers'):
+            logger.error("applied_modifiers attribute not found in state tracker")
+            raise HTTPException(status_code=500, detail="Attribute not found")
+
+        if not hasattr(tracker, 'current_zone'):
+            logger.error("current_zone method not found in state tracker")
+            raise HTTPException(status_code=500, detail="Method not found")
+
+        if not hasattr(tracker, 'last_emotion'):
+            logger.error("last_emotion attribute not found in state tracker")
+            raise HTTPException(status_code=500, detail="Attribute not found")
+
         # Extract emotion name if it's an object, otherwise use as is
         emotion = tracker.last_emotion
         if isinstance(emotion, dict) and "name" in emotion:
@@ -276,7 +331,7 @@ async def get_state(request: Request):
         }
     except Exception as e:
         logger.error(f"Error retrieving state: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve state")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve state: {str(e)}")
 
 
 # ───────────────────────────  COMMANDS  ─────────────────────────────
@@ -711,52 +766,157 @@ async def startup_event():
 
 @app.get("/api/agents")
 @limiter.limit("60/minute")
-async def list_agents(request: Request):
+async def list_agents(request: Request, current_user: Union[str, User] = Depends(auth)):
     """
     List all agents in the system.
 
     Args:
         request: The request object (for rate limiting)
+        current_user: The authenticated user or legacy token
 
     Returns:
         List of agents with their details
     """
     try:
+        # Check if world.eterna and companions are properly initialized
+        if not hasattr(world, 'eterna') or not world.eterna:
+            logger.error("World or Eterna not initialized")
+            return []
+
+        if not hasattr(world.eterna, 'companions') or not world.eterna.companions:
+            logger.error("Companions module not initialized")
+            return []
+
         # Access companions through the companions attribute
+        if not hasattr(world.eterna.companions, 'companions'):
+            logger.error("Companions list not found in companions module")
+            return []
+
         agents = world.eterna.companions.companions
-        return [
-            {
-                "name": agent.name,
-                "role": agent.role,
-                "emotion": getattr(
-                    agent, "emotion", None
-                ),  # if emotion attribute exists
-                "zone": getattr(agent, "zone", None),
-                "memory": getattr(agent, "memory", None),
-                # Add other info (reward, stats, etc.) as needed
-            }
-            for agent in agents
-        ]
+        if agents is None:
+            logger.error("Companions list is None")
+            return []
+
+        # Helper function to make any object JSON serializable
+        def make_serializable(obj, max_depth=3, current_depth=0):
+            if current_depth > max_depth:
+                return str(obj)
+
+            if obj is None:
+                return None
+            elif isinstance(obj, (str, int, float, bool)):
+                return obj
+            elif isinstance(obj, (list, tuple)):
+                return [make_serializable(item, max_depth, current_depth + 1) for item in obj]
+            elif isinstance(obj, dict):
+                return {k: make_serializable(v, max_depth, current_depth + 1) for k, v in obj.items() 
+                        if not k.startswith("_")}
+            else:
+                # Complex object
+                if hasattr(obj, "to_dict") and callable(obj.to_dict):
+                    try:
+                        return make_serializable(obj.to_dict(), max_depth, current_depth + 1)
+                    except:
+                        pass
+
+                if hasattr(obj, "__dict__"):
+                    try:
+                        return make_serializable({k: v for k, v in obj.__dict__.items() if not k.startswith("_")}, 
+                                               max_depth, current_depth + 1)
+                    except:
+                        pass
+
+                # Last resort: convert to string
+                return str(obj)
+
+        result = []
+        for agent in agents:
+            try:
+                agent_data = {}
+
+                # Add each attribute with individual try-except blocks
+                try:
+                    agent_data["name"] = agent.name
+                except Exception as e:
+                    logger.error(f"Error getting agent name: {e}")
+                    agent_data["name"] = "Unknown"
+
+                try:
+                    agent_data["role"] = agent.role
+                except Exception as e:
+                    logger.error(f"Error getting agent role: {e}")
+                    agent_data["role"] = "Unknown"
+
+                try:
+                    emotion = getattr(agent, "emotion", None)
+                    agent_data["emotion"] = make_serializable(emotion)
+                except Exception as e:
+                    logger.error(f"Error getting agent emotion: {e}")
+                    agent_data["emotion"] = None
+
+                try:
+                    zone = getattr(agent, "zone", None)
+                    agent_data["zone"] = make_serializable(zone)
+                except Exception as e:
+                    logger.error(f"Error getting agent zone: {e}")
+                    agent_data["zone"] = None
+
+                try:
+                    memory = getattr(agent, "memory_seed", None)
+                    if memory is None:
+                        memory = getattr(agent, "memory", None)
+                    agent_data["memory"] = make_serializable(memory)
+                except Exception as e:
+                    logger.error(f"Error getting agent memory: {e}")
+                    agent_data["memory"] = None
+
+                result.append(agent_data)
+            except Exception as e:
+                logger.error(f"Error processing agent: {e}")
+                # Continue to the next agent
+
+        return result
     except Exception as e:
         logger.error(f"Error retrieving agents: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve agents")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve agents: {str(e)}")
 
 
 @app.get("/api/zones")
 @limiter.limit("60/minute")
-async def list_zones(request: Request):
+async def list_zones(request: Request, current_user: Union[str, User] = Depends(auth)):
     """
     List all zones in the system.
 
     Args:
         request: The request object (for rate limiting)
+        current_user: The authenticated user or legacy token
 
     Returns:
         List of zones with their details
     """
     try:
-        # Get zones from the exploration registry
+        # Check if world.eterna and exploration are properly initialized
+        if not hasattr(world, 'eterna') or not world.eterna:
+            logger.error("World or Eterna not initialized")
+            return []
+
+        if not hasattr(world.eterna, 'exploration') or not world.eterna.exploration:
+            logger.error("Exploration module not initialized")
+            return []
+
+        if not hasattr(world.eterna.exploration, 'registry') or not world.eterna.exploration.registry:
+            logger.error("Exploration registry not initialized")
+            return []
+
+        if not hasattr(world.eterna.exploration.registry, 'zones'):
+            logger.error("Zones list not found in exploration registry")
+            return []
+
         zones = world.eterna.exploration.registry.zones
+        if zones is None:
+            logger.error("Zones list is None")
+            return []
+
         return [
             {
                 "id": i,  # Use index as ID
@@ -771,7 +931,7 @@ async def list_zones(request: Request):
         ]
     except Exception as e:
         logger.error(f"Error retrieving zones: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve zones")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve zones: {str(e)}")
 
 
 @app.post("/api/change_zone")
@@ -807,8 +967,29 @@ async def change_zone(request: Request, body: dict = Body(...), current_user: Un
         raise HTTPException(status_code=400, detail="Invalid zone name")
 
     try:
+        # Check if world.eterna and exploration are properly initialized
+        if not hasattr(world, 'eterna') or not world.eterna:
+            logger.error("World or Eterna not initialized")
+            raise HTTPException(status_code=500, detail="World not initialized")
+
+        if not hasattr(world.eterna, 'exploration') or not world.eterna.exploration:
+            logger.error("Exploration module not initialized")
+            raise HTTPException(status_code=500, detail="Exploration module not initialized")
+
+        if not hasattr(world.eterna.exploration, 'registry') or not world.eterna.exploration.registry:
+            logger.error("Exploration registry not initialized")
+            raise HTTPException(status_code=500, detail="Exploration registry not initialized")
+
+        if not hasattr(world.eterna.exploration.registry, 'zones'):
+            logger.error("Zones list not found in exploration registry")
+            raise HTTPException(status_code=500, detail="Zones not found")
+
         # Check if zone exists
         zones = world.eterna.exploration.registry.zones
+        if zones is None:
+            logger.error("Zones list is None")
+            raise HTTPException(status_code=500, detail="Zones list is None")
+
         zone_exists = False
         for zone in zones:
             if zone.name == zone_name:
@@ -817,6 +998,15 @@ async def change_zone(request: Request, body: dict = Body(...), current_user: Un
 
         if not zone_exists:
             raise HTTPException(status_code=404, detail="Zone not found")
+
+        # Check if state_tracker is properly initialized
+        if not hasattr(world, 'state_tracker') or not world.state_tracker:
+            logger.error("State tracker not initialized")
+            raise HTTPException(status_code=500, detail="State tracker not initialized")
+
+        if not hasattr(world.state_tracker, 'mark_zone'):
+            logger.error("mark_zone method not found in state tracker")
+            raise HTTPException(status_code=500, detail="Method not found")
 
         # Log the user who changed the zone
         user_info = current_user.username if isinstance(current_user, User) else "legacy_token"
@@ -830,23 +1020,40 @@ async def change_zone(request: Request, body: dict = Body(...), current_user: Un
         raise
     except Exception as e:
         logger.error(f"Error changing zone to {zone_name}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to change zone")
+        raise HTTPException(status_code=500, detail=f"Failed to change zone: {str(e)}")
 
 @app.get("/api/rituals")
 @limiter.limit("60/minute")
-async def list_rituals(request: Request):
+async def list_rituals(request: Request, current_user: Union[str, User] = Depends(auth)):
     """
     List all rituals in the system.
 
     Args:
         request: The request object (for rate limiting)
+        current_user: The authenticated user or legacy token
 
     Returns:
         List of rituals with their details
     """
     try:
-        # Get rituals from the ritual system
+        # Check if world.eterna and rituals are properly initialized
+        if not hasattr(world, 'eterna') or not world.eterna:
+            logger.error("World or Eterna not initialized")
+            return []
+
+        if not hasattr(world.eterna, 'rituals') or not world.eterna.rituals:
+            logger.error("Rituals module not initialized")
+            return []
+
+        if not hasattr(world.eterna.rituals, 'rituals'):
+            logger.error("Rituals dictionary not found in rituals module")
+            return []
+
         rituals_dict = world.eterna.rituals.rituals
+        if rituals_dict is None:
+            logger.error("Rituals dictionary is None")
+            return []
+
         return [
             {
                 "id": i,  # Use index as ID
@@ -859,7 +1066,7 @@ async def list_rituals(request: Request):
         ]
     except Exception as e:
         logger.error(f"Error retrieving rituals: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve rituals")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve rituals: {str(e)}")
 
 
 @app.post("/api/rituals/trigger/{id}")
@@ -883,11 +1090,29 @@ async def trigger_ritual(request: Request, id: int, current_user: Union[str, Use
         if not isinstance(id, int):
             raise HTTPException(status_code=400, detail="Invalid ritual ID")
 
+        # Check if world.eterna and rituals are properly initialized
+        if not hasattr(world, 'eterna') or not world.eterna:
+            logger.error("World or Eterna not initialized")
+            raise HTTPException(status_code=500, detail="World not initialized")
+
+        if not hasattr(world.eterna, 'rituals') or not world.eterna.rituals:
+            logger.error("Rituals module not initialized")
+            raise HTTPException(status_code=500, detail="Rituals module not initialized")
+
+        if not hasattr(world.eterna.rituals, 'rituals') or not world.eterna.rituals.rituals:
+            logger.error("Rituals dictionary not found in rituals module")
+            raise HTTPException(status_code=500, detail="Rituals not found")
+
         # Get rituals from the ritual system
         rituals = list(world.eterna.rituals.rituals.values())
         if id < 0 or id >= len(rituals):
             logger.warning(f"Attempt to trigger non-existent ritual with ID: {id}")
             raise HTTPException(status_code=404, detail="Ritual not found")
+
+        # Check if perform method exists
+        if not hasattr(world.eterna.rituals, 'perform'):
+            logger.error("perform method not found in rituals module")
+            raise HTTPException(status_code=500, detail="Method not found")
 
         # Log the user who triggered the ritual
         user_info = current_user.username if isinstance(current_user, User) else "legacy_token"
@@ -900,18 +1125,19 @@ async def trigger_ritual(request: Request, id: int, current_user: Union[str, Use
         raise
     except Exception as e:
         logger.error(f"Error triggering ritual with ID {id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to trigger ritual")
+        raise HTTPException(status_code=500, detail=f"Failed to trigger ritual: {str(e)}")
 
 
 @app.get("/api/agent/{name}")
 @limiter.limit("60/minute")
-async def get_agent(request: Request, name: str):
+async def get_agent(request: Request, name: str, current_user: Union[str, User] = Depends(auth)):
     """
     Get details of a specific agent.
 
     Args:
         request: The request object (for rate limiting)
         name: The name of the agent
+        current_user: The authenticated user or legacy token
 
     Returns:
         Details of the specified agent
@@ -925,6 +1151,16 @@ async def get_agent(request: Request, name: str):
         if any(char in name for char in "\"'\\;:,.<>/{}[]()"):
             logger.warning(f"Possible injection attempt with agent name: {name}")
             raise HTTPException(status_code=400, detail="Invalid agent name")
+
+        # Check if world.eterna is properly initialized
+        if not hasattr(world, 'eterna') or not world.eterna:
+            logger.error("World or Eterna not initialized")
+            raise HTTPException(status_code=500, detail="World not initialized")
+
+        # Check if get_companion method exists
+        if not hasattr(world.eterna, 'get_companion'):
+            logger.error("get_companion method not found in Eterna")
+            raise HTTPException(status_code=500, detail="Method not found")
 
         agent = world.eterna.get_companion(name)
         if not agent:
@@ -943,4 +1179,4 @@ async def get_agent(request: Request, name: str):
         raise
     except Exception as e:
         logger.error(f"Error retrieving agent {name}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve agent")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve agent: {str(e)}")

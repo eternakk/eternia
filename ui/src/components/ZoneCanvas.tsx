@@ -21,7 +21,17 @@ const Model = memo(({modelUrl}: { modelUrl: string }) => {
 });
 
 // Memoize the Scene component to prevent unnecessary re-renders
-const Scene = memo(({assets, emotion, intensity}: { assets: Assets; emotion: string | null; intensity: number }) => {
+const Scene = memo(({
+    assets, 
+    emotion, 
+    intensity, 
+    modifiers = []
+}: { 
+    assets: Assets; 
+    emotion: string | null; 
+    intensity: number;
+    modifiers?: string[];
+}) => {
     // Memoize the tint color calculation
     const tint = useMemo(() => {
         const colors: Record<string, string> = {
@@ -35,9 +45,75 @@ const Scene = memo(({assets, emotion, intensity}: { assets: Assets; emotion: str
         return colors[emotion ?? "neutral"] || "#777777";
     }, [emotion]);
 
+    // Determine visual effects based on modifiers
+    const hasModifier = useCallback((name: string) => {
+        return modifiers.some(mod => mod.includes(name));
+    }, [modifiers]);
+
+    // Calculate visual effects based on modifiers
+    const visualEffects = useMemo(() => {
+        return {
+            // Dimensional effects
+            dimensionalExpansion: hasModifier("Dimensional Expansion"),
+            cosmicAwareness: hasModifier("Cosmic Awareness"),
+
+            // Light effects
+            luminousCascade: hasModifier("Luminous Cascade"),
+            vibrantPulse: hasModifier("Vibrant Pulse"),
+
+            // Atmospheric effects
+            shroudOfMemory: hasModifier("Shroud of Memory"),
+
+            // Energy effects
+            volcanicSurge: hasModifier("Volcanic Surge"),
+            transformativeHeat: hasModifier("Transformative Heat"),
+
+            // Resonance effects
+            harmonicResonance: hasModifier("Harmonic Resonance"),
+            connectionWeave: hasModifier("Connection Weave"),
+        };
+    }, [hasModifier]);
+
+    // Log active modifiers for debugging
+    useEffect(() => {
+        if (modifiers.length > 0) {
+            console.log("Active zone modifiers:", modifiers);
+            console.log("Visual effects:", visualEffects);
+        }
+    }, [modifiers, visualEffects]);
+
     return (
         <>
-            <ambientLight intensity={0.4 + intensity * 0.05} color={tint}/>
+            {/* Base lighting adjusted by emotion and modifiers */}
+            <ambientLight 
+                intensity={0.4 + intensity * 0.05 + (visualEffects.luminousCascade ? 0.2 : 0)} 
+                color={tint}
+            />
+
+            {/* Add directional light for volcanic effects */}
+            {visualEffects.volcanicSurge && (
+                <directionalLight 
+                    position={[5, 5, 5]} 
+                    intensity={1.5} 
+                    color="#ff4500" 
+                />
+            )}
+
+            {/* Add point light for resonance effects */}
+            {visualEffects.harmonicResonance && (
+                <pointLight 
+                    position={[0, 2, 0]} 
+                    intensity={1.2} 
+                    color="#7df9ff" 
+                    distance={10}
+                />
+            )}
+
+            {/* Add fog for shroud effects */}
+            {visualEffects.shroudOfMemory && (
+                <fog attach="fog" color="#1e2024" near={1} far={15} />
+            )}
+
             <Suspense fallback={null}>
                 {assets.skybox && <Environment files={assets.skybox} background/>}
                 {assets.model && <Model modelUrl={assets.model}/>}
@@ -50,7 +126,7 @@ const Scene = memo(({assets, emotion, intensity}: { assets: Assets; emotion: str
 const ZoneCanvas = () => {
     const {state} = useAppState();
     const {worldState, isLoading: isStateLoading, error} = state;
-    const {currentZone} = useZone(); // Use the ZoneContext for current_zone
+    const {currentZone, getModifiersForZone} = useZone(); // Use the ZoneContext for current_zone and modifiers
     const [assets, setAssets] = useState<Assets | null>(null);
     const {handleApiError} = useErrorHandler();
 
@@ -127,9 +203,10 @@ const ZoneCanvas = () => {
         }
     }, [currentZone, fetchAssets]);
 
-    // Create a stable reference to emotion and identityScore
+    // Create a stable reference to emotion, identityScore, and modifiers
     const emotionRef = useRef(emotion);
     const identityScoreRef = useRef(identityScore);
+    const modifiersRef = useRef<string[]>([]);
 
     // Update refs when values change, but don't trigger re-renders
     useEffect(() => {
@@ -139,6 +216,17 @@ const ZoneCanvas = () => {
     useEffect(() => {
         identityScoreRef.current = identityScore;
     }, [identityScore]);
+
+    // Update modifiers ref when currentZone changes
+    useEffect(() => {
+        if (currentZone) {
+            const zoneModifiers = getModifiersForZone(currentZone);
+            modifiersRef.current = zoneModifiers;
+            console.log(`ZoneCanvas: Updated modifiers for ${currentZone}:`, zoneModifiers);
+        } else {
+            modifiersRef.current = [];
+        }
+    }, [currentZone, getModifiersForZone]);
 
     // Memoize the entire Canvas component based only on zone and assets
     // This prevents re-renders when only emotion or identity score changes
@@ -150,14 +238,16 @@ const ZoneCanvas = () => {
         // This ensures we always have the latest values without triggering re-renders
         const currentEmotion = emotionRef.current;
         const currentIdentityScore = identityScoreRef.current;
+        const currentModifiers = modifiersRef.current;
 
         return (
-            <Canvas key={currentZone} className="h-96" frameloop="demand">
+            <Canvas key={currentZone} className="h-64 sm:h-80 md:h-96" frameloop="demand">
                 <Suspense fallback={null}>
                     <Scene
                         assets={assets}
                         emotion={currentEmotion}
                         intensity={currentIdentityScore * 10}
+                        modifiers={currentModifiers}
                     />
                     {/* emotion‑driven bloom */}
                     <EffectComposer>
@@ -169,7 +259,14 @@ const ZoneCanvas = () => {
                     </EffectComposer>
                 </Suspense>
 
-                <OrbitControls enablePan={false}/>
+                <OrbitControls 
+                    enablePan={true}
+                    enableZoom={true}
+                    enableRotate={true}
+                    makeDefault
+                    minDistance={2}
+                    maxDistance={10}
+                    />
             </Canvas>
         );
     }, [currentZone, assets, worldState]); // Only depend on zone and assets to prevent unnecessary re-renders

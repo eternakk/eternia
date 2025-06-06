@@ -13,13 +13,14 @@ from typing import Any, Dict, Optional
 
 from modules.utilities.event_bus import event_bus, Event, EventListener, event_handler, EventPriority
 from modules.governor_events import GovernorEvent
+from modules.zone_events import ZoneEvent
 
 
 class LegacyEventAdapter(EventListener):
     """
     Adapter that forwards events from the event bus to the legacy event queue.
 
-    This adapter subscribes to all GovernorEvent events and forwards them to
+    This adapter subscribes to all GovernorEvent and ZoneEvent events and forwards them to
     the legacy event queue in the format expected by the legacy components.
     """
 
@@ -51,27 +52,46 @@ class LegacyEventAdapter(EventListener):
             # Drop the event if the queue is full (same behavior as in governor._broadcast)
             pass
 
-    def _convert_to_legacy_format(self, event: GovernorEvent) -> Dict[str, Any]:
+    @event_handler(ZoneEvent, priority=EventPriority.MONITOR)
+    def handle_zone_event(self, event: ZoneEvent) -> None:
         """
-        Convert a GovernorEvent to the legacy format.
+        Handle a zone event by forwarding it to the legacy event queue.
+
+        Args:
+            event: The zone event to forward.
+        """
+        # Convert the event to the legacy format
+        legacy_event = self._convert_to_legacy_format(event)
+
+        # Forward the event to the legacy queue
+        try:
+            self.event_queue.put_nowait(legacy_event)
+        except asyncio.QueueFull:
+            # Drop the event if the queue is full
+            pass
+
+    def _convert_to_legacy_format(self, event: Event) -> Dict[str, Any]:
+        """
+        Convert an Event to the legacy format.
 
         The legacy format is a dictionary with 't', 'event', and 'payload' keys.
 
         Args:
-            event: The governor event to convert.
+            event: The event to convert.
 
         Returns:
             Dict[str, Any]: The event in legacy format.
         """
         # Common fields for all events
         legacy_event = {
-            "t": event.timestamp,
+            "t": getattr(event, "timestamp", time.time()),
         }
 
         # Event-specific fields
         event_type = type(event).__name__
 
         match event_type:
+            # Governor events
             case "PauseEvent":
                 legacy_event["event"] = "pause"
                 legacy_event["payload"] = None
@@ -105,6 +125,24 @@ class LegacyEventAdapter(EventListener):
                     "law_name": event.law_name,
                     "event_name": event.event_name,
                     "payload": event.payload
+                }
+            # Zone events
+            case "ZoneChangedEvent":
+                legacy_event["event"] = "zone_changed"
+                legacy_event["payload"] = {
+                    "zone_name": event.zone_name,
+                    "is_new": event.is_new
+                }
+            case "ZoneExploredEvent":
+                legacy_event["event"] = "zone_explored"
+                legacy_event["payload"] = {
+                    "zone_name": event.zone_name
+                }
+            case "ZoneModifierAddedEvent":
+                legacy_event["event"] = "zone_modifier_added"
+                legacy_event["payload"] = {
+                    "zone_name": event.zone_name,
+                    "modifier": event.modifier
                 }
             case _:
                 # For any other events, use the class name as the event name

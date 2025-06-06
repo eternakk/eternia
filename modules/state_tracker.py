@@ -213,23 +213,44 @@ class EternaStateTracker(StateTrackerInterface):
     def mark_zone(self, zone_name):
         """
         Mark a zone as the currently active zone and add it to explored zones if new.
+        Publishes a ZoneChangedEvent to notify other components.
 
         Args:
             zone_name: The name of the zone to mark.
         """
+        from modules.utilities.event_bus import event_bus
+        from modules.zone_events import ZoneChangedEvent
+        from modules.logging_config import get_logger
+
+        logger = get_logger("zone_changes")
+
+        is_new = zone_name not in self.explored_zones
+        previous_zone = self.last_zone
         self.last_zone = zone_name
-        if zone_name not in self.explored_zones:
+
+        # Log zone change
+        if previous_zone != zone_name:
+            logger.info(f"🌍 Zone changed from '{previous_zone}' to '{zone_name}'")
+
+        if is_new:
             self.explored_zones.append(zone_name)
+            logger.info(f"🆕 New zone discovered: '{zone_name}'")
+
+        # Publish event to notify other components
+        event_bus.publish(ZoneChangedEvent(zone_name, is_new))
 
     def track_modifier(self, zone_name, modifier):
         """
         Track a modifier applied to a zone.
 
+        This method is maintained for backward compatibility and now calls add_modifier.
+
         Args:
             zone_name: The name of the zone the modifier is applied to.
             modifier: The modifier being applied.
         """
-        self.modifiers.append((zone_name, modifier))
+        # Call add_modifier for standardized modifier tracking
+        self.add_modifier(zone_name, modifier)
 
     def track_discovery(self, discovery):
         """
@@ -266,6 +287,7 @@ class EternaStateTracker(StateTrackerInterface):
     def add_modifier(self, zone, modifier):
         """
         Add a modifier to a specific zone.
+        Publishes a ZoneModifierAddedEvent to notify other components.
 
         Memory optimization:
         - Maintains an index by modifier type for efficient queries
@@ -276,6 +298,16 @@ class EternaStateTracker(StateTrackerInterface):
             modifier: The modifier to add. Expected to be a dictionary with at least
                      'type' and 'effect' keys, or a string.
         """
+        from modules.utilities.event_bus import event_bus
+        from modules.zone_events import ZoneModifierAddedEvent
+        from modules.logging_config import get_logger
+
+        logger = get_logger("zone_modifiers")
+
+        # Log the modifier being added
+        modifier_str = modifier if isinstance(modifier, str) else str(modifier)
+        logger.info(f"🔄 Adding modifier '{modifier_str}' to zone '{zone}'")
+
         # Add to the applied_modifiers dictionary
         self.applied_modifiers.setdefault(zone, []).append(modifier)
 
@@ -299,6 +331,14 @@ class EternaStateTracker(StateTrackerInterface):
             if len(self.modifiers) == self.max_modifiers:
                 # Rebuild the entire index to ensure consistency
                 self._rebuild_modifier_index()
+                logger.debug(f"Rebuilt modifier index due to capacity limit ({self.max_modifiers})")
+
+        # Get current modifiers for the zone for logging
+        zone_modifiers = self.applied_modifiers.get(zone, [])
+        logger.info(f"🔍 Zone '{zone}' now has {len(zone_modifiers)} modifiers: {zone_modifiers}")
+
+        # Publish event to notify other components
+        event_bus.publish(ZoneModifierAddedEvent(zone, modifier))
 
     def _rebuild_modifier_index(self):
         """
@@ -352,6 +392,55 @@ class EternaStateTracker(StateTrackerInterface):
         # Cache the result for future queries
         self._cache[cache_key] = result
         self._cache_ttl[cache_key] = self._cache_default_ttl
+
+        return result
+
+    def get_modifiers_by_zone(self, zone_name):
+        """
+        Get all modifiers for the specified zone.
+
+        Args:
+            zone_name: The name of the zone to get modifiers for.
+
+        Returns:
+            A list of modifiers for the specified zone.
+        """
+        # Ensure modifiers are loaded if using lazy loading
+        try:
+            self._ensure_collection_loaded("modifiers")
+        except (AttributeError, Exception):
+            # If the method doesn't exist or fails, continue anyway
+            pass
+
+        # Perform cache maintenance if the method exists
+        try:
+            if hasattr(self, '_maintain_cache'):
+                self._maintain_cache()
+        except (AttributeError, Exception):
+            # If the method doesn't exist or fails, continue anyway
+            pass
+
+        # Check the cache first if it exists
+        try:
+            cache_key = f"zone_modifiers_{zone_name}"
+            if hasattr(self, '_cache') and hasattr(self, '_cache_ttl') and cache_key in self._cache and self._cache_ttl.get(cache_key, 0) > 0:
+                self._cache_ttl[cache_key] -= 1
+                return self._cache[cache_key]
+        except (AttributeError, Exception):
+            # If the cache doesn't exist or fails, continue anyway
+            pass
+
+        # Get modifiers for the zone from the applied_modifiers dictionary
+        result = self.applied_modifiers.get(zone_name, [])
+
+        # Cache the result for future queries if the cache exists
+        try:
+            if hasattr(self, '_cache') and hasattr(self, '_cache_ttl') and hasattr(self, '_cache_default_ttl'):
+                self._cache[cache_key] = result
+                self._cache_ttl[cache_key] = self._cache_default_ttl
+        except (AttributeError, Exception):
+            # If the cache doesn't exist or fails, continue anyway
+            pass
 
         return result
 
@@ -563,6 +652,7 @@ class EternaStateTracker(StateTrackerInterface):
     def mark_zone_explored(self, zone_name):
         """
         Mark a zone as explored.
+        Publishes a ZoneExploredEvent to notify other components.
 
         Memory optimization: 
         - Uses a bounded deque that automatically removes the oldest explored zones
@@ -572,6 +662,9 @@ class EternaStateTracker(StateTrackerInterface):
         Args:
             zone_name: The name of the zone to mark as explored.
         """
+        from modules.utilities.event_bus import event_bus
+        from modules.zone_events import ZoneExploredEvent
+
         # Check if zone is already in the index (O(1) operation)
         if zone_name not in self._zone_index:
             # Add to the deque (which will automatically handle removing old items when maxlen is reached)
@@ -583,6 +676,9 @@ class EternaStateTracker(StateTrackerInterface):
             if len(self.explored_zones) == self.max_explored_zones:
                 # Rebuild the index to match the current deque contents
                 self._zone_index = set(self.explored_zones)
+
+            # Publish event to notify other components
+            event_bus.publish(ZoneExploredEvent(zone_name))
 
     def update_evolution(self, intellect, senses):
         """

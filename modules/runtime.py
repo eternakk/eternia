@@ -78,6 +78,11 @@ class EternaRuntime(RuntimeInterface):
                 senses=self.eterna.senses.score(),  # Make sure SensoryProfile has .score()
             )
 
+        # Process companion emotions to ensure they affect their associated zones
+        if hasattr(self.eterna, "companions") and hasattr(self.eterna.companions, "process_companion_emotions"):
+            self.logger.info("🧠 Processing companion emotions")
+            self.eterna.companions.process_companion_emotions()
+
         self.handle_exploration()
         self.refresh_reality_bridge()
         self.manage_social_interactions()
@@ -118,7 +123,7 @@ class EternaRuntime(RuntimeInterface):
         current_emotion = self.eterna.emotion_circuits.current_emotion
         if current_emotion:
             self.logger.info(f"🪞 Reflecting current emotional field: {current_emotion.describe()}")
-            self.eterna.emotion_circuits.process_emotion(current_emotion)
+            # Removed duplicate process_emotion call as it's already called in run_cycle
 
     def apply_zone_physics(self, zone_name):
         profile = self.eterna.physics_registry.get_profile(zone_name)

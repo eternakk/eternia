@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { triggerRitual, getRituals, Ritual } from '../api';
 import { useErrorHandler } from '../utils/errorHandling';
+import { Pagination } from './ui/Pagination';
 
 // Cache duration in milliseconds (5 minutes)
 const CACHE_DURATION = 5 * 60 * 1000;
@@ -10,6 +11,10 @@ export default function RitualPanel() {
     const [error, setError] = useState<Error | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const { handleApiError } = useErrorHandler();
+
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState<number>(1);
+    const [itemsPerPage] = useState<number>(5); // Show 5 rituals per page
 
     // Cache reference
     const cacheRef = useRef<{
@@ -86,22 +91,55 @@ export default function RitualPanel() {
     if (error) return <div>Error loading rituals.</div>;
     if (!rituals) return <div>Loading rituals...</div>;
 
+    // Calculate pagination
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    const currentRituals = rituals.slice(indexOfFirstItem, indexOfLastItem);
+
+    // Handle page change
+    const handlePageChange = (pageNumber: number) => {
+        setCurrentPage(pageNumber);
+        // Scroll to top of the list when page changes
+        document.getElementById('rituals-list')?.scrollIntoView({ behavior: 'smooth' });
+    };
+
     return (
         <div className="p-4">
-            <h3 className="text-xl font-bold mb-2">Available Rituals</h3>
-            <ul>
-                {rituals.map((ritual: any) => (
-                    <li key={ritual.id} className="flex items-center mb-2">
+            <h3 className="text-xl font-bold mb-2" id="rituals-heading">Available Rituals</h3>
+            <ul 
+                id="rituals-list"
+                className="mb-4"
+                role="list"
+                aria-labelledby="rituals-heading"
+                aria-live="polite"
+            >
+                {currentRituals.map((ritual: any) => (
+                    <li key={ritual.id} className="flex items-center mb-2 p-2 border-b border-gray-200">
                         <span className="flex-1">{ritual.name}</span>
                         <button
                             onClick={() => handleTriggerRitual(ritual.id)}
-                            className="ml-2 px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                            className="ml-2 px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            aria-label={`Trigger ${ritual.name} ritual`}
                         >
                             Trigger
                         </button>
                     </li>
                 ))}
+                {currentRituals.length === 0 && (
+                    <li className="p-2 text-gray-500">No rituals available.</li>
+                )}
             </ul>
+
+            {/* Pagination component */}
+            {rituals.length > itemsPerPage && (
+                <Pagination
+                    totalItems={rituals.length}
+                    itemsPerPage={itemsPerPage}
+                    currentPage={currentPage}
+                    onPageChange={handlePageChange}
+                    className="mt-4"
+                />
+            )}
         </div>
     );
 }

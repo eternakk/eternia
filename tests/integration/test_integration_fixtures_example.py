@@ -8,10 +8,10 @@ import pytest
 import asyncio
 
 
-def test_api_client_fixture(client):
+def test_api_client_fixture(client, auth_headers):
     """Demonstrate how to use the client fixture."""
     # Make a request to the API
-    response = client.get("/state")
+    response = client.get("/state", headers=auth_headers)
 
     # Verify the response
     assert response.status_code == 200
@@ -45,10 +45,10 @@ def test_patched_governor_fixture(client, auth_headers, patched_governor):
     patched_governor.pause.assert_called_once()
 
 
-def test_patched_world_fixture(client, patched_world):
+def test_patched_world_fixture(client, patched_world, auth_headers):
     """Demonstrate how to use the patched_world fixture."""
     # Make a request that uses the world
-    response = client.get("/api/agents")
+    response = client.get("/api/agents", headers=auth_headers)
 
     # Verify the response
     assert response.status_code == 200

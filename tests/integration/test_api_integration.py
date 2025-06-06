@@ -30,9 +30,9 @@ def auth_headers():
 class TestAPIIntegration:
     """Integration tests for the API service."""
 
-    def test_get_state(self, client):
+    def test_get_state(self, client, auth_headers):
         """Test that the /state endpoint returns the correct state."""
-        response = client.get("/state")
+        response = client.get("/state", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
         assert "cycle" in data
@@ -76,7 +76,7 @@ class TestAPIIntegration:
             assert response.json()["status"] == "rolled_back"
             mock_governor.rollback.assert_called_once_with(None)
 
-    def test_list_agents(self, client):
+    def test_list_agents(self, client, auth_headers):
         """Test that the /api/agents endpoint returns the correct agents."""
         with patch("services.api.server.world") as mock_world:
             # Create mock companions
@@ -90,7 +90,7 @@ class TestAPIIntegration:
             # Set up the mock world to return our mock companions
             mock_world.eterna.companions.companions = [mock_companion]
 
-            response = client.get("/api/agents")
+            response = client.get("/api/agents", headers=auth_headers)
             assert response.status_code == 200
             data = response.json()
             assert len(data) == 1
@@ -99,7 +99,7 @@ class TestAPIIntegration:
             assert data[0]["emotion"] == "Happy"
             assert data[0]["zone"] == "TestZone"
 
-    def test_list_zones(self, client):
+    def test_list_zones(self, client, auth_headers):
         """Test that the /api/zones endpoint returns the correct zones."""
         with patch("services.api.server.world") as mock_world:
             # Create mock zone
@@ -114,7 +114,7 @@ class TestAPIIntegration:
             # Set up the mock world to return our mock zone
             mock_world.eterna.exploration.registry.zones = [mock_zone]
 
-            response = client.get("/api/zones")
+            response = client.get("/api/zones", headers=auth_headers)
             assert response.status_code == 200
             data = response.json()
             assert len(data) == 1

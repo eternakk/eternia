@@ -92,7 +92,7 @@ The governance and safety layer ensures that the simulation adheres to defined p
 
 ### 3.3 User Interface
 
-The user interface provides a way for users to interact with the simulation.
+The user interface provides a way for users to interact with the simulation. The UI is built using React and TypeScript, with Tailwind CSS for styling.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -115,9 +115,27 @@ The user interface provides a way for users to interact with the simulation.
 #### Key Components:
 
 - **React/TS Frontend**: The main frontend application built with React and TypeScript
-- **Components**: Reusable UI components
-- **State Management**: Manages the frontend state
-- **API Client**: Communicates with the backend services
+- **Components**: Reusable UI components including:
+  - AgentDashboard: Displays information about agents in the simulation
+  - CheckPointPanel: Allows users to manage simulation checkpoints
+  - ControlPanel: Provides controls for managing the simulation
+  - ZoneViewer/ZoneCanvas: Renders the simulation zone visually
+  - StatePanel: Displays the current state of the simulation
+  - LogConsole: Displays log messages from the simulation
+  - NotificationContainer: Displays notification messages to the user
+- **State Management**: Manages the frontend state using React Context API with:
+  - SimulationContext: Manages the state of the simulation
+  - NotificationContext: Manages notification messages
+  - AuthContext: Manages authentication state
+- **API Client**: Communicates with the backend services through RESTful APIs
+
+#### UI Architecture
+
+The UI follows a component-based architecture with a clear separation of concerns. Components are organized in a hierarchy, with higher-level components composing lower-level ones. The UI uses React's Context API for state management and communicates with the backend through a dedicated API client.
+
+For more detailed information about the UI architecture and components, refer to:
+- [UI Architecture Documentation](ui_architecture.md)
+- [UI Components Documentation](ui_components.md)
 
 ### 3.4 Services Layer
 

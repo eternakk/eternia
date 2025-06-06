@@ -359,7 +359,15 @@ class EternaInterface:
         self.rituals.list_rituals()
 
     def mark_zone_explored(self, zone_name):
+        """
+        Mark a zone as explored and set it as the current zone.
+
+        Args:
+            zone_name: The name of the zone to mark as explored.
+        """
+        # Update both the current zone and mark it as explored
         self.state_tracker.mark_zone(zone_name)
+        self.state_tracker.mark_zone_explored(zone_name)
 
     def track_modifier(self, zone_name, modifier):
         self.state_tracker.track_modifier(zone_name, modifier)

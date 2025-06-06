@@ -1,9 +1,10 @@
 import {ComponentType, lazy, Suspense} from 'react';
 import {LoadingSpinner} from './LoadingIndicator';
 
-interface LazyLoadProps<T extends Record<string, unknown> = Record<string, unknown>> extends Omit<T, 'component' | 'fallback'> {
+interface LazyLoadProps<T extends Record<string, unknown> = Record<string, unknown>> {
     component: () => Promise<{ default: ComponentType<T> }>;
     fallback?: React.ReactNode;
+    [key: string]: any; // Allow additional props to be passed through
 }
 
 /**
@@ -35,7 +36,7 @@ export default function LazyLoad<T extends Record<string, unknown>>(props: LazyL
 
     return (
         <Suspense fallback={fallback || <LoadingSpinner size="md"/>}>
-            <LazyComponent {...rest} />
+            <LazyComponent {...rest as any} />
         </Suspense>
     );
 }

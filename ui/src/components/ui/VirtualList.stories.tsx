@@ -33,12 +33,15 @@ const generateItems = (count: number): ListItem[] => {
 export const Default: Story = {
   args: {
     items: generateItems(1000),
-    renderItem: (item: ListItem) => (
-      <div className="p-2 border-b border-gray-200">
-        <div className="font-medium">{item.text}</div>
-        <div className="text-sm text-gray-500">{item.description}</div>
-      </div>
-    ),
+    renderItem: (item: unknown, index: number) => {
+      const typedItem = item as ListItem;
+      return (
+        <div className="p-2 border-b border-gray-200">
+          <div className="font-medium">{typedItem.text}</div>
+          <div className="text-sm text-gray-500">{typedItem.description}</div>
+        </div>
+      );
+    },
     itemHeight: 60,
     height: 300,
   },
@@ -48,12 +51,15 @@ export const Default: Story = {
 export const CustomStyling: Story = {
   args: {
     items: generateItems(1000),
-    renderItem: (item: ListItem) => (
-      <div className="p-3 border-b border-blue-200 hover:bg-blue-50">
-        <div className="font-bold text-blue-700">{item.text}</div>
-        <div className="text-sm text-gray-600">{item.description}</div>
-      </div>
-    ),
+    renderItem: (item: unknown, index: number) => {
+      const typedItem = item as ListItem;
+      return (
+        <div className="p-3 border-b border-blue-200 hover:bg-blue-50">
+          <div className="font-bold text-blue-700">{typedItem.text}</div>
+          <div className="text-sm text-gray-600">{typedItem.description}</div>
+        </div>
+      );
+    },
     itemHeight: 70,
     height: 350,
     className: 'border border-blue-300 rounded',
@@ -64,12 +70,15 @@ export const CustomStyling: Story = {
 export const VeryLargeDataset: Story = {
   args: {
     items: generateItems(10000),
-    renderItem: (item: ListItem) => (
-      <div className="p-2 border-b border-gray-200">
-        <div className="font-medium">{item.text}</div>
-        <div className="text-sm text-gray-500">{item.description}</div>
-      </div>
-    ),
+    renderItem: (item: unknown, index: number) => {
+      const typedItem = item as ListItem;
+      return (
+        <div className="p-2 border-b border-gray-200">
+          <div className="font-medium">{typedItem.text}</div>
+          <div className="text-sm text-gray-500">{typedItem.description}</div>
+        </div>
+      );
+    },
     itemHeight: 60,
     height: 400,
   },
@@ -79,11 +88,14 @@ export const VeryLargeDataset: Story = {
 export const SmallItems: Story = {
   args: {
     items: generateItems(1000),
-    renderItem: (item: ListItem) => (
-      <div className="py-1 px-2 border-b border-gray-200 text-sm">
-        {item.text}
-      </div>
-    ),
+    renderItem: (item: unknown, index: number) => {
+      const typedItem = item as ListItem;
+      return (
+        <div className="py-1 px-2 border-b border-gray-200 text-sm">
+          {typedItem.text}
+        </div>
+      );
+    },
     itemHeight: 30,
     height: 300,
   },
@@ -93,14 +105,17 @@ export const SmallItems: Story = {
 export const AlternatingRows: Story = {
   args: {
     items: generateItems(1000),
-    renderItem: (item: ListItem, index: number) => (
-      <div 
-        className={`p-2 border-b border-gray-200 ${index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}
-      >
-        <div className="font-medium">{item.text}</div>
-        <div className="text-sm text-gray-500">{item.description}</div>
-      </div>
-    ),
+    renderItem: (item: unknown, index: number) => {
+      const typedItem = item as ListItem;
+      return (
+        <div 
+          className={`p-2 border-b border-gray-200 ${index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}
+        >
+          <div className="font-medium">{typedItem.text}</div>
+          <div className="text-sm text-gray-500">{typedItem.description}</div>
+        </div>
+      );
+    },
     itemHeight: 60,
     height: 300,
   },

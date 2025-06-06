@@ -86,7 +86,7 @@ export const useErrorHandler = () => {
 export const createSafeApiCall = <T extends (...args: any[]) => Promise<any>>(
     apiFn: T,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    errorMessage?: string
+    _errorMessage?: string
 ) => {
     return async (...args: Parameters<T>): Promise<Awaited<ReturnType<T>> | undefined> => {
         try {

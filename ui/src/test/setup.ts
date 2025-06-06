@@ -1,7 +1,8 @@
 import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 
 // Mock for ResizeObserver which is not available in jsdom
-global.ResizeObserver = class ResizeObserver {
+window.ResizeObserver = class ResizeObserver {
   observe() {
     // do nothing
   }
@@ -11,11 +12,13 @@ global.ResizeObserver = class ResizeObserver {
   disconnect() {
     // do nothing
   }
-};
+} as unknown as typeof ResizeObserver;
 
 // Mock for IntersectionObserver which is not available in jsdom
-global.IntersectionObserver = class IntersectionObserver {
-  constructor(callback) {
+window.IntersectionObserver = class IntersectionObserver {
+  callback: IntersectionObserverCallback;
+
+  constructor(callback: IntersectionObserverCallback) {
     this.callback = callback;
   }
   observe() {
@@ -27,7 +30,7 @@ global.IntersectionObserver = class IntersectionObserver {
   disconnect() {
     // do nothing
   }
-};
+} as unknown as typeof IntersectionObserver;
 
 // Mock for window.matchMedia which is not available in jsdom
 Object.defineProperty(window, 'matchMedia', {
@@ -45,7 +48,7 @@ Object.defineProperty(window, 'matchMedia', {
 });
 
 // Mock for canvas methods used by Three.js
-HTMLCanvasElement.prototype.getContext = vi.fn(() => ({
+const mockCanvasContext = {
   measureText: () => ({ width: 0 }),
   fillRect: vi.fn(),
   fillText: vi.fn(),
@@ -67,4 +70,17 @@ HTMLCanvasElement.prototype.getContext = vi.fn(() => ({
   rotate: vi.fn(),
   arc: vi.fn(),
   fill: vi.fn(),
-}));
+  // Add required properties for CanvasRenderingContext2D
+  canvas: document.createElement('canvas'),
+  getContextAttributes: vi.fn(() => ({})),
+  globalAlpha: 1,
+  globalCompositeOperation: 'source-over',
+};
+
+// Type assertion to match the expected signature of HTMLCanvasElement.prototype.getContext
+HTMLCanvasElement.prototype.getContext = vi.fn((contextId) => {
+  if (contextId === '2d') {
+    return mockCanvasContext as unknown as CanvasRenderingContext2D;
+  }
+  return null;
+}) as unknown as HTMLCanvasElement['getContext'];

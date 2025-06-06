@@ -2,6 +2,7 @@ import {useEffect, useRef, useState} from 'react';
 import {changeZone, getZones, Zone} from '../api';
 import {useErrorHandler} from '../utils/errorHandling';
 import {useZone} from '../contexts/ZoneContext';
+import {Pagination} from './ui/Pagination';
 
 // Cache duration in milliseconds (5 minutes)
 const CACHE_DURATION = 5 * 60 * 1000;
@@ -13,6 +14,10 @@ export default function ZoneViewer() {
     const [changingZone, setChangingZone] = useState<string | null>(null);
     const {handleApiError, withErrorHandling} = useErrorHandler();
     const {currentZone, setCurrentZone} = useZone();
+
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState<number>(1);
+    const [itemsPerPage] = useState<number>(6); // Show 6 zones per page (3x2 grid)
 
     // Cache reference
     const cacheRef = useRef<{
@@ -77,7 +82,7 @@ export default function ZoneViewer() {
     }, [handleApiError]);
 
     if (error) return <div>Error loading zones.</div>;
-    if (!zones) return <div>Loading zones...</div>;
+    if (isLoading && !zones.length) return <div>Loading zones...</div>;
 
     // Function to handle zone selection
     const handleZoneSelect = withErrorHandling(async (zoneName: string) => {
@@ -102,18 +107,47 @@ export default function ZoneViewer() {
         }
     }, "Failed to change zone");
 
+    // Calculate pagination
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    const currentZones = zones.slice(indexOfFirstItem, indexOfLastItem);
+
+    // Handle page change
+    const handlePageChange = (pageNumber: number) => {
+        setCurrentPage(pageNumber);
+        // Scroll to top of the grid when page changes
+        document.getElementById('zones-grid')?.scrollIntoView({ behavior: 'smooth' });
+    };
+
     return (
         <div className="p-4">
-            <h2 className="text-xl font-bold mb-2">Zones</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {zones.map((zone: any) => {
+            <h2 className="text-xl font-bold mb-2" id="zones-heading">Zones</h2>
+            <div 
+                id="zones-grid"
+                className="grid grid-cols-1 md:grid-cols-3 gap-4" 
+                role="radiogroup" 
+                aria-labelledby="zones-heading"
+                aria-live="polite"
+            >
+                {currentZones.map((zone: any) => {
                     const isSelected = currentZone === zone.name;
                     const isChanging = changingZone === zone.name;
                     return (
                         <div
                             key={zone.id}
-                            className={`${isSelected ? 'bg-blue-200 border-blue-500' : 'bg-gray-100'} shadow rounded p-4 cursor-pointer transition-colors duration-200 hover:bg-blue-100 border-2 ${isSelected ? 'border-blue-500' : 'border-transparent'} ${isChanging ? 'opacity-70' : ''}`}
+                            className={`${isSelected ? 'bg-blue-200 border-blue-500' : 'bg-gray-100'} shadow rounded p-4 cursor-pointer transition-colors duration-200 hover:bg-blue-100 border-2 ${isSelected ? 'border-blue-500' : 'border-transparent'} ${isChanging ? 'opacity-70' : ''} focus:outline-none focus:ring-2 focus:ring-blue-500`}
                             onClick={() => handleZoneSelect(zone.name)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    handleZoneSelect(zone.name);
+                                }
+                            }}
+                            role="radio"
+                            aria-checked={isSelected}
+                            aria-busy={isChanging}
+                            tabIndex={0}
+                            aria-label={`Zone ${zone.name}${isSelected ? ', currently selected' : ''}${isChanging ? ', changing' : ''}`}
                         >
                             <div className="font-semibold">{zone.name}</div>
                             <div>
@@ -121,22 +155,40 @@ export default function ZoneViewer() {
                             </div>
                             <div>
                                 Emotion: <span
-                                className={`emotion-badge emotion-${(zone.emotion || 'neutral').toLowerCase()}`}>{zone.emotion || 'Neutral'}</span>
+                                className={`emotion-badge emotion-${(zone.emotion || 'neutral').toLowerCase()}`}
+                                aria-label={`Emotion: ${zone.emotion || 'Neutral'}`}
+                                >{zone.emotion || 'Neutral'}</span>
                             </div>
                             {isSelected && (
-                                <div className="mt-2 text-blue-700 font-semibold">
+                                <div className="mt-2 text-blue-700 font-semibold" aria-hidden="true">
                                     ✓ Currently Selected
                                 </div>
                             )}
                             {isChanging && (
-                                <div className="mt-2 text-orange-500 font-semibold animate-pulse">
+                                <div className="mt-2 text-orange-500 font-semibold animate-pulse" aria-live="polite">
                                     ⟳ Changing Zone...
                                 </div>
                             )}
                         </div>
                     );
                 })}
+                {currentZones.length === 0 && (
+                    <div className="col-span-3 p-4 text-gray-500 text-center">
+                        No zones available.
+                    </div>
+                )}
             </div>
+
+            {/* Pagination component */}
+            {zones.length > itemsPerPage && (
+                <Pagination
+                    totalItems={zones.length}
+                    itemsPerPage={itemsPerPage}
+                    currentPage={currentPage}
+                    onPageChange={handlePageChange}
+                    className="mt-6"
+                />
+            )}
         </div>
     );
 }

@@ -3,6 +3,7 @@ import { render, RenderOptions } from '@testing-library/react';
 import { NotificationProvider } from '../contexts/NotificationContext';
 import { LoadingProvider } from '../contexts/LoadingContext';
 import { AppStateProvider } from '../contexts/AppStateContext';
+import { ZoneProvider } from '../contexts/ZoneContext';
 
 // Create a custom render function that includes all providers
 const AllProviders = ({ children }: { children: React.ReactNode }) => {
@@ -10,7 +11,9 @@ const AllProviders = ({ children }: { children: React.ReactNode }) => {
     <NotificationProvider>
       <LoadingProvider>
         <AppStateProvider refreshInterval={1000}>
-          {children}
+          <ZoneProvider>
+            {children}
+          </ZoneProvider>
         </AppStateProvider>
       </LoadingProvider>
     </NotificationProvider>

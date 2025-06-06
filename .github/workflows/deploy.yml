@@ -1,0 +1,157 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'development'
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+
+jobs:
+  determine-environment:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.set-env.outputs.environment }}
+    steps:
+      - id: set-env
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "environment=production" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == refs/heads/main ]]; then
+            echo "environment=staging" >> $GITHUB_OUTPUT
+          else
+            echo "environment=development" >> $GITHUB_OUTPUT
+          fi
+
+  build-and-push:
+    needs: determine-environment
+    runs-on: ubuntu-latest
+    environment: ${{ needs.determine-environment.outputs.environment }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata for Docker
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: |
+          ghcr.io/${{ github.repository }}/backend
+          ghcr.io/${{ github.repository }}/frontend
+        tags: |
+          type=ref,event=branch
+          type=ref,event=tag
+          type=sha,format=long
+          type=raw,value=${{ needs.determine-environment.outputs.environment }}
+
+    - name: Build and push backend image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        push: true
+        tags: ghcr.io/${{ github.repository }}/backend:${{ needs.determine-environment.outputs.environment }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        build-args: |
+          ETERNIA_ENV=${{ needs.determine-environment.outputs.environment }}
+
+    - name: Build and push frontend image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./ui
+        file: ./ui/Dockerfile
+        push: true
+        tags: ghcr.io/${{ github.repository }}/frontend:${{ needs.determine-environment.outputs.environment }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        build-args: |
+          ETERNIA_ENV=${{ needs.determine-environment.outputs.environment }}
+
+  deploy:
+    needs: [determine-environment, build-and-push]
+    runs-on: ubuntu-latest
+    environment: ${{ needs.determine-environment.outputs.environment }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up SSH
+      uses: webfactory/ssh-agent@v0.8.0
+      with:
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+    - name: Add host key
+      run: |
+        mkdir -p ~/.ssh
+        ssh-keyscan ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+
+    - name: Create deployment directory
+      run: |
+        ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "mkdir -p ~/eternia-${{ needs.determine-environment.outputs.environment }}"
+
+    - name: Copy docker-compose file
+      run: |
+        scp docker-compose.yml ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:~/eternia-${{ needs.determine-environment.outputs.environment }}/
+
+    - name: Create .env file
+      run: |
+        cat > .env << EOF
+        ETERNIA_ENV=${{ needs.determine-environment.outputs.environment }}
+        DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+        JWT_SECRET=${{ secrets.JWT_SECRET }}
+        EOF
+        scp .env ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:~/eternia-${{ needs.determine-environment.outputs.environment }}/
+
+    - name: Deploy
+      run: |
+        ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "cd ~/eternia-${{ needs.determine-environment.outputs.environment }} && \
+        docker-compose pull && \
+        docker-compose up -d"
+
+    - name: Verify deployment
+      run: |
+        ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "cd ~/eternia-${{ needs.determine-environment.outputs.environment }} && \
+        docker-compose ps"
+
+  notify:
+    needs: [determine-environment, deploy]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+    - name: Notify success
+      if: ${{ needs.deploy.result == 'success' }}
+      run: |
+        echo "Deployment to ${{ needs.determine-environment.outputs.environment }} succeeded"
+        # Add notification logic here (e.g., Slack, email)
+
+    - name: Notify failure
+      if: ${{ needs.deploy.result != 'success' }}
+      run: |
+        echo "Deployment to ${{ needs.determine-environment.outputs.environment }} failed"
+        # Add notification logic here (e.g., Slack, email)

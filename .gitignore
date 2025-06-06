@@ -15,6 +15,12 @@ artifacts/
 *.pth
 logs/eterna_cycles.log
 
+# Prevent data directories in docs
+docs/artifacts/
+docs/logs/
+docs/data/
+docs/config/
+
 # Env / editor
 .env
 *.swp

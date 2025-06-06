@@ -18,6 +18,11 @@ class ExplorationZone:
             self.modifiers.append(modifier_name)
             print(f"🌗 Zone '{self.name}' was symbolically modified with '{modifier_name}'.")
 
+            # Update the state tracker if available through the exploration module
+            if hasattr(self, 'exploration_module') and self.exploration_module and hasattr(self.exploration_module, 'eterna'):
+                if self.exploration_module.eterna and hasattr(self.exploration_module.eterna, 'state_tracker'):
+                    self.exploration_module.eterna.state_tracker.add_modifier(self.name, modifier_name)
+
     def show_modifiers(self):
         if self.modifiers:
             print(f"🎨 Symbolic Layers for '{self.name}':")
@@ -31,6 +36,10 @@ class ExplorationRegistry:
         self.zones = []
 
     def register_zone(self, zone):
+        # Set a reference to the parent exploration module if available
+        if hasattr(self, 'exploration_module') and self.exploration_module:
+            zone.exploration_module = self.exploration_module
+
         self.zones.append(zone)
         print(f"🌍 New zone registered: {zone.name} ({zone.origin})")
 
@@ -47,7 +56,7 @@ class ExplorationRegistry:
                 print(f" - {zone.name} ({zone.origin}, complexity: {zone.complexity_level}) {explored_status}")
 
     def get_zones_by_emotion(self, emotion_name):
-        return [z for z in self.zones if z.emotion_tag == emotion_name]
+        return [z for z in self.zones if z.emotion_tag and z.emotion_tag.lower() == emotion_name.lower()]
 
 class VirgilGuide:
     def guide_user(self, zone, physics_profile=None):
@@ -58,6 +67,9 @@ class VirgilGuide:
 class ExplorationModule(ExplorationInterface):
     def __init__(self, user_intellect, eterna_interface=None):
         self.registry = ExplorationRegistry()
+        # Set a reference to this module on the registry
+        self.registry.exploration_module = self
+
         self.virgil = VirgilGuide()
         self.user_intellect = user_intellect
         self.eterna = eterna_interface
@@ -106,7 +118,9 @@ class ExplorationModule(ExplorationInterface):
 
         zone.explored = True
         if self.eterna:
+            # Update both the current zone and mark it as explored in the state tracker
             self.eterna.state_tracker.mark_zone(zone.name)
+            self.eterna.state_tracker.mark_zone_explored(zone.name)
         print(f"✨ You explored: {zone.name} — Complexity: {zone.complexity_level}")
         return zone if return_zone else None
 
@@ -117,7 +131,9 @@ class ExplorationModule(ExplorationInterface):
             self.virgil.guide_user(zone, physics_profile)
             zone.explored = True
             if self.eterna:
+                # Update both the current zone and mark it as explored in the state tracker
                 self.eterna.state_tracker.mark_zone(zone.name)
+                self.eterna.state_tracker.mark_zone_explored(zone.name)
             print(f"✨ Manually explored: {zone.name} — Complexity: {zone.complexity_level}")
         else:
             print(f"⚠️ Zone '{zone_name}' doesn't exist.")
@@ -127,5 +143,9 @@ class ExplorationModule(ExplorationInterface):
         for zone in self.registry.zones:
             if zone.name == zone_name:
                 zone.explored = True
+                # Update the state tracker if available
+                if self.eterna:
+                    self.eterna.state_tracker.mark_zone(zone_name)
+                    self.eterna.state_tracker.mark_zone_explored(zone_name)
                 print(f"✅ Zone '{zone_name}' marked as explored.")
                 return

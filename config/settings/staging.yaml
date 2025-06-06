@@ -1,0 +1,96 @@
+# Staging environment configuration for Eternia
+# This file contains settings specific to the staging environment.
+# It overrides the default settings in default.yaml.
+
+# Simulation configurations for staging
+simulation:
+  # Enable limited debug mode in staging
+  debug_mode: false
+  # Use production-like timeouts but slightly faster for testing
+  timeouts:
+    api_request: 10  # seconds
+    simulation_step: 0.2  # seconds
+  # Enable moderate logging
+  logging:
+    level: "INFO"
+    console_output: true
+    file_output: true
+    detailed_errors: true
+
+# API configurations for staging
+api:
+  host: "0.0.0.0"  # Listen on all interfaces
+  port: 8000
+  # Enable CORS for staging frontend
+  cors:
+    enabled: true
+    allow_origins: ["https://staging.eternia.example.com"]
+    allow_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    allow_headers: ["*"]
+  # Enable API documentation but with restricted access
+  docs:
+    enabled: true
+    path: "/docs"
+    require_authentication: true
+  # Disable debug endpoints
+  debug_endpoints: false
+
+# Database configurations for staging
+database:
+  type: "postgresql"
+  host: "db.staging.eternia.example.com"
+  port: 5432
+  name: "eternia_staging"
+  user: "eternia_app"
+  password: "${DB_PASSWORD}"  # Use environment variable
+  # Enable database migrations
+  migrations:
+    auto_migrate: true
+    create_demo_data: false
+
+# Frontend configurations for staging
+frontend:
+  # Disable hot reloading
+  hot_reload: false
+  # Disable React developer tools
+  dev_tools: false
+  # No mock API responses
+  mock_api:
+    enabled: false
+
+# Security configurations for staging
+security:
+  # Enable authentication for staging
+  authentication:
+    enabled: true
+    jwt_secret: "${JWT_SECRET}"  # Use environment variable
+    token_expiry: 86400  # 24 hours in seconds
+  # Enable rate limiting for staging
+  rate_limiting:
+    enabled: true
+    requests_per_minute: 100
+
+# Feature flags for staging
+features:
+  experimental:
+    enabled: true  # Test experimental features in staging
+  new_ui:
+    enabled: true
+  performance_monitoring:
+    enabled: true
+
+# Monitoring configurations for staging
+monitoring:
+  enabled: true
+  metrics_collection: true
+  error_tracking: true
+  performance_tracking: true
+  alert_notifications: true
+  alert_email: "dev-team@example.com"
+
+# Backup configurations for staging
+backup:
+  enabled: true
+  frequency: "daily"
+  retention_days: 7
+  storage_path: "/backups/staging"

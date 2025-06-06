@@ -85,16 +85,17 @@ export const useErrorHandler = () => {
  */
 export const createSafeApiCall = <T extends (...args: any[]) => Promise<any>>(
     apiFn: T,
-    errorMessage?: string
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _errorMessage?: string
 ) => {
-    return (...args: Parameters<T>): Promise<Awaited<ReturnType<T>> | undefined> => {
+    return async (...args: Parameters<T>): Promise<Awaited<ReturnType<T>> | undefined> => {
         try {
-            return apiFn(...args);
+            return await apiFn(...args);
         } catch (error) {
             console.error('API Error:', error);
             // Note: This function doesn't show notifications because it's not inside a component
             // Use useErrorHandler().withErrorHandling inside components instead
-            return undefined;
+            return Promise.resolve(undefined);
         }
     };
 };

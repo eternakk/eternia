@@ -8,6 +8,7 @@ pytest-benchmark==4.0.0  # For performance benchmarking
 
 # Web Framework
 fastapi==0.103.1
+uvicorn==0.23.2  # ASGI server for FastAPI
 httpx==0.24.0  # For testing FastAPI
 pydantic==2.4.0
 email-validator==2.0.0  # For Pydantic's EmailStr validation

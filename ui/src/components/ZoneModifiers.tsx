@@ -15,19 +15,19 @@ export const ZoneModifiers: React.FC<ZoneModifiersProps> = ({
   zoneName, 
   className = '' 
 }) => {
-  const { currentZone, getModifiersForZone, zoneModifiers } = useZone();
-  
+  const { currentZone, getModifiersForZone } = useZone();
+
   // Use the provided zoneName or fall back to the current zone
   const targetZone = zoneName || currentZone;
-  
+
   // If no zone is specified or available, show a message
   if (!targetZone) {
     return <div className={`zone-modifiers ${className}`}>No active zone</div>;
   }
-  
+
   // Get modifiers for the target zone
   const modifiers = getModifiersForZone(targetZone);
-  
+
   // If no modifiers, show a message
   if (!modifiers || modifiers.length === 0) {
     return (
@@ -37,7 +37,7 @@ export const ZoneModifiers: React.FC<ZoneModifiersProps> = ({
       </div>
     );
   }
-  
+
   return (
     <div className={`zone-modifiers ${className}`}>
       <h3>Zone: {targetZone}</h3>
@@ -60,12 +60,12 @@ export const AllZoneModifiers: React.FC<{ className?: string }> = ({
   className = '' 
 }) => {
   const { zoneModifiers } = useZone();
-  
+
   // If no modifiers for any zone, show a message
   if (!zoneModifiers || Object.keys(zoneModifiers).length === 0) {
     return <div className={`all-zone-modifiers ${className}`}>No zone modifiers active</div>;
   }
-  
+
   return (
     <div className={`all-zone-modifiers ${className}`}>
       <h3>All Zone Modifiers</h3>

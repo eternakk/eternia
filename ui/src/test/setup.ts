@@ -1,7 +1,8 @@
 import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 
 // Mock for ResizeObserver which is not available in jsdom
-global.ResizeObserver = class ResizeObserver {
+window.ResizeObserver = class ResizeObserver {
   observe() {
     // do nothing
   }
@@ -11,7 +12,7 @@ global.ResizeObserver = class ResizeObserver {
   disconnect() {
     // do nothing
   }
-};
+} as unknown as typeof ResizeObserver;
 
 // Mock for IntersectionObserver which is not available in jsdom
 global.IntersectionObserver = class IntersectionObserver {

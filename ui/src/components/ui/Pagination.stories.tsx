@@ -27,7 +27,7 @@ export const Default: Story = {
 // Interactive example with state
 const InteractivePaginationTemplate = () => {
   const [currentPage, setCurrentPage] = useState(1);
-  
+
   return (
     <div className="w-full max-w-2xl">
       <div className="mb-4 p-4 bg-gray-100 rounded">
@@ -44,6 +44,12 @@ const InteractivePaginationTemplate = () => {
 };
 
 export const Interactive: Story = {
+  args: {
+    totalItems: 100,
+    itemsPerPage: 10,
+    currentPage: 1,
+    onPageChange: () => {},
+  },
   render: () => <InteractivePaginationTemplate />,
 };
 

@@ -25,7 +25,6 @@ vi.mock('axios', () => {
 import { render, screen } from '../../test/utils';
 import ZoneCanvas from '../../components/ZoneCanvas';
 import { useAppState } from '../../contexts/AppStateContext';
-import axios from 'axios';
 
 // Mock the useAppState hook
 vi.mock('../../contexts/AppStateContext', async () => {

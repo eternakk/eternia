@@ -1,6 +1,13 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import { VirtualList } from './VirtualList';
 
+// Define the item type
+interface ListItem {
+  id: number;
+  text: string;
+  description: string;
+}
+
 const meta = {
   title: 'UI/VirtualList',
   component: VirtualList,
@@ -14,7 +21,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 // Generate a large list of items for the examples
-const generateItems = (count: number) => {
+const generateItems = (count: number): ListItem[] => {
   return Array.from({ length: count }, (_, i) => ({
     id: i,
     text: `Item ${i + 1}`,
@@ -26,7 +33,7 @@ const generateItems = (count: number) => {
 export const Default: Story = {
   args: {
     items: generateItems(1000),
-    renderItem: (item) => (
+    renderItem: (item: ListItem) => (
       <div className="p-2 border-b border-gray-200">
         <div className="font-medium">{item.text}</div>
         <div className="text-sm text-gray-500">{item.description}</div>
@@ -41,7 +48,7 @@ export const Default: Story = {
 export const CustomStyling: Story = {
   args: {
     items: generateItems(1000),
-    renderItem: (item) => (
+    renderItem: (item: ListItem) => (
       <div className="p-3 border-b border-blue-200 hover:bg-blue-50">
         <div className="font-bold text-blue-700">{item.text}</div>
         <div className="text-sm text-gray-600">{item.description}</div>
@@ -57,7 +64,7 @@ export const CustomStyling: Story = {
 export const VeryLargeDataset: Story = {
   args: {
     items: generateItems(10000),
-    renderItem: (item) => (
+    renderItem: (item: ListItem) => (
       <div className="p-2 border-b border-gray-200">
         <div className="font-medium">{item.text}</div>
         <div className="text-sm text-gray-500">{item.description}</div>
@@ -72,7 +79,7 @@ export const VeryLargeDataset: Story = {
 export const SmallItems: Story = {
   args: {
     items: generateItems(1000),
-    renderItem: (item) => (
+    renderItem: (item: ListItem) => (
       <div className="py-1 px-2 border-b border-gray-200 text-sm">
         {item.text}
       </div>
@@ -86,7 +93,7 @@ export const SmallItems: Story = {
 export const AlternatingRows: Story = {
   args: {
     items: generateItems(1000),
-    renderItem: (item, index) => (
+    renderItem: (item: ListItem, index: number) => (
       <div 
         className={`p-2 border-b border-gray-200 ${index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}
       >

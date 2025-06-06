@@ -48,7 +48,7 @@ const StatePanel = () => {
         <li>Identity Score: {worldState.identity_score.toFixed(3)}</li>
         <li>Emotion: {worldState.emotion ?? "–"}</li>
         <li>Modifiers: {Object.keys(worldState.modifiers).length}</li>
-        {worldState.lastUpdated && (
+        {state.lastUpdated && (
           <li className="text-xs text-gray-500">
             Last updated: {new Date(state.lastUpdated || 0).toLocaleTimeString()}
           </li>
@@ -68,7 +68,7 @@ const StatePanel = () => {
           <ul className="mt-2 space-y-1 pl-2 border-l-2 border-blue-100" aria-label="Additional world state details">
             <li>Identity Score: {worldState.identity_score.toFixed(3)}</li>
             <li>Modifiers: {Object.keys(worldState.modifiers).length}</li>
-            {worldState.lastUpdated && (
+            {state.lastUpdated && (
               <li className="text-xs text-gray-500">
                 Last updated: {new Date(state.lastUpdated || 0).toLocaleTimeString()}
               </li>

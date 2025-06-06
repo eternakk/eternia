@@ -2,12 +2,19 @@ import { useGovEvents } from "../hooks/useGovEvents";
 import { useState } from "react";
 import { VirtualList } from "./ui/VirtualList";
 
+// Define the event interface
+interface GovEvent {
+  event: string;
+  t: number;
+  payload?: Record<string, unknown>;
+}
+
 export default function LogConsole() {
-  const log = useGovEvents();
+  const log = useGovEvents() as GovEvent[];
   const [isExpanded, setIsExpanded] = useState(false);
 
   // Group logs by event type for collapsible sections
-  const groupedLogs = log.reduce((groups, event) => {
+  const groupedLogs = log.reduce<Record<string, GovEvent[]>>((groups, event) => {
     // Skip certain events
     if (event.event === "checkpoint_saved" || event.event === "checkpoint_scheduled") {
       return groups;
@@ -54,7 +61,7 @@ export default function LogConsole() {
       >
         <VirtualList
           items={log.filter(e => e.event !== "checkpoint_saved" && e.event !== "checkpoint_scheduled")}
-          renderItem={(e) => (
+          renderItem={(e: GovEvent) => (
             <div className="py-1">
               [{new Date(e.t * 1000).toLocaleTimeString()}] {e.event}
               {e.payload ? " → " + JSON.stringify(e.payload) : ""}
@@ -89,7 +96,7 @@ export default function LogConsole() {
             className="p-2 text-xs max-h-80 overflow-y-auto" 
             aria-label="All events grouped by type"
           >
-            {Object.entries(groupedLogs).map(([eventType, events]) => (
+            {Object.entries(groupedLogs).map(([eventType, events]: [string, GovEvent[]]) => (
               <details key={eventType} className="mb-2">
                 <summary 
                   className="cursor-pointer font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -104,7 +111,7 @@ export default function LogConsole() {
                 >
                   <VirtualList
                     items={events}
-                    renderItem={(e) => (
+                    renderItem={(e: GovEvent) => (
                       <div className="mb-1">
                         [{new Date(e.t * 1000).toLocaleTimeString()}]
                         {e.payload ? " → " + JSON.stringify(e.payload) : ""}

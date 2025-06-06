@@ -89,7 +89,7 @@ export default function RitualPanel() {
     };
 
     if (error) return <div>Error loading rituals.</div>;
-    if (!rituals) return <div>Loading rituals...</div>;
+    if (isLoading && !rituals.length) return <div>Loading rituals...</div>;
 
     // Calculate pagination
     const indexOfLastItem = currentPage * itemsPerPage;

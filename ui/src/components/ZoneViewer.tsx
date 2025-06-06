@@ -82,7 +82,7 @@ export default function ZoneViewer() {
     }, [handleApiError]);
 
     if (error) return <div>Error loading zones.</div>;
-    if (!zones) return <div>Loading zones...</div>;
+    if (isLoading && !zones.length) return <div>Loading zones...</div>;
 
     // Function to handle zone selection
     const handleZoneSelect = withErrorHandling(async (zoneName: string) => {

@@ -111,7 +111,7 @@ const Scene = memo(({
 
             {/* Add fog for shroud effects */}
             {visualEffects.shroudOfMemory && (
-                <fog attach="fog" color="#1e2024" near={1} far={15} />
+                <fog attach="fog" color="#1e2024" near={1} far={15} args={["#1e2024", 1, 15]} />
             )}
 
             <Suspense fallback={null}>

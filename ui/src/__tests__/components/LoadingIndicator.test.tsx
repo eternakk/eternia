@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '../../test/utils';
 import { LoadingIndicator, LoadingSpinner } from '../../components/LoadingIndicator';
-import { LoadingProvider, useLoading } from '../../contexts/LoadingContext';
+import { useLoading } from '../../contexts/LoadingContext';
 
 // Mock the useLoading hook
 vi.mock('../../contexts/LoadingContext', async () => {

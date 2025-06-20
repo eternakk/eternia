@@ -1,4 +1,4 @@
-import { FeatureFlag } from '../contexts/FeatureFlagContext';
+import { FeatureFlag, FeatureFlagName } from '../contexts/FeatureFlagContext';
 
 /**
  * Default feature flags configuration
@@ -14,14 +14,14 @@ import { FeatureFlag } from '../contexts/FeatureFlagContext';
  * - Set enabled to true
  * - Add user groups to enabledForGroups array
  */
-const featureFlags: Record<string, FeatureFlag> = {
+const featureFlags: Record<FeatureFlagName, FeatureFlag> = {
   // Example of a fully enabled feature
   'advanced-search': {
     name: 'advanced-search',
     enabled: true,
     description: 'Advanced search functionality with filters and sorting',
   },
-  
+
   // Example of a feature in gradual rollout (50% of users)
   'new-dashboard-layout': {
     name: 'new-dashboard-layout',
@@ -29,7 +29,7 @@ const featureFlags: Record<string, FeatureFlag> = {
     description: 'New dashboard layout with improved visualization',
     rolloutPercentage: 50,
   },
-  
+
   // Example of a feature enabled only for specific user groups
   'admin-analytics': {
     name: 'admin-analytics',
@@ -37,7 +37,7 @@ const featureFlags: Record<string, FeatureFlag> = {
     description: 'Advanced analytics for administrators',
     enabledForGroups: ['admin', 'analyst'],
   },
-  
+
   // Example of a feature in early testing (10% rollout)
   'real-time-collaboration': {
     name: 'real-time-collaboration',
@@ -45,14 +45,14 @@ const featureFlags: Record<string, FeatureFlag> = {
     description: 'Real-time collaboration features',
     rolloutPercentage: 10,
   },
-  
+
   // Example of a disabled feature
   'experimental-ai-suggestions': {
     name: 'experimental-ai-suggestions',
     enabled: false,
     description: 'AI-powered suggestions for rituals and zones',
   },
-  
+
   // Example of a feature enabled for beta testers
   'beta-features': {
     name: 'beta-features',
@@ -60,7 +60,7 @@ const featureFlags: Record<string, FeatureFlag> = {
     description: 'Access to beta features',
     enabledForGroups: ['beta-tester'],
   },
-  
+
   // Example of a feature with both percentage rollout and group targeting
   'enhanced-visualization': {
     name: 'enhanced-visualization',

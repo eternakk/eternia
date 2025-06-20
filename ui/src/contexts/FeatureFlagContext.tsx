@@ -1,8 +1,21 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
+/**
+ * Union type of all feature flag names
+ * This ensures type safety when referencing feature flags
+ */
+export type FeatureFlagName = 
+  | 'advanced-search'
+  | 'new-dashboard-layout'
+  | 'admin-analytics'
+  | 'real-time-collaboration'
+  | 'experimental-ai-suggestions'
+  | 'beta-features'
+  | 'enhanced-visualization';
+
 // Define the shape of a feature flag
 export interface FeatureFlag {
-  name: string;
+  name: FeatureFlagName;
   enabled: boolean;
   description?: string;
   // Optional percentage for gradual rollout (0-100)
@@ -14,11 +27,11 @@ export interface FeatureFlag {
 // Define the shape of the context
 interface FeatureFlagContextType {
   // All available feature flags
-  flags: Record<string, FeatureFlag>;
+  flags: Record<FeatureFlagName, FeatureFlag>;
   // Check if a feature is enabled
-  isFeatureEnabled: (featureName: string, userId?: string, userGroups?: string[]) => boolean;
+  isFeatureEnabled: (featureName: FeatureFlagName, userId?: string, userGroups?: string[]) => boolean;
   // Update a feature flag (for admin purposes)
-  updateFeatureFlag: (name: string, updates: Partial<FeatureFlag>) => void;
+  updateFeatureFlag: (name: FeatureFlagName, updates: Partial<FeatureFlag>) => void;
 }
 
 // Create the context with a default value
@@ -66,26 +79,26 @@ export const FeatureFlagProvider: React.FC<FeatureFlagProviderProps> = ({
   }, [flagsUrl]);
 
   // Check if a feature is enabled for a specific user
-  const isFeatureEnabled = (featureName: string, userId?: string, userGroups: string[] = []): boolean => {
+  const isFeatureEnabled = (featureName: FeatureFlagName, userId?: string, userGroups: string[] = []): boolean => {
     const flag = flags[featureName];
-    
+
     // If the flag doesn't exist or is explicitly disabled, return false
     if (!flag || !flag.enabled) {
       return false;
     }
-    
+
     // If the flag is enabled with no additional conditions, return true
     if (flag.enabled && !flag.rolloutPercentage && (!flag.enabledForGroups || flag.enabledForGroups.length === 0)) {
       return true;
     }
-    
+
     // Check if the user is in an enabled group
     if (flag.enabledForGroups && flag.enabledForGroups.length > 0) {
       if (userGroups.some(group => flag.enabledForGroups?.includes(group))) {
         return true;
       }
     }
-    
+
     // Check rollout percentage if specified
     if (flag.rolloutPercentage !== undefined && userId) {
       // Use a deterministic hash of the feature name and user ID to determine if the user gets the feature
@@ -94,13 +107,13 @@ export const FeatureFlagProvider: React.FC<FeatureFlagProviderProps> = ({
       const normalizedHash = (hash % 100) + 100; // Ensure positive value between 0-99
       return normalizedHash % 100 < flag.rolloutPercentage;
     }
-    
+
     // Default to the flag's enabled state
     return flag.enabled;
   };
 
   // Update a feature flag
-  const updateFeatureFlag = (name: string, updates: Partial<FeatureFlag>) => {
+  const updateFeatureFlag = (name: FeatureFlagName, updates: Partial<FeatureFlag>) => {
     setFlags(prevFlags => ({
       ...prevFlags,
       [name]: {
@@ -138,14 +151,14 @@ export const useFeatureFlag = () => {
 };
 
 // Convenience hook to check if a specific feature is enabled
-export const useIsFeatureEnabled = (featureName: string, userId?: string, userGroups?: string[]) => {
+export const useIsFeatureEnabled = (featureName: FeatureFlagName, userId?: string, userGroups?: string[]) => {
   const { isFeatureEnabled } = useFeatureFlag();
   return isFeatureEnabled(featureName, userId, userGroups);
 };
 
 // Component to conditionally render based on feature flag
 interface FeatureFlaggedProps {
-  feature: string;
+  feature: FeatureFlagName;
   userId?: string;
   userGroups?: string[];
   children: ReactNode;

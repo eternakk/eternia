@@ -19,7 +19,12 @@ export function useGovEvents() {
     }
 
     const TOKEN = import.meta.env.VITE_ETERNA_TOKEN;
-    const ws = new ReconnectingWebSocket("ws://localhost:8000/ws");
+    // Use the same API URL environment variable as in api.ts, but convert to WebSocket URL
+    const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000";
+    // Convert HTTP URL to WebSocket URL (replace http:// with ws:// or https:// with wss://)
+    const wsUrl = apiUrl.replace(/^http/, 'ws') + "/ws";
+    console.log("Connecting to WebSocket at:", wsUrl);
+    const ws = new ReconnectingWebSocket(wsUrl);
     wsRef.current = ws;
 
     ws.onopen = () => {

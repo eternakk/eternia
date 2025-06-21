@@ -2,7 +2,6 @@ import asyncio
 import logging
 import time
 from pathlib import Path
-from typing import Union
 
 from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi import WebSocket, WebSocketDisconnect
@@ -14,10 +13,10 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette_exporter import PrometheusMiddleware
 
-from modules.monitoring import http_metrics_middleware
 from modules.backup_manager import backup_manager
-from .deps import run_world, world, event_queue, DEV_TOKEN, save_governor_state
-from .auth import auth_router, get_current_active_user, User
+from modules.monitoring import http_metrics_middleware
+from .auth import auth_router, get_current_active_user
+from .deps import run_world, world, event_queue, DEV_TOKEN
 from .routers import (
     agent_router,
     zone_router,
@@ -58,9 +57,7 @@ async def auth(credentials: HTTPAuthorizationCredentials = Depends(security)):
         )
 
     # First try legacy token for backward compatibility
-    # Check if the provided token matches DEV_TOKEN or starts with DEV_TOKEN
-    # This handles cases where there might be extra characters at the end
-    if credentials.credentials == DEV_TOKEN or credentials.credentials.startswith(DEV_TOKEN):
+    if credentials.credentials == DEV_TOKEN:
         return credentials.credentials
 
     # If not legacy token, try JWT authentication
@@ -78,14 +75,7 @@ async def auth(credentials: HTTPAuthorizationCredentials = Depends(security)):
         )
 
 
-app = FastAPI(
-    title="Eterna Control API",
-    version="0.1.0",
-    description="API for controlling and monitoring the Eternia simulation",
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json",
-)
+app = FastAPI(title="Eterna Control API", version="0.1.0")
 
 # Add rate limiter exception handler
 app.state.limiter = limiter
@@ -106,7 +96,7 @@ app.include_router(monitoring_router)
 origins = [
     "http://localhost:5173",  # Vite dev server
     "http://localhost:8000",  # API server (for same-origin requests)
-    "http://localhost",       # For requests without port specified
+    "http://localhost",  # For requests without port specified
     "https://eternia.example.com",  # Production
     "https://staging.eternia.example.com",  # Staging
     "*",  # Allow all origins temporarily to debug CORS issues
@@ -143,6 +133,7 @@ app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 # ─────────────────────────────  TOKEN  ──────────────────────────────
 
+
 @app.get(
     "/api/token",
     summary="Get API token",
@@ -153,7 +144,7 @@ app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
         429: {"description": "Rate limit exceeded"},
     },
 )
-@limiter.limit("30/minute")
+@limiter.limit("10/minute")
 async def get_token(request: Request):
     """
     Get the API token for authentication.
@@ -216,9 +207,7 @@ async def websocket_endpoint(ws: WebSocket):
             return
 
         token = auth_message.get("token")
-        # Check if the provided token matches DEV_TOKEN or starts with DEV_TOKEN
-        # This handles cases where there might be extra characters at the end
-        if token != DEV_TOKEN and not token.startswith(DEV_TOKEN):
+        if token != DEV_TOKEN:
             logger.warning(f"Invalid WebSocket authentication token from {client}")
             await ws.close(code=1008)
             return

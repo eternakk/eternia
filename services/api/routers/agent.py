@@ -2,17 +2,12 @@ import logging
 from typing import List, Dict, Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from slowapi import Limiter
-from slowapi.util import get_remote_address
-
 from ..auth import get_current_active_user, Permission, User
 from ..deps import world
+from ..limiter import limiter  # Import the shared limiter instance
 
 # Configure logging
 logger = logging.getLogger(__name__)
-
-# Set up rate limiting
-limiter = Limiter(key_func=get_remote_address)
 
 # Create router
 router = APIRouter(

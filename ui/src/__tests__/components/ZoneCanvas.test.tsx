@@ -24,7 +24,7 @@ vi.mock('axios', () => {
 // Now import the modules that use axios
 import { render, screen } from '../../test/utils';
 import ZoneCanvas from '../../components/ZoneCanvas';
-import { WorldStateProvider } from '../../contexts/WorldStateContext';
+import { WorldStateProvider, useWorldState } from '../../contexts/WorldStateContext';
 
 // Mock the WorldStateContext hooks
 vi.mock('../../contexts/WorldStateContext', async () => {

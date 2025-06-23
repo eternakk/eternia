@@ -35,8 +35,18 @@ interface FeatureFlagContextType {
 }
 
 // Create the context with a default value
+const defaultFlags: Record<FeatureFlagName, FeatureFlag> = {
+    'advanced-search': { name: 'advanced-search', enabled: false },
+    'new-dashboard-layout': { name: 'new-dashboard-layout', enabled: false },
+    'admin-analytics': { name: 'admin-analytics', enabled: false },
+    'real-time-collaboration': { name: 'real-time-collaboration', enabled: false },
+    'experimental-ai-suggestions': { name: 'experimental-ai-suggestions', enabled: false },
+    'beta-features': { name: 'beta-features', enabled: false },
+    'enhanced-visualization': { name: 'enhanced-visualization', enabled: false },
+};
+
 const FeatureFlagContext = createContext<FeatureFlagContextType>({
-    flags: {},
+    flags: defaultFlags,
     isFeatureEnabled: () => false,
     updateFeatureFlag: () => {
     },

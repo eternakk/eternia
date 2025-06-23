@@ -25,12 +25,12 @@ const getEmotionDisplay = (emotion: string | null) => {
 const StressLevelBar = ({ level }: { level: number }) => {
   // Normalize level to 0-100 range
   const normalizedLevel = Math.min(Math.max(level, 0), 100);
-  
+
   // Determine color based on stress level
   let color = 'bg-green-500';
   if (normalizedLevel > 70) color = 'bg-red-500';
   else if (normalizedLevel > 40) color = 'bg-yellow-500';
-  
+
   return (
     <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700" role="progressbar" aria-valuenow={normalizedLevel} aria-valuemin={0} aria-valuemax={100}>
       <div className={`${color} h-2.5 rounded-full`} style={{ width: `${normalizedLevel}%` }}></div>
@@ -43,7 +43,7 @@ export default function AgentDashboard() {
     const [error, setError] = useState<Error | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [currentAgentIndex, setCurrentAgentIndex] = useState<number>(0);
-    const { state, refreshState } = useWorldState(); // Use WorldStateContext for auto-refresh
+    const { refreshState } = useWorldState(); // Use WorldStateContext for auto-refresh
 
     // Pagination state for desktop view
     const [currentPage, setCurrentPage] = useState<number>(1);
@@ -91,7 +91,7 @@ export default function AgentDashboard() {
                     ...agent,
                     stressLevel: Math.floor(Math.random() * 100)
                 }));
-                
+
                 // Update state and cache
                 setAgents(agentsWithStress);
                 cacheRef.current = {
@@ -247,7 +247,7 @@ export default function AgentDashboard() {
                     <div className="col-span-2">Mood</div>
                     <div className="col-span-2">Stress</div>
                 </div>
-                
+
                 <div 
                     id="agents-grid"
                     className="grid grid-cols-1 gap-4"
@@ -256,7 +256,7 @@ export default function AgentDashboard() {
                 >
                     {currentAgents.map((agent: any) => {
                         const emotionDisplay = getEmotionDisplay(agent.emotion);
-                        
+
                         return (
                             <div 
                                 key={agent.name} 

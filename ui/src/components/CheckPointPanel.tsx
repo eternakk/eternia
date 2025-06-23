@@ -148,7 +148,15 @@ export default function CheckpointPanel() {
   // Parse and sort checkpoints
   const checkpoints = files
     .map(parseCheckpointInfo)
-    .sort((a: CheckpointInfo, b: CheckpointInfo) => b.sortKey - a.sortKey); // Sort newest first
+    .sort((a: CheckpointInfo, b: CheckpointInfo) => {
+      // Handle both number and string types for sortKey
+      if (typeof a.sortKey === 'number' && typeof b.sortKey === 'number') {
+        return b.sortKey - a.sortKey; // Sort newest first for timestamps
+      } else {
+        // Convert to strings for comparison if they're not both numbers
+        return String(b.sortKey).localeCompare(String(a.sortKey));
+      }
+    });
 
   return (
     <div className="p-4 border rounded-xl shadow bg-white">

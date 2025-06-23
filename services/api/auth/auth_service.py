@@ -131,13 +131,23 @@ def verify_token(token: str) -> TokenData:
     Raises:
         HTTPException: If the token is invalid
     """
+    # Log token verification attempt (partial token for security)
+    token_preview = token[:5] + "..." if len(token) > 10 else "***"
+    logger.info(f"Verifying JWT token: {token_preview}")
+
     try:
+        logger.info("Attempting to decode JWT token")
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        logger.info("JWT token decoded successfully")
+
         username: str = payload.get("sub")
         role: str = payload.get("role")
         exp: int = payload.get("exp")
 
+        logger.info(f"JWT token claims - username: {username}, role: {role}, exp: {exp}")
+
         if username is None or role is None:
+            logger.warning(f"Invalid JWT token claims - username: {username}, role: {role}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token claims",
@@ -147,8 +157,20 @@ def verify_token(token: str) -> TokenData:
         # Convert exp to datetime
         exp_datetime = datetime.fromtimestamp(exp)
 
+        # Check if token is expired
+        now = datetime.utcnow()
+        if exp_datetime < now:
+            logger.warning(f"JWT token expired at {exp_datetime}, current time: {now}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token expired",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        logger.info(f"JWT token valid until {exp_datetime}")
         return TokenData(username=username, role=UserRole(role), exp=exp_datetime)
-    except InvalidTokenError:
+    except InvalidTokenError as e:
+        logger.warning(f"JWT token validation failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",
@@ -168,21 +190,44 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
     Raises:
         HTTPException: If the token is invalid or the user doesn't exist
     """
-    token_data = verify_token(token)
-    user = users.get(token_data.username)
-    if user is None:
+    logger.info("Getting current user from token")
+    try:
+        token_data = verify_token(token)
+        logger.info(f"Token verified for username: {token_data.username}")
+
+        user = users.get(token_data.username)
+        if user is None:
+            logger.warning(f"User not found: {token_data.username}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        logger.info(f"User found: {user.username}, active: {user.is_active}")
+
+        if not user.is_active:
+            logger.warning(f"Inactive user: {user.username}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Inactive user",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        # Update last login time
+        user.last_login = datetime.utcnow()
+        logger.info(f"User {user.username} authenticated successfully, last login updated: {user.last_login}")
+
+        return user
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in get_current_user: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-            headers={"WWW-Authenticate": "Bearer"},
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error during authentication",
         )
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Inactive user",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return user
 
 async def get_current_active_user(current_user: User = Depends(get_current_user)) -> User:
     """
@@ -197,8 +242,13 @@ async def get_current_active_user(current_user: User = Depends(get_current_user)
     Raises:
         HTTPException: If the user is inactive
     """
+    logger.info(f"Verifying active status for user: {current_user.username}")
+
     if not current_user.is_active:
+        logger.warning(f"User {current_user.username} is inactive")
         raise HTTPException(status_code=400, detail="Inactive user")
+
+    logger.info(f"User {current_user.username} is active and authenticated")
     return current_user
 
 def check_permission(permission: Permission):

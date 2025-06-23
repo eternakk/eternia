@@ -128,6 +128,50 @@ class TestAPIIntegration:
             assert data[0]["emotion"] == "Peaceful"
             assert data[0]["modifiers"] == ["Modifier1", "Modifier2"]
 
+    def test_list_rituals(self, client, auth_headers):
+        """Test that the /api/rituals endpoint returns rituals and authentication works."""
+        response = client.get("/api/rituals", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        # Just verify we get a list of rituals with the expected structure
+        assert isinstance(data, list)
+        assert len(data) > 0
+        # Check that each ritual has the expected fields
+        for ritual in data:
+            assert "id" in ritual
+            assert "name" in ritual
+            assert "purpose" in ritual
+            assert "steps" in ritual
+            assert "symbolic_elements" in ritual
+
+    def test_trigger_ritual(self, client, auth_headers):
+        """Test that the /api/rituals/trigger/{id} endpoint works correctly."""
+        # Test triggering a ritual
+        response = client.post("/api/rituals/trigger/0", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        assert "triggered" in data["message"]
+
+        # This test verifies that authentication works and the endpoint returns a success response
+        # We don't need to verify the specific ritual name or mock the world object
+        # since we're primarily testing the authentication mechanism
+
+    def test_ritual_authentication(self, client):
+        """Test that ritual endpoints require authentication."""
+        # Test with invalid token
+        invalid_headers = {"Authorization": "Bearer invalid_token"}
+        response = client.get("/api/rituals", headers=invalid_headers)
+        assert response.status_code == 401, f"Expected 401 for invalid token, got {response.status_code}"
+
+        # Test with missing token
+        response = client.get("/api/rituals")
+        assert response.status_code == 403, f"Expected 403 for missing token, got {response.status_code}"
+
+        # Test trigger endpoint with invalid token
+        response = client.post("/api/rituals/trigger/0", headers=invalid_headers)
+        assert response.status_code == 401, f"Expected 401 for invalid token, got {response.status_code}"
+
     def test_authentication(self, client):
         """Test that endpoints requiring authentication reject unauthorized requests."""
         # Test with invalid token

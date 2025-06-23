@@ -47,14 +47,14 @@ class TestAPIIntegration:
     def test_command_pause_resume(self, client, auth_headers):
         """Test that the pause and resume commands work correctly."""
         # Test pause command
-        with patch("services.api.deps.governor") as mock_governor:
+        with patch("services.api.routers.command.governor") as mock_governor:
             response = client.post("/command/pause", headers=auth_headers)
             assert response.status_code == 200
             assert response.json()["status"] == "paused"
             mock_governor.pause.assert_called_once()
 
         # Test resume command
-        with patch("services.api.deps.governor") as mock_governor:
+        with patch("services.api.routers.command.governor") as mock_governor:
             mock_governor.is_shutdown.return_value = False
             response = client.post("/command/resume", headers=auth_headers)
             assert response.status_code == 200
@@ -63,8 +63,8 @@ class TestAPIIntegration:
 
     def test_command_shutdown(self, client, auth_headers):
         """Test that the shutdown command works correctly."""
-        with patch("services.api.deps.governor") as mock_governor, \
-             patch("services.api.deps.save_governor_state") as mock_save:
+        with patch("services.api.routers.command.governor") as mock_governor, \
+             patch("services.api.routers.command.save_governor_state") as mock_save:
             response = client.post("/command/shutdown", headers=auth_headers)
             assert response.status_code == 200
             assert response.json()["status"] == "shutdown"
@@ -73,60 +73,35 @@ class TestAPIIntegration:
 
     def test_command_rollback(self, client, auth_headers):
         """Test that the rollback command works correctly."""
-        with patch("services.api.deps.governor") as mock_governor:
+        with patch("services.api.routers.command.governor") as mock_governor:
             response = client.post("/command/rollback", headers=auth_headers)
             assert response.status_code == 200
             assert response.json()["status"] == "rolled_back"
             mock_governor.rollback.assert_called_once_with(None)
 
-    def test_list_agents(self, client, auth_headers):
+    def test_list_agents(self, client, auth_headers, patched_world):
         """Test that the /api/agents endpoint returns the correct agents."""
-        with patch("services.api.deps.world") as mock_world:
-            # Create mock companions
-            mock_companion = MagicMock()
-            mock_companion.name = "TestCompanion"
-            mock_companion.role = "TestRole"
-            mock_companion.emotion = "Happy"
-            mock_companion.zone = "TestZone"
-            mock_companion.memory = ["Memory1", "Memory2"]
+        response = client.get("/api/agents", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["name"] == "TestCompanion"
+        assert data[0]["role"] == "TestRole"
+        assert data[0]["emotion"] == "Happy"
+        assert data[0]["zone"] == "TestZone"
 
-            # Set up the mock world to return our mock companions
-            mock_world.eterna.companions.companions = [mock_companion]
-
-            response = client.get("/api/agents", headers=auth_headers)
-            assert response.status_code == 200
-            data = response.json()
-            assert len(data) == 1
-            assert data[0]["name"] == "TestCompanion"
-            assert data[0]["role"] == "TestRole"
-            assert data[0]["emotion"] == "Happy"
-            assert data[0]["zone"] == "TestZone"
-
-    def test_list_zones(self, client, auth_headers):
+    def test_list_zones(self, client, auth_headers, patched_world):
         """Test that the /api/zones endpoint returns the correct zones."""
-        with patch("services.api.deps.world") as mock_world:
-            # Create mock zone
-            mock_zone = MagicMock()
-            mock_zone.name = "TestZone"
-            mock_zone.origin = "TestOrigin"
-            mock_zone.complexity_level = 3
-            mock_zone.explored = True
-            mock_zone.emotion_tag = "Peaceful"
-            mock_zone.modifiers = ["Modifier1", "Modifier2"]
-
-            # Set up the mock world to return our mock zone
-            mock_world.eterna.exploration.registry.zones = [mock_zone]
-
-            response = client.get("/api/zones", headers=auth_headers)
-            assert response.status_code == 200
-            data = response.json()
-            assert len(data) == 1
-            assert data[0]["name"] == "TestZone"
-            assert data[0]["origin"] == "TestOrigin"
-            assert data[0]["complexity"] == 3
-            assert data[0]["explored"] is True
-            assert data[0]["emotion"] == "Peaceful"
-            assert data[0]["modifiers"] == ["Modifier1", "Modifier2"]
+        response = client.get("/api/zones", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["name"] == "TestZone"
+        assert data[0]["origin"] == "TestOrigin"
+        assert data[0]["complexity"] == 3
+        assert data[0]["explored"] is True
+        assert data[0]["emotion"] == "Peaceful"
+        assert data[0]["modifiers"] == ["Modifier1", "Modifier2"]
 
     def test_list_rituals(self, client, auth_headers):
         """Test that the /api/rituals endpoint returns rituals and authentication works."""

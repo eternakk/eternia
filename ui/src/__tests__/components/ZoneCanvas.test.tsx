@@ -24,14 +24,37 @@ vi.mock('axios', () => {
 // Now import the modules that use axios
 import { render, screen } from '../../test/utils';
 import ZoneCanvas from '../../components/ZoneCanvas';
-import { useAppState } from '../../contexts/AppStateContext';
+import { WorldStateProvider } from '../../contexts/WorldStateContext';
 
-// Mock the useAppState hook
-vi.mock('../../contexts/AppStateContext', async () => {
-  const actual = await vi.importActual('../../contexts/AppStateContext');
+// Mock the WorldStateContext hooks
+vi.mock('../../contexts/WorldStateContext', async () => {
+  const actual = await vi.importActual('../../contexts/WorldStateContext');
   return {
     ...actual,
-    useAppState: vi.fn(),
+    useWorldState: vi.fn().mockReturnValue({
+      state: {
+        worldState: null,
+        isLoading: false,
+        error: null,
+        lastUpdated: null,
+        currentZone: null,
+        zoneModifiers: {},
+      },
+      dispatch: vi.fn(),
+      refreshState: vi.fn(),
+      setCurrentZone: vi.fn(),
+      getModifiersForZone: vi.fn().mockReturnValue([]),
+    }),
+    useCurrentZone: vi.fn().mockReturnValue({
+      currentZone: null,
+      setCurrentZone: vi.fn(),
+    }),
+    useZoneModifiers: vi.fn().mockReturnValue({
+      zoneModifiers: {},
+      getModifiersForZone: vi.fn().mockReturnValue([]),
+    }),
+    // Keep the actual WorldStateProvider implementation
+    WorldStateProvider: actual.WorldStateProvider,
   };
 });
 
@@ -58,38 +81,54 @@ describe('ZoneCanvas', () => {
   });
 
   it('renders loading state when state is loading', () => {
-    // Mock the useAppState hook to return loading state
-    vi.mocked(useAppState).mockReturnValue({
+    // Mock the useWorldState hook to return loading state
+    vi.mocked(useWorldState).mockReturnValue({
       state: {
         worldState: null,
         isLoading: true,
         error: null,
         lastUpdated: null,
+        currentZone: null,
+        zoneModifiers: {},
       },
       dispatch: vi.fn(),
       refreshState: vi.fn(),
+      setCurrentZone: vi.fn(),
+      getModifiersForZone: vi.fn().mockReturnValue([]),
     });
 
-    render(<ZoneCanvas />);
+    render(
+      <WorldStateProvider>
+        <ZoneCanvas />
+      </WorldStateProvider>
+    );
 
     // Check that the loading message is rendered
     expect(screen.getByText(/Loading state/i)).toBeInTheDocument();
   });
 
   it('renders error state when there is an error', () => {
-    // Mock the useAppState hook to return error state
-    vi.mocked(useAppState).mockReturnValue({
+    // Mock the useWorldState hook to return error state
+    vi.mocked(useWorldState).mockReturnValue({
       state: {
         worldState: null,
         isLoading: false,
         error: new Error('Test error'),
         lastUpdated: null,
+        currentZone: null,
+        zoneModifiers: {},
       },
       dispatch: vi.fn(),
       refreshState: vi.fn(),
+      setCurrentZone: vi.fn(),
+      getModifiersForZone: vi.fn().mockReturnValue([]),
     });
 
-    render(<ZoneCanvas />);
+    render(
+      <WorldStateProvider>
+        <ZoneCanvas />
+      </WorldStateProvider>
+    );
 
     // Check that the error message is rendered
     expect(screen.getByText(/Error loading scene/i)).toBeInTheDocument();

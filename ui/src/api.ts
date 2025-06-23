@@ -201,24 +201,24 @@ export const fetchToken = async () => {
         // Reset retry counter on success
         tokenFetchRetries = 0;
         return TOKEN;
-      } catch (error) {
+      } catch (error: unknown) {
         console.group('Token Fetch Error');
         console.error('Failed to fetch token:', error);
 
         // Log more details about the error
-        if (error.response) {
+        if (axios.isAxiosError(error) && error.response) {
           // The request was made and the server responded with a status code
           // that falls out of the range of 2xx
           console.error(`Server responded with status ${error.response.status}`);
           console.error('Response data:', error.response.data);
           console.error('Response headers:', error.response.headers);
-        } else if (error.request) {
+        } else if (axios.isAxiosError(error) && error.request) {
           // The request was made but no response was received
           console.error('No response received from server');
           console.error('Request details:', error.request);
         } else {
           // Something happened in setting up the request that triggered an Error
-          console.error('Error setting up request:', error.message);
+          console.error('Error setting up request:', error instanceof Error ? error.message : String(error));
         }
         console.groupEnd();
 
@@ -290,8 +290,8 @@ export const fetchToken = async () => {
           console.log(`Token fetch failed, will clear promise in ${clearDelay/1000}s`);
         }
 
-        // Use a unique variable for the timeout to avoid closure issues
-        const timeoutId = setTimeout(() => {
+        // Set timeout to clear the promise
+        setTimeout(() => {
           console.log('Clearing token fetch promise');
           // Only clear if this is still the current promise
           if (tokenFetchPromise === currentPromise) {
@@ -395,8 +395,8 @@ api.interceptors.response.use(
           console.error("Token refresh returned null, cannot retry request");
           return Promise.reject(error);
         }
-      } catch (refreshError) {
-        console.error(`Failed to refresh token: ${refreshError.message}`);
+      } catch (refreshError: unknown) {
+        console.error(`Failed to refresh token: ${refreshError instanceof Error ? refreshError.message : String(refreshError)}`);
         // Add the refresh error to the original error for better debugging
         error.refreshError = refreshError;
         return Promise.reject(error);
@@ -567,10 +567,10 @@ const ensureToken = async () => {
             // If we get here, the retry returned null but didn't throw
             console.error(`Immediate retry returned null after attempt ${currentRetryCount + 1}`);
             throw new Error(`Failed to fetch authentication token after immediate retry (${currentRetryCount}/${MAX_TOKEN_FETCH_RETRIES})`);
-          } catch (retryError) {
+          } catch (retryError: unknown) {
             // If the retry threw an error, log it and throw a more informative error
             console.error(`Error during immediate retry attempt ${currentRetryCount + 1}:`, retryError);
-            throw new Error(`Failed to fetch authentication token after immediate retry (${currentRetryCount}/${MAX_TOKEN_FETCH_RETRIES}): ${retryError.message}`);
+            throw new Error(`Failed to fetch authentication token after immediate retry (${currentRetryCount}/${MAX_TOKEN_FETCH_RETRIES}): ${retryError instanceof Error ? retryError.message : String(retryError)}`);
           }
         } else {
           // If we've exceeded max retries, throw a more detailed error
@@ -578,17 +578,22 @@ const ensureToken = async () => {
           throw new Error('Failed to fetch authentication token after maximum retries');
         }
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error in ensureToken:', error);
 
       // Add more context to the error for better debugging
-      if (error.message.includes('Network Error')) {
-        throw new Error('Failed to fetch authentication token: Network error. Please check your connection.');
-      } else if (error.message.includes('timeout')) {
-        throw new Error('Failed to fetch authentication token: Request timed out. Server might be overloaded.');
+      if (error instanceof Error) {
+        if (error.message.includes('Network Error')) {
+          throw new Error('Failed to fetch authentication token: Network error. Please check your connection.');
+        } else if (error.message.includes('timeout')) {
+          throw new Error('Failed to fetch authentication token: Request timed out. Server might be overloaded.');
+        } else {
+          // Rethrow the original error with more context
+          throw new Error(`Failed to fetch authentication token: ${error.message}`);
+        }
       } else {
-        // Rethrow the original error with more context
-        throw new Error(`Failed to fetch authentication token: ${error.message}`);
+        // Handle non-Error objects
+        throw new Error(`Failed to fetch authentication token: ${String(error)}`);
       }
     }
   }
@@ -736,6 +741,7 @@ export interface Agent {
     emotion: string | null;
     zone: string | Zone | null;
     memory: any;
+    stressLevel: number;
 }
 
 // Add function to fetch agents

@@ -142,10 +142,13 @@ export default function CheckpointPanel() {
 
   if (!files) return null;
 
+  // Define the type for checkpoint info
+  type CheckpointInfo = ReturnType<typeof parseCheckpointInfo>;
+
   // Parse and sort checkpoints
   const checkpoints = files
     .map(parseCheckpointInfo)
-    .sort((a, b) => b.sortKey - a.sortKey); // Sort newest first
+    .sort((a: CheckpointInfo, b: CheckpointInfo) => b.sortKey - a.sortKey); // Sort newest first
 
   return (
     <div className="p-4 border rounded-xl shadow bg-white">
@@ -184,7 +187,7 @@ export default function CheckpointPanel() {
             </div>
 
             {/* List of checkpoints */}
-            {checkpoints.map((checkpoint, index) => (
+            {checkpoints.map((checkpoint: CheckpointInfo, index: number) => (
               <div 
                 key={`${checkpoint.filename}-${index}`}
                 className={`p-2 grid grid-cols-12 gap-2 items-center hover:bg-blue-50 cursor-pointer ${selectedCheckpoint === checkpoint.filename ? 'bg-blue-100' : ''}`}

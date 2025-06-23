@@ -106,7 +106,7 @@ const formatMessageWithLinks = (message: string): React.ReactNode => {
 /**
  * Component to format JSON data in a user-friendly way
  */
-const JsonFormatter = ({ data }: { data: any }): JSX.Element => {
+const JsonFormatter = ({ data }: { data: any }): React.ReactElement => {
   // For simple error objects with a message property
   if (data && typeof data === 'object' && data.message) {
     return <span>{data.message}</span>;

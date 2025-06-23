@@ -173,19 +173,21 @@ origins = [
     "http://localhost",  # For requests without port specified
     "https://eternia.example.com",  # Production
     "https://staging.eternia.example.com",  # Staging
-    "*",  # Allow all origins temporarily to debug CORS issues
+    # Remove wildcard "*" as it's not compatible with allow_credentials=True
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],  # Include OPTIONS for preflight requests
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],  # Include all methods that might be used
     allow_headers=[
         "Authorization",
         "Content-Type",
         "Access-Control-Allow-Origin",
-    ],  # Restrict to only necessary headers
+        "Accept",
+        "X-Requested-With",
+    ],  # Include common headers needed by browsers
 )
 
 # Add Prometheus middleware for metrics collection

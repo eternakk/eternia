@@ -255,12 +255,16 @@ const ZoneDetails = ({
 
 // Memoize the ZoneCanvas component to prevent unnecessary re-renders
 const ZoneCanvas = () => {
-    const {state} = useWorldState();
+    const worldStateResult = useWorldState();
+    const state = worldStateResult?.state ?? { worldState: null, isLoading: false, error: null };
     const {worldState, isLoading: isStateLoading, error} = state;
-    const {currentZone} = useCurrentZone(); // Use the currentZone from WorldStateContext
-    const {getModifiersForZone} = useZoneModifiers(); // Use the zone modifiers from WorldStateContext
+    const currentZoneResult = useCurrentZone();
+    const currentZone = currentZoneResult?.currentZone ?? null; // Use the currentZone from WorldStateContext with fallback
+    const zoneModifiersResult = useZoneModifiers();
+    const getModifiersForZone = zoneModifiersResult?.getModifiersForZone ?? (() => []); // Use the zone modifiers with fallback
     const [assets, setAssets] = useState<Assets | null>(null);
-    const {handleApiError} = useErrorHandler();
+    const errorHandlerResult = useErrorHandler();
+    const handleApiError = errorHandlerResult?.handleApiError ?? ((error: any, message?: string) => console.error(message, error));
 
     // State for zone details modal
     const [showZoneDetails, setShowZoneDetails] = useState(false);

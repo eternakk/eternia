@@ -1,22 +1,25 @@
 import asyncio
-import os
 import json
-import secrets
 import logging
+import os
+import secrets
 from pathlib import Path
-from world_builder import build_world
+
+from modules.api_interface import APIInterface
+from modules.dependency_injection import get_container
 from modules.governor import AlignmentGovernor
 from modules.utilities.event_adapter import setup_legacy_adapter
-from modules.api_interface import APIInterface
-from modules.dependency_injection import get_container, DependencyContainer
+from world_builder import build_world
 
 # Generate a secure token if not provided in environment
-if not os.getenv("ETERNA_TOKEN"):
+# Check for both ETERNA_TOKEN and VITE_ETERNA_TOKEN environment variables
+TOKEN_ENV = os.getenv("ETERNA_TOKEN") or os.getenv("VITE_ETERNA_TOKEN")
+if not TOKEN_ENV:
     # Only generate a new token if one doesn't exist in the token file
     TOKEN_FILE = Path("artifacts/auth_token.txt")
     if TOKEN_FILE.exists():
         try:
-            with open(TOKEN_FILE, 'r') as f:
+            with open(TOKEN_FILE, "r") as f:
                 DEV_TOKEN = f.read().strip()
         except Exception as e:
             logging.error(f"Error reading token file: {e}")
@@ -26,12 +29,12 @@ if not os.getenv("ETERNA_TOKEN"):
         # Save the token to a file for persistence
         try:
             TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True)
-            with open(TOKEN_FILE, 'w') as f:
+            with open(TOKEN_FILE, "w") as f:
                 f.write(DEV_TOKEN)
         except Exception as e:
             logging.error(f"Error saving token file: {e}")
 else:
-    DEV_TOKEN = os.getenv("ETERNA_TOKEN")
+    DEV_TOKEN = TOKEN_ENV
 
 event_queue: asyncio.Queue = asyncio.Queue(maxsize=1000)
 
@@ -42,7 +45,10 @@ STATE_FILE = Path("artifacts/governor_state.json")
 container = get_container()
 
 # Check if the container already has the world and governor
-if "eterna_interface" not in container._instances and "governor" not in container._instances:
+if (
+        "eterna_interface" not in container._instances
+        and "governor" not in container._instances
+):
     # Build the world and register it with the container
     world = build_world()
     container.register_instance("eterna_interface", world.eterna)
@@ -65,6 +71,7 @@ api_interface.initialize()
 # Set up the legacy event adapter to forward events from the event bus to the legacy event queue
 legacy_adapter = setup_legacy_adapter(event_queue)
 
+
 # Load governor state if exists
 def load_governor_state():
     """
@@ -78,7 +85,7 @@ def load_governor_state():
         if not STATE_FILE.is_absolute():
             STATE_FILE.resolve()
 
-        with open(STATE_FILE, 'r') as f:
+        with open(STATE_FILE, "r") as f:
             state = json.load(f)
 
             # Validate the JSON structure
@@ -87,14 +94,15 @@ def load_governor_state():
                 return
 
             # Use the api_interface to access the governor
-            api_interface.governor._shutdown = state.get('shutdown', False)
-            api_interface.governor._paused = state.get('paused', False)
+            api_interface.governor._shutdown = state.get("shutdown", False)
+            api_interface.governor._paused = state.get("paused", False)
     except json.JSONDecodeError as e:
         logging.error(f"Invalid JSON in governor state file: {e}")
     except PermissionError as e:
         logging.error(f"Permission denied when reading governor state: {e}")
     except Exception as e:
         logging.error(f"Error loading governor state: {e}")
+
 
 # Save governor state
 def save_governor_state(shutdown=False, paused=False):
@@ -110,12 +118,9 @@ def save_governor_state(shutdown=False, paused=False):
             STATE_FILE.resolve()
 
         # Write to a temporary file first, then rename to ensure atomic write
-        temp_file = STATE_FILE.with_suffix('.tmp')
-        with open(temp_file, 'w') as f:
-            json.dump({
-                'shutdown': bool(shutdown),
-                'paused': bool(paused)
-            }, f)
+        temp_file = STATE_FILE.with_suffix(".tmp")
+        with open(temp_file, "w") as f:
+            json.dump({"shutdown": bool(shutdown), "paused": bool(paused)}, f)
 
         # Rename the temporary file to the actual file
         temp_file.replace(STATE_FILE)
@@ -124,12 +129,14 @@ def save_governor_state(shutdown=False, paused=False):
     except Exception as e:
         logging.error(f"Error saving governor state: {e}")
 
+
 # Load governor state on startup, but ensure we're not in shutdown state
 # to allow cycles to start running immediately
 load_governor_state()
 api_interface.governor._shutdown = False  # Ensure we're not in shutdown state
-api_interface.governor._paused = False    # Ensure we're not in paused state
+api_interface.governor._paused = False  # Ensure we're not in paused state
 save_governor_state(False, False)  # Save the non-shutdown, non-paused state
+
 
 # ---------------- simulation task ----------------
 async def run_world():
@@ -137,9 +144,13 @@ async def run_world():
         # Check if the governor is shutdown or paused and save the state
         if api_interface.governor.is_shutdown():
             # Save governor state to persist across page reloads
-            save_governor_state(shutdown=True, paused=api_interface.governor.is_paused())
+            save_governor_state(
+                shutdown=True, paused=api_interface.governor.is_paused()
+            )
             # Wait for a long time to effectively stop the simulation
-            await asyncio.sleep(10)  # Check every 10 seconds if shutdown is still active
+            await asyncio.sleep(
+                10
+            )  # Check every 10 seconds if shutdown is still active
             continue  # Continue checking instead of breaking to allow for resume
         elif api_interface.governor.is_paused():
             # Save governor state to persist across page reloads
@@ -157,8 +168,8 @@ async def run_world():
             api_interface.world.step()
             # Use the api_interface to access the world's runtime
             api_interface.world.eterna.runtime.cycle_count += 1  # Increment cycle count
-            await asyncio.sleep(0)   # yield when running
+            await asyncio.sleep(0)  # yield when running
         else:
             # This case is handled above now, but keep as a fallback
             # When paused, add a longer delay to prevent CPU spinning
-            await asyncio.sleep(0.5) # longer delay when paused
+            await asyncio.sleep(0.5)  # longer delay when paused

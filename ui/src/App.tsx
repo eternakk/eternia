@@ -5,10 +5,9 @@ import AgentDashboard from "./components/AgentDashboard";
 import ZoneViewer from "./components/ZoneViewer";
 import NotificationContainer from "./components/NotificationContainer";
 import {NotificationProvider} from "./contexts/NotificationContext";
-import {AppStateProvider} from "./contexts/AppStateContext";
-import {ZoneProvider} from "./contexts/ZoneContext";
 import {LoadingProvider} from "./contexts/LoadingContext";
 import {FeatureFlagProvider} from "./contexts/FeatureFlagContext";
+import {WorldStateProvider} from "./contexts/WorldStateContext";
 import GlobalLoadingIndicator from "./components/GlobalLoadingIndicator";
 import {createLazyComponent} from "./components/LazyLoad";
 import featureFlags from "./config/featureFlags";
@@ -24,7 +23,7 @@ export default function App() {
         <FeatureFlagProvider initialFlags={featureFlags}>
             <NotificationProvider>
                 <LoadingProvider>
-                    <AppStateProvider refreshInterval={3000}>
+                    <WorldStateProvider refreshInterval={3000}>
                         <div className="min-h-screen bg-slate-100 flex flex-col">
                             <header className="p-4 bg-slate-900 text-white text-lg font-bold">
                                 Eterna Mission‑Control
@@ -37,13 +36,9 @@ export default function App() {
                                 <CheckpointPanel/>
 
                                 <div className="md:col-span-3">
-                                    <ZoneProvider>
-                                        <LazyZoneCanvas/>
-                                    </ZoneProvider>
+                                    <LazyZoneCanvas/>
                                 </div>
-                                <ZoneProvider>
-                                    <ZoneViewer/>
-                                </ZoneProvider>
+                                <ZoneViewer/>
 
                                 <div className="md:col-span-3">
                                     <LazyLogConsole/>
@@ -57,7 +52,7 @@ export default function App() {
                             {/* Global loading indicator */}
                             <GlobalLoadingIndicator/>
                         </div>
-                    </AppStateProvider>
+                    </WorldStateProvider>
                 </LoadingProvider>
             </NotificationProvider>
         </FeatureFlagProvider>

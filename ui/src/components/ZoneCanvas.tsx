@@ -3,8 +3,7 @@ import {Environment, OrbitControls, useGLTF} from "@react-three/drei";
 import {memo, Suspense, useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {Bloom, EffectComposer} from "@react-three/postprocessing";
 import {useErrorHandler} from "../utils/errorHandling";
-import {useAppState} from "../contexts/AppStateContext";
-import {useZone} from "../contexts/ZoneContext";
+import {useCurrentZone, useWorldState, useZoneModifiers} from "../contexts/WorldStateContext";
 import {getZoneAssets} from "../api";
 
 // Define types for better type safety
@@ -22,13 +21,13 @@ const Model = memo(({modelUrl}: { modelUrl: string }) => {
 
 // Memoize the Scene component to prevent unnecessary re-renders
 const Scene = memo(({
-    assets, 
-    emotion, 
-    intensity, 
-    modifiers = []
-}: { 
-    assets: Assets; 
-    emotion: string | null; 
+                        assets,
+                        emotion,
+                        intensity,
+                        modifiers = []
+                    }: {
+    assets: Assets;
+    emotion: string | null;
     intensity: number;
     modifiers?: string[];
 }) => {
@@ -85,33 +84,33 @@ const Scene = memo(({
     return (
         <>
             {/* Base lighting adjusted by emotion and modifiers */}
-            <ambientLight 
-                intensity={0.4 + intensity * 0.05 + (visualEffects.luminousCascade ? 0.2 : 0)} 
+            <ambientLight
+                intensity={0.4 + intensity * 0.05 + (visualEffects.luminousCascade ? 0.2 : 0)}
                 color={tint}
             />
 
             {/* Add directional light for volcanic effects */}
             {visualEffects.volcanicSurge && (
-                <directionalLight 
-                    position={[5, 5, 5]} 
-                    intensity={1.5} 
-                    color="#ff4500" 
+                <directionalLight
+                    position={[5, 5, 5]}
+                    intensity={1.5}
+                    color="#ff4500"
                 />
             )}
 
             {/* Add point light for resonance effects */}
             {visualEffects.harmonicResonance && (
-                <pointLight 
-                    position={[0, 2, 0]} 
-                    intensity={1.2} 
-                    color="#7df9ff" 
+                <pointLight
+                    position={[0, 2, 0]}
+                    intensity={1.2}
+                    color="#7df9ff"
                     distance={10}
                 />
             )}
 
             {/* Add fog for shroud effects */}
             {visualEffects.shroudOfMemory && (
-                <fog attach="fog" color="#1e2024" near={1} far={15} args={["#1e2024", 1, 15]} />
+                <fog attach="fog" color="#1e2024" near={1} far={15} args={["#1e2024", 1, 15]}/>
             )}
 
             <Suspense fallback={null}>
@@ -122,13 +121,156 @@ const Scene = memo(({
     );
 });
 
+// Define the ModifierLegend component
+const ModifierLegend = ({modifiers}: { modifiers: string[] }) => {
+    // Define icons and colors for different modifier types
+    const modifierIcons: Record<string, { icon: string, color: string, description: string }> = {
+        "Dimensional Expansion": {
+            icon: "🌌",
+            color: "#8A2BE2",
+            description: "Expands the dimensional properties of the zone"
+        },
+        "Cosmic Awareness": {
+            icon: "👁️",
+            color: "#4B0082",
+            description: "Enhances perception beyond normal limits"
+        },
+        "Luminous Cascade": {
+            icon: "✨",
+            color: "#FFD700",
+            description: "Creates cascading light effects throughout the zone"
+        },
+        "Vibrant Pulse": {
+            icon: "💓",
+            color: "#FF1493",
+            description: "Generates rhythmic energy pulses"
+        },
+        "Shroud of Memory": {
+            icon: "🌫️",
+            color: "#708090",
+            description: "Creates a fog-like effect that obscures distant objects"
+        },
+        "Volcanic Surge": {
+            icon: "🌋",
+            color: "#FF4500",
+            description: "Increases heat and energy in the zone"
+        },
+        "Transformative Heat": {
+            icon: "🔥",
+            color: "#FF8C00",
+            description: "Enables transformation through thermal energy"
+        },
+        "Harmonic Resonance": {
+            icon: "🎵",
+            color: "#1E90FF",
+            description: "Creates harmonious vibrations throughout the zone"
+        },
+        "Connection Weave": {
+            icon: "🕸️",
+            color: "#32CD32",
+            description: "Forms connections between elements in the zone"
+        }
+    };
+
+    // Filter to only show modifiers that are active and have defined icons
+    const activeModifiers = modifiers.filter(mod => modifierIcons[mod]);
+
+    if (activeModifiers.length === 0) return null;
+
+    return (
+        <div className="absolute bottom-4 right-4 bg-black bg-opacity-70 rounded-lg p-2 text-white z-10 max-w-xs">
+            <h3 className="text-sm font-semibold mb-1">Zone Modifiers</h3>
+            <div className="space-y-1 text-xs">
+                {activeModifiers.map((modifier) => (
+                    <div key={modifier} className="flex items-center">
+                        <span
+                            className="mr-2 w-6 h-6 flex items-center justify-center rounded-full"
+                            style={{backgroundColor: modifierIcons[modifier]?.color || '#777'}}
+                        >
+                            {modifierIcons[modifier]?.icon || '❓'}
+                        </span>
+                        <span className="truncate" title={modifier}>{modifier}</span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+// Define the ZoneDetails component
+const ZoneDetails = ({
+                         zoneName,
+                         modifiers,
+                         emotion,
+                         onClose
+                     }: {
+    zoneName: string;
+    modifiers: string[];
+    emotion: string | null;
+    onClose: () => void;
+}) => {
+    return (
+        <div className="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-20">
+            <div className="bg-white rounded-lg p-4 max-w-md w-full max-h-[80vh] overflow-y-auto">
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-bold">{zoneName}</h2>
+                    <button
+                        onClick={onClose}
+                        className="text-gray-500 hover:text-gray-700"
+                        aria-label="Close zone details"
+                    >
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                  d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <div className="mb-4">
+                    <h3 className="font-semibold mb-2">Emotion</h3>
+                    <div
+                        className={`inline-block px-3 py-1 rounded-full emotion-badge emotion-${(emotion || 'neutral').toLowerCase()}`}>
+                        {emotion || "Neutral"}
+                    </div>
+                </div>
+
+                <div>
+                    <h3 className="font-semibold mb-2">Modifiers</h3>
+                    {modifiers.length > 0 ? (
+                        <ul className="space-y-2">
+                            {modifiers.map((modifier) => (
+                                <li key={modifier} className="bg-gray-100 p-2 rounded">
+                                    {modifier}
+                                </li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <p className="text-gray-500">No modifiers active in this zone.</p>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // Memoize the ZoneCanvas component to prevent unnecessary re-renders
 const ZoneCanvas = () => {
-    const {state} = useAppState();
+    const worldStateResult = useWorldState();
+    const state = worldStateResult?.state ?? { worldState: null, isLoading: false, error: null };
     const {worldState, isLoading: isStateLoading, error} = state;
-    const {currentZone, getModifiersForZone} = useZone(); // Use the ZoneContext for current_zone and modifiers
+    const currentZoneResult = useCurrentZone();
+    const currentZone = currentZoneResult?.currentZone ?? null; // Use the currentZone from WorldStateContext with fallback
+    const zoneModifiersResult = useZoneModifiers();
+    const getModifiersForZone = zoneModifiersResult?.getModifiersForZone ?? (() => []); // Use the zone modifiers with fallback
     const [assets, setAssets] = useState<Assets | null>(null);
-    const {handleApiError} = useErrorHandler();
+    const errorHandlerResult = useErrorHandler();
+    const handleApiError = errorHandlerResult?.handleApiError ?? ((error: any, message?: string) => console.error(message, error));
+
+    // State for zone details modal
+    const [showZoneDetails, setShowZoneDetails] = useState(false);
+
+    // Create a ref for the container element to attach click handler
+    const containerRef = useRef<HTMLDivElement>(null);
 
     // Create a ref to store the cache
     const assetsCache = useRef<Record<string, Assets>>({});
@@ -196,6 +338,8 @@ const ZoneCanvas = () => {
             prevZoneRef.current = currentZone;
             if (currentZone) {
                 fetchAssets(currentZone).then();
+                // Close zone details when zone changes
+                setShowZoneDetails(false);
             } else {
                 // Clear assets if zone is null
                 setAssets(null);
@@ -228,6 +372,14 @@ const ZoneCanvas = () => {
         }
     }, [currentZone, getModifiersForZone]);
 
+    // Handle click on the canvas to show zone details
+    const handleCanvasClick = useCallback((e: React.MouseEvent) => {
+        // Only handle clicks on the canvas itself, not on the legend or other overlays
+        if (e.target === e.currentTarget || (e.target as HTMLElement).tagName === 'CANVAS') {
+            setShowZoneDetails(true);
+        }
+    }, []);
+
     // Memoize the entire Canvas component based only on zone and assets
     // This prevents re-renders when only emotion or identity score changes
     // which allows user interactions to persist between state updates
@@ -241,35 +393,68 @@ const ZoneCanvas = () => {
         const currentModifiers = modifiersRef.current;
 
         return (
-            <Canvas key={currentZone} className="h-64 sm:h-80 md:h-96" frameloop="demand">
-                <Suspense fallback={null}>
-                    <Scene
-                        assets={assets}
-                        emotion={currentEmotion}
-                        intensity={currentIdentityScore * 10}
-                        modifiers={currentModifiers}
-                    />
-                    {/* emotion‑driven bloom */}
-                    <EffectComposer>
-                        <Bloom
-                            luminanceThreshold={0}
-                            luminanceSmoothing={0.9}
-                            intensity={0.1 + currentIdentityScore * 0.8}
+            <div
+                ref={containerRef}
+                className="relative h-64 sm:h-80 md:h-96"
+                onClick={handleCanvasClick}
+                role="button"
+                aria-label={`View details for zone ${currentZone}`}
+                tabIndex={0}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setShowZoneDetails(true);
+                    }
+                }}
+            >
+                <Canvas key={currentZone} className="h-full" frameloop="demand">
+                    <Suspense fallback={null}>
+                        <Scene
+                            assets={assets}
+                            emotion={currentEmotion}
+                            intensity={currentIdentityScore * 10}
+                            modifiers={currentModifiers}
                         />
-                    </EffectComposer>
-                </Suspense>
+                        {/* emotion‑driven bloom */}
+                        <EffectComposer>
+                            <Bloom
+                                luminanceThreshold={0}
+                                luminanceSmoothing={0.9}
+                                intensity={0.1 + currentIdentityScore * 0.8}
+                            />
+                        </EffectComposer>
+                    </Suspense>
 
-                <OrbitControls 
-                    enablePan={true}
-                    enableZoom={true}
-                    enableRotate={true}
-                    makeDefault
-                    minDistance={2}
-                    maxDistance={10}
+                    <OrbitControls
+                        enablePan={true}
+                        enableZoom={true}
+                        enableRotate={true}
+                        makeDefault
+                        minDistance={2}
+                        maxDistance={10}
                     />
-            </Canvas>
+                </Canvas>
+
+                {/* Overlay the legend */}
+                <ModifierLegend modifiers={currentModifiers}/>
+
+                {/* Instruction overlay */}
+                <div className="absolute top-4 left-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded text-sm">
+                    Click to view zone details
+                </div>
+
+                {/* Zone details modal */}
+                {showZoneDetails && currentZone && (
+                    <ZoneDetails
+                        zoneName={currentZone}
+                        modifiers={currentModifiers}
+                        emotion={currentEmotion}
+                        onClose={() => setShowZoneDetails(false)}
+                    />
+                )}
+            </div>
         );
-    }, [currentZone, assets, worldState]); // Only depend on zone and assets to prevent unnecessary re-renders
+    }, [currentZone, assets, worldState, handleCanvasClick]); // Added handleCanvasClick to dependencies
 
     if (error) {
         return (

@@ -27,15 +27,23 @@ def auth_headers():
 @pytest.fixture
 def patched_governor():
     """Return a context manager that patches the governor in the API server."""
-    with patch("services.api.server.governor") as mock_governor:
+    with patch("services.api.deps.governor") as mock_governor, \
+         patch("services.api.deps.api_interface._governor", create=True) as mock_api_governor, \
+         patch("services.api.routers.command.governor") as mock_command_governor:
         mock_governor.is_shutdown.return_value = False
-        yield mock_governor
+        mock_api_governor.is_shutdown.return_value = False
+        mock_command_governor.is_shutdown.return_value = False
+        yield mock_command_governor
 
 
 @pytest.fixture
 def patched_world():
     """Return a context manager that patches the world in the API server."""
-    with patch("services.api.server.world") as mock_world:
+    with patch("services.api.deps.world") as mock_world, \
+         patch("services.api.deps.api_interface._world", create=True) as mock_api_world, \
+         patch("services.api.routers.command.world") as mock_command_world, \
+         patch("services.api.routers.agent.world") as mock_agent_world, \
+         patch("services.api.routers.zone.world") as mock_zone_world:
         # Set up companions
         companion = MagicMock()
         companion.name = "TestCompanion"
@@ -44,6 +52,10 @@ def patched_world():
         companion.zone = "TestZone"
         companion.memory = ["Memory1", "Memory2"]
         mock_world.eterna.companions.companions = [companion]
+        mock_api_world.eterna.companions.companions = [companion]
+        mock_command_world.eterna.companions.companions = [companion]
+        mock_agent_world.eterna.companions.companions = [companion]
+        mock_zone_world.eterna.companions.companions = [companion]
 
         # Set up zones
         zone = MagicMock()
@@ -54,6 +66,10 @@ def patched_world():
         zone.emotion_tag = "Peaceful"
         zone.modifiers = ["Modifier1", "Modifier2"]
         mock_world.eterna.exploration.registry.zones = [zone]
+        mock_api_world.eterna.exploration.registry.zones = [zone]
+        mock_command_world.eterna.exploration.registry.zones = [zone]
+        mock_agent_world.eterna.exploration.registry.zones = [zone]
+        mock_zone_world.eterna.exploration.registry.zones = [zone]
 
         yield mock_world
 
@@ -61,16 +77,18 @@ def patched_world():
 @pytest.fixture
 def patched_save_governor_state():
     """Return a context manager that patches the save_governor_state function."""
-    with patch("services.api.deps.save_governor_state") as mock_save:
-        yield mock_save
+    with patch("services.api.deps.save_governor_state") as mock_save, \
+         patch("services.api.routers.command.save_governor_state") as mock_command_save:
+        yield mock_command_save
 
 @pytest.fixture
 def patched_save_shutdown_state():
     """Return a context manager that patches the save_shutdown_state function (deprecated)."""
     # This fixture is kept for backward compatibility with existing tests
     # New tests should use patched_save_governor_state instead
-    with patch("services.api.deps.save_governor_state") as mock_save:
-        yield mock_save
+    with patch("services.api.deps.save_governor_state") as mock_save, \
+         patch("services.api.routers.command.save_governor_state") as mock_command_save:
+        yield mock_command_save
 
 
 @pytest.fixture

@@ -256,7 +256,7 @@ const ZoneDetails = ({
 // Memoize the ZoneCanvas component to prevent unnecessary re-renders
 const ZoneCanvas = () => {
     const worldStateResult = useWorldState();
-    const state = worldStateResult?.state ?? { worldState: null, isLoading: false, error: null };
+    const state = worldStateResult?.state ?? {worldState: null, isLoading: false, error: null};
     const {worldState, isLoading: isStateLoading, error} = state;
     const currentZoneResult = useCurrentZone();
     const currentZone = currentZoneResult?.currentZone ?? null; // Use the currentZone from WorldStateContext with fallback

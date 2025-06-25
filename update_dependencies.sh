@@ -3,7 +3,7 @@
 # Exit on error
 set -e
 
-# Update dependencies to fix pydantic compatibility issue with Python 3.12
+# Update dependencies to fix compatibility issues with Python 3.12
 echo "Updating dependencies..."
 
 # First, uninstall the problematic packages to avoid conflicts
@@ -23,15 +23,19 @@ echo "Installed FastAPI version: $FASTAPI_VERSION"
 echo "Installed Pydantic version: $PYDANTIC_VERSION"
 
 # Check if the versions match what's expected
-if [[ "$FASTAPI_VERSION" != "0.103.1" ]]; then
-    echo "Warning: FastAPI version is $FASTAPI_VERSION, expected 0.103.1"
+if [[ "$FASTAPI_VERSION" != "0.110.0" ]]; then
+    echo "Warning: FastAPI version is $FASTAPI_VERSION, expected 0.110.0"
     echo "You may need to recreate your virtual environment."
 fi
 
-if [[ "$PYDANTIC_VERSION" != "2.4.0" ]]; then
-    echo "Warning: Pydantic version is $PYDANTIC_VERSION, expected 2.4.0"
+if [[ "$PYDANTIC_VERSION" != "2.6.3" ]]; then
+    echo "Warning: Pydantic version is $PYDANTIC_VERSION, expected 2.6.3"
     echo "You may need to recreate your virtual environment."
 fi
+
+# Update npm dependencies
+echo "Updating npm dependencies..."
+cd ui && npm install && cd ..
 
 echo "Dependencies updated successfully."
 echo "Please restart your application to apply the changes."

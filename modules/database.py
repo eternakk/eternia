@@ -7,9 +7,15 @@ It uses SQLite as the database engine for simplicity and portability.
 
 import datetime
 import json
+import logging
 import os
 import sqlite3
 import time
+from typing import List, Optional, Tuple
+
+from modules.migration_manager import MigrationManager
+
+logger = logging.getLogger(__name__)
 
 
 class EternaDatabase:
@@ -26,22 +32,27 @@ class EternaDatabase:
         schema_version: Current version of the database schema.
     """
 
-    # Database schema version - increment this when making schema changes
-    SCHEMA_VERSION = 1
-
-    def __init__(self, db_path="data/eternia.db"):
+    def __init__(self, db_path="data/eternia.db", migrations_path="migrations"):
         """
         Initialize the database manager.
 
         Args:
             db_path: Path to the SQLite database file. Defaults to "data/eternia.db".
+            migrations_path: Path to the directory containing migration scripts.
+                Defaults to "migrations".
         """
         self.db_path = db_path
         self._ensure_dir_exists()
         self.conn = None
         self.cursor = None
         self._connect()
+
+        # Initialize the migration manager
+        self.migration_manager = MigrationManager(db_path, migrations_path)
+
+        # Create tables and apply migrations
         self._create_tables()
+        self._apply_migrations()
 
     def _ensure_dir_exists(self):
         """Ensure the directory for the database file exists."""
@@ -57,347 +68,102 @@ class EternaDatabase:
         self.cursor = self.conn.cursor()
 
     def _create_tables(self):
-        """Create the database tables if they don't exist."""
-        # Schema version table - stores the current schema version
-        self.cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS schema_version
-            (
-                id
-                INTEGER
-                PRIMARY
-                KEY,
-                version
-                INTEGER
-                NOT
-                NULL,
-                updated_at
-                REAL
-                NOT
-                NULL
-            )
-            """
-        )
+        """
+        Create the yoyo_migration table if it doesn't exist.
 
-        # State table - stores the main state information
-        self.cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS state
-            (
-                id
-                INTEGER
-                PRIMARY
-                KEY,
-                version
-                INTEGER
-                NOT
-                NULL,
-                timestamp
-                REAL
-                NOT
-                NULL,
-                last_emotion
-                TEXT,
-                last_intensity
-                REAL,
-                last_dominance
-                REAL,
-                last_zone
-                TEXT,
-                evolution_stats
-                TEXT
-                NOT
-                NULL,
-                max_memories
-                INTEGER
-                NOT
-                NULL,
-                max_discoveries
-                INTEGER
-                NOT
-                NULL,
-                max_explored_zones
-                INTEGER
-                NOT
-                NULL,
-                max_modifiers
-                INTEGER
-                NOT
-                NULL,
-                max_checkpoints
-                INTEGER
-                NOT
-                NULL
-            )
-            """
-        )
+        Note: The actual database tables are created by the migrations.
+        """
+        # The yoyo_migration table is created automatically by yoyo-migrations
+        # when migrations are applied. We don't need to create it manually.
 
-        # Memories table - stores memories
-        self.cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS memories
-            (
-                id
-                INTEGER
-                PRIMARY
-                KEY,
-                state_id
-                INTEGER
-                NOT
-                NULL,
-                description
-                TEXT
-                NOT
-                NULL,
-                emotional_quality
-                TEXT,
-                clarity
-                REAL,
-                timestamp
-                REAL
-                NOT
-                NULL,
-                data
-                TEXT,
-                FOREIGN
-                KEY
-            (
-                state_id
-            ) REFERENCES state
-            (
-                id
-            )
-                )
-            """
-        )
-
-        # Discoveries table - stores discoveries
-        self.cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS discoveries
-            (
-                id
-                INTEGER
-                PRIMARY
-                KEY,
-                state_id
-                INTEGER
-                NOT
-                NULL,
-                name
-                TEXT
-                NOT
-                NULL,
-                category
-                TEXT,
-                timestamp
-                REAL
-                NOT
-                NULL,
-                data
-                TEXT,
-                FOREIGN
-                KEY
-            (
-                state_id
-            ) REFERENCES state
-            (
-                id
-            )
-                )
-            """
-        )
-
-        # Explored zones table - stores explored zones
-        self.cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS explored_zones
-            (
-                id
-                INTEGER
-                PRIMARY
-                KEY,
-                state_id
-                INTEGER
-                NOT
-                NULL,
-                name
-                TEXT
-                NOT
-                NULL,
-                timestamp
-                REAL
-                NOT
-                NULL,
-                FOREIGN
-                KEY
-            (
-                state_id
-            ) REFERENCES state
-            (
-                id
-            )
-                )
-            """
-        )
-
-        # Modifiers table - stores modifiers
-        self.cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS modifiers
-            (
-                id
-                INTEGER
-                PRIMARY
-                KEY,
-                state_id
-                INTEGER
-                NOT
-                NULL,
-                zone
-                TEXT
-                NOT
-                NULL,
-                type
-                TEXT,
-                effect
-                TEXT,
-                timestamp
-                REAL
-                NOT
-                NULL,
-                data
-                TEXT,
-                FOREIGN
-                KEY
-            (
-                state_id
-            ) REFERENCES state
-            (
-                id
-            )
-                )
-            """
-        )
-
-        # Checkpoints table - stores checkpoint paths
-        self.cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS checkpoints
-            (
-                id
-                INTEGER
-                PRIMARY
-                KEY,
-                state_id
-                INTEGER
-                NOT
-                NULL,
-                path
-                TEXT
-                NOT
-                NULL,
-                timestamp
-                REAL
-                NOT
-                NULL,
-                FOREIGN
-                KEY
-            (
-                state_id
-            ) REFERENCES state
-            (
-                id
-            )
-                )
-            """
-        )
-
-        # Check and update schema version
-        self._check_schema_version()
-
-        # Commit the changes
+        # Commit any changes
         self.conn.commit()
 
-    def _check_schema_version(self):
+    def _apply_migrations(self):
         """
-        Check the current schema version and perform migrations if necessary.
+        Apply any pending database migrations.
 
-        This method:
-        1. Checks the current schema version in the database
-        2. If no version exists, initializes it to the current version
-        3. If the version is older than the current version, performs migrations
+        This method uses the MigrationManager to apply any pending migrations.
         """
-        # Check if schema_version table exists and has a version
-        self.cursor.execute(
-            "SELECT version FROM schema_version ORDER BY id DESC LIMIT 1"
-        )
-        result = self.cursor.fetchone()
+        try:
+            # Apply all pending migrations
+            count = self.migration_manager.apply_migrations()
 
-        if result is None:
-            # No version exists, initialize to current version
-            self.cursor.execute(
-                "INSERT INTO schema_version (version, updated_at) VALUES (?, ?)",
-                (self.SCHEMA_VERSION, time.time()),
-            )
-            print(f"🔄 Initialized database schema to version {self.SCHEMA_VERSION}")
-            return
+            if count > 0:
+                logger.info(f"Applied {count} database migrations")
+            else:
+                logger.debug("No database migrations to apply")
 
-        db_version = result[0]
+        except sqlite3.OperationalError as e:
+            # Check if the error is about a table already existing
+            error_str = str(e)
+            if "table" in error_str and "already exists" in error_str:
+                table_name = error_str.split("table ")[1].split(" already")[0]
+                logger.warning(f"Table {table_name} already exists, skipping migration")
+            else:
+                logger.error(f"Error applying database migrations: {e}")
+                raise
+        except Exception as e:
+            logger.error(f"Error applying database migrations: {e}")
+            raise
 
-        if db_version < self.SCHEMA_VERSION:
-            # Database schema is older, perform migrations
-            print(
-                f"🔄 Migrating database schema from version {db_version} to {self.SCHEMA_VERSION}"
-            )
-            self._migrate_schema(db_version)
-
-            # Update schema version
-            self.cursor.execute(
-                "INSERT INTO schema_version (version, updated_at) VALUES (?, ?)",
-                (self.SCHEMA_VERSION, time.time()),
-            )
-            print(f"✅ Database schema migrated to version {self.SCHEMA_VERSION}")
-        elif db_version > self.SCHEMA_VERSION:
-            # Database schema is newer than the code expects
-            print(
-                f"⚠️ Warning: Database schema version ({db_version}) is newer than the code expects ({self.SCHEMA_VERSION})"
-            )
-
-    def _migrate_schema(self, from_version):
+    def get_schema_version(self) -> Optional[str]:
         """
-        Perform database schema migrations.
+        Get the current schema version.
+
+        Returns:
+            The ID of the most recently applied migration, or None if no migrations
+            have been applied.
+        """
+        return self.migration_manager.get_current_version()
+
+    def get_migration_status(self) -> List[Tuple[str, bool, str]]:
+        """
+        Get the status of all migrations.
+
+        Returns:
+            List of tuples containing (migration_id, is_applied, description).
+        """
+        return self.migration_manager.get_migration_status()
+
+    def apply_migrations(self, target: Optional[str] = None) -> int:
+        """
+        Apply pending migrations.
 
         Args:
-            from_version: The current version of the schema to migrate from.
+            target: Target migration ID to migrate to. If None, apply all
+                pending migrations. Defaults to None.
+
+        Returns:
+            int: Number of migrations applied.
         """
-        # Migration steps for each version
-        if from_version < 1:
-            # Migration to version 1 (initial schema)
-            pass  # No migration needed for initial schema
+        return self.migration_manager.apply_migrations(target)
 
-        # Add future migrations here
-        # if from_version < 2:
-        #     # Migration to version 2
-        #     self._migrate_to_v2()
-
-        # Commit the changes
-        self.conn.commit()
-
-    def _migrate_to_v2(self):
+    def rollback_migrations(self, target: Optional[str] = None, steps: int = 1) -> int:
         """
-        Example migration function for future schema changes.
+        Roll back applied migrations.
 
-        This would implement the changes needed to migrate from version 1 to version 2.
-        For example, adding new tables, columns, or modifying existing ones.
+        Args:
+            target: Target migration ID to rollback to. If None, rollback the
+                specified number of steps. Defaults to None.
+            steps: Number of migrations to roll back. Defaults to 1.
+
+        Returns:
+            int: Number of migrations rolled back.
         """
-        # Example: Add a new column to the state table
-        # try:
-        #     self.cursor.execute("ALTER TABLE state ADD COLUMN new_column TEXT")
-        #     print("✅ Added new_column to state table")
-        # except sqlite3.Error as e:
-        #     print(f"❌ Failed to add new_column to state table: {e}")
-        pass
+        return self.migration_manager.rollback_migrations(target, steps)
+
+    def create_migration(self, name: str) -> str:
+        """
+        Create a new migration file.
+
+        Args:
+            name: Name of the migration.
+
+        Returns:
+            Path to the created migration file.
+        """
+        return self.migration_manager.create_migration(name)
 
     def save_state(self, state_data):
         """

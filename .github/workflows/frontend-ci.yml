@@ -32,16 +32,27 @@ jobs:
         cache-dependency-path: ui/package-lock.json
 
     - name: Install dependencies
-      run: npm ci
+      run: |
+        npm ci
+        # Install additional tools for code quality
+        npm install -g eslint eslint-plugin-react eslint-plugin-jsx-a11y eslint-plugin-import complexity-report
 
     - name: Lint
-      run: npm run lint || echo "Linting failed but continuing"
+      run: npm run lint
 
     - name: Type check
-      run: npm run typecheck || echo "Type checking failed but continuing"
+      run: npm run typecheck
 
-    - name: Run tests
-      run: npm test
+    - name: Check code complexity
+      run: |
+        # Create a complexity report
+        complexity-report --maxcyc 10 --maxfile 1000 --maxfunc 100 src/ || true
+        # Fail if any file has complexity > 15
+        ! complexity-report --maxcyc 15 --maxfile 1000 --maxfunc 100 --format json src/ | grep -q '"cyclomatic":1[6-9]'
+        ! complexity-report --maxcyc 15 --maxfile 1000 --maxfunc 100 --format json src/ | grep -q '"cyclomatic":[2-9][0-9]'
+
+    - name: Run unit tests with coverage
+      run: npm test -- --coverage --coverageThreshold='{"global":{"branches":70,"functions":80,"lines":80,"statements":80}}'
 
     - name: Build
       run: npm run build
@@ -51,6 +62,65 @@ jobs:
       with:
         name: frontend-build
         path: ui/dist
+        retention-days: 7
+
+  e2e-tests:
+    runs-on: ubuntu-latest
+    needs: test-and-build
+
+    defaults:
+      run:
+        working-directory: ui
+
+    services:
+      api:
+        image: node:18
+        ports:
+          - 8000:8000
+        options: --name api-service
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: ui/package-lock.json
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Set up Python for API
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r ../requirements.txt
+
+    - name: Start API server
+      run: |
+        cd ..
+        python run_api.py &
+        sleep 5  # Give the API server time to start
+
+    - name: Run Cypress end-to-end tests
+      run: |
+        # Set the auth token for Cypress tests
+        echo 'AUTH_TOKEN=test-token-for-authentication' > cypress.env.json
+        npm run cypress:run
+
+    - name: Upload Cypress screenshots on failure
+      uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: cypress-screenshots
+        path: ui/cypress/screenshots
         retention-days: 7
 
   analyze:

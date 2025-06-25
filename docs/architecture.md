@@ -150,6 +150,11 @@ The services layer provides APIs and interfaces for communication between compon
 │  │               │    │               │    │             │  │
 │  └───────────────┘    └───────────────┘    └─────────────┘  │
 │                                                             │
+│  ┌───────────────┐    ┌───────────────┐    ┌─────────────┐  │
+│  │  Migration    │    │  Profiling    │    │  Circuit    │  │
+│  │  Manager      │    │  Service      │    │  Breaker    │  │
+│  └───────────────┘    └───────────────┘    └─────────────┘  │
+│                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -158,6 +163,9 @@ The services layer provides APIs and interfaces for communication between compon
 - **API Service**: Provides RESTful APIs for frontend-backend communication
 - **Interfaces**: Defines interfaces for component communication
 - **Utilities**: Provides utility functions and services
+- **Migration Manager**: Manages database schema migrations using yoyo-migrations
+- **Profiling Service**: Provides performance profiling and monitoring
+- **Circuit Breaker**: Implements the circuit breaker pattern for resilient service calls
 
 ## 4. Data Flow
 
@@ -266,11 +274,20 @@ The deployment architecture consists of:
 
 ## 8. Future Architecture Considerations
 
-- **Scalability**: Consider containerization with Docker for consistent deployment
-- **Monitoring**: Implement monitoring and alerting for production deployments
-- **Performance**: Optimize the simulation loop and memory usage for large simulations
-- **Data Management**: Implement proper database schema for persistent storage
+- **Scalability**: Consider implementing auto-scaling based on load metrics
+- **Distributed Processing**: Explore distributed processing for large-scale simulations
+- **Machine Learning Pipeline**: Implement a machine learning pipeline for predictive analytics
+- **Internationalization**: Add support for multiple languages in the UI
+- **Offline Support**: Implement offline functionality with service workers
 
-## 9. Conclusion
+## 9. Recent Architectural Improvements
+
+- **Database Migrations**: Implemented a comprehensive migration system using yoyo-migrations
+- **Performance Profiling**: Added profiling service for monitoring and optimizing performance
+- **Circuit Breaker Pattern**: Implemented circuit breakers for resilient service calls
+- **End-to-End Testing**: Added Cypress tests for key user interactions
+- **Containerization**: Implemented Docker for consistent deployment
+
+## 10. Conclusion
 
 The Eternia system architecture is designed to be modular, maintainable, and extensible. The clear separation of concerns between the simulation core, governance & safety, user interface, and services layer allows for independent development and testing of each component.

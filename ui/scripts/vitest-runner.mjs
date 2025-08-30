@@ -3,7 +3,19 @@
 // It captures the flag value and exposes it via process.env.COVERAGE_THRESHOLD,
 // then invokes Vitest programmatically with remaining args.
 
+import { fileURLToPath } from 'url';
+import path from 'path';
 import { startVitest } from 'vitest/node';
+
+// Ensure we run from the UI package root regardless of where npm was invoked
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const projectRoot = path.resolve(__dirname, '..');
+try {
+  process.chdir(projectRoot);
+} catch {
+  // If chdir fails, continue; Vitest will still try using cwd
+}
 
 function extractCoverageThresholdArg(argv) {
   let threshold;

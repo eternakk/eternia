@@ -1,0 +1,1 @@
+export class FetchInstrumentation { constructor(_opts?: any) {} }

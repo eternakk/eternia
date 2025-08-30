@@ -221,13 +221,32 @@ export function traceComponent<P extends object>(
   const spanName = name || `render.${displayName}`;
   
   const TracedComponent = (props: P) => {
-    const result = withSpan(
-      spanName,
-      () => React.createElement(Component, props),
-      { component: displayName }
-    );
-    
-    return result;
+    // Render synchronously; if tracing is initialized, surround with a span.
+    if (!tracer) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return React.createElement(Component as any, props);
+    }
+
+    const span = createSpan(spanName, { component: displayName });
+    try {
+      // If it's a function component, call it directly; otherwise create an element
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const element = typeof Component === 'function'
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ? (Component as any)(props)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        : React.createElement(Component as any, props);
+      span.end();
+      return element;
+    } catch (error) {
+      span.setStatus({
+        code: SpanStatusCode.ERROR,
+        message: error instanceof Error ? error.message : String(error),
+      });
+      if (error instanceof Error) span.recordException(error);
+      span.end();
+      throw error;
+    }
   };
   
   TracedComponent.displayName = `Traced(${displayName})`;

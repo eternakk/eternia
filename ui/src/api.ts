@@ -116,7 +116,15 @@ export const cancelAllRequests = () => {
     circuitBreakerResetTime = 0;
 
     // Reset axios default headers
-    delete api.defaults.headers.common['Authorization'];
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const defaults: any = api.defaults as any;
+        if (defaults?.headers?.common && 'Authorization' in defaults.headers.common) {
+            delete defaults.headers.common['Authorization'];
+        }
+    } catch {
+        // no-op
+    }
 
     // Clear any pending timeouts that might be related to token fetching
     // This is a best-effort approach as we can't identify specific timeouts
@@ -151,9 +159,15 @@ export const fetchToken = async () => {
             // Ensure axios defaults structure exists before assigning
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const defaults: any = api.defaults as any;
-            defaults.headers = defaults.headers || {};
-            defaults.headers.common = defaults.headers.common || {};
-            defaults.headers.common['Authorization'] = `Bearer ${TOKEN}`;
+            try {
+                if (defaults && typeof defaults === 'object') {
+                    defaults.headers = defaults.headers || {};
+                    defaults.headers.common = defaults.headers.common || {};
+                    defaults.headers.common['Authorization'] = `Bearer ${TOKEN}`;
+                }
+            } catch {
+                // ignore header assignment in test if axios defaults unavailable
+            }
         }
         return TOKEN;
     }
@@ -195,7 +209,7 @@ export const fetchToken = async () => {
                     console.log(`Using cached token: ${tokenPreview}`);
 
                     TOKEN = token;
-                    api.defaults.headers.common['Authorization'] = `Bearer ${TOKEN}`;
+                    setAuthHeader(TOKEN);
 
                     // Reset retry counter and consecutive failures on successful token use
                     tokenFetchRetries = 0;
@@ -277,7 +291,7 @@ export const fetchToken = async () => {
                 console.log(`Token stored in localStorage with timestamp ${new Date(timestamp).toLocaleTimeString()}`);
 
                 // Update the default headers with the new token
-                api.defaults.headers.common['Authorization'] = `Bearer ${TOKEN}`;
+                setAuthHeader(TOKEN);
                 console.log('Authorization header updated with new token');
 
                 // Reset retry counter on success
@@ -412,7 +426,27 @@ const getRetryCount = (error: unknown) => {
     return e?.config?._retryCount || 0;
 };
 const clearAuthHeader = () => {
-    delete api.defaults.headers.common['Authorization'];
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const defaults: any = api.defaults as any;
+        if (defaults?.headers?.common && 'Authorization' in defaults.headers.common) {
+            delete defaults.headers.common['Authorization'];
+        }
+    } catch {
+        // no-op
+    }
+};
+
+const setAuthHeader = (token: string) => {
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const defaults: any = api.defaults as any;
+        defaults.headers = defaults.headers || {};
+        defaults.headers.common = defaults.headers.common || {};
+        defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    } catch {
+        // no-op
+    }
 };
 
 const resetTokenStateHard = () => {
@@ -558,7 +592,7 @@ const tryUseStoredToken = (): boolean => {
         const now = Date.now();
         if (token && timestamp && (now - timestamp < TOKEN_CACHE_DURATION)) {
             TOKEN = token;
-            api.defaults.headers.common['Authorization'] = `Bearer ${TOKEN}`;
+            setAuthHeader(TOKEN);
             return true;
         }
     } catch {

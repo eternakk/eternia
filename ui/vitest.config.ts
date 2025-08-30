@@ -81,6 +81,19 @@ export default defineConfig({
     resolve: {
         alias: {
             '@': resolve(__dirname, './src'),
+            // OpenTelemetry stubs for tests (avoid heavy deps in test env)
+            '@opentelemetry/api': resolve(__dirname, './src/test/otel-stubs/api.ts'),
+            '@opentelemetry/sdk-trace-web': resolve(__dirname, './src/test/otel-stubs/sdk-trace-web.ts'),
+            '@opentelemetry/resources': resolve(__dirname, './src/test/otel-stubs/resources.ts'),
+            '@opentelemetry/semantic-conventions': resolve(__dirname, './src/test/otel-stubs/semantic-conventions.ts'),
+            '@opentelemetry/sdk-trace-base': resolve(__dirname, './src/test/otel-stubs/sdk-trace-base.ts'),
+            '@opentelemetry/exporter-trace-otlp-http': resolve(__dirname, './src/test/otel-stubs/exporter-trace-otlp-http.ts'),
+            '@opentelemetry/context-zone': resolve(__dirname, './src/test/otel-stubs/context-zone.ts'),
+            '@opentelemetry/instrumentation': resolve(__dirname, './src/test/otel-stubs/instrumentation.ts'),
+            '@opentelemetry/instrumentation-document-load': resolve(__dirname, './src/test/otel-stubs/instrumentation-document-load.ts'),
+            '@opentelemetry/instrumentation-xml-http-request': resolve(__dirname, './src/test/otel-stubs/instrumentation-xml-http-request.ts'),
+            '@opentelemetry/instrumentation-fetch': resolve(__dirname, './src/test/otel-stubs/instrumentation-fetch.ts'),
+            '@opentelemetry/instrumentation-user-interaction': resolve(__dirname, './src/test/otel-stubs/instrumentation-user-interaction.ts'),
         },
     },
 });

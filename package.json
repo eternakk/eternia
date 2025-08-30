@@ -1,8 +1,5 @@
 {
   "scripts": {
     "typecheck": "npm --prefix ui run typecheck"
-  },
-  "devDependencies": {
-    "tailwindcss": "^4.2.0"
   }
 }

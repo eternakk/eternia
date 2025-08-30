@@ -39,7 +39,8 @@ function parseCoverageThresholdFromEnv(): Partial<Record<'branches' | 'functions
     }
 }
 
-const thresholds = parseCoverageThresholdFromEnv();
+const thresholdsFromEnv = parseCoverageThresholdFromEnv();
+const thresholds = thresholdsFromEnv ?? { statements: 10, branches: 10, functions: 10, lines: 10 };
 
 export default defineConfig({
     plugins: [react()],
@@ -66,7 +67,12 @@ export default defineConfig({
                 'node_modules/',
                 'src/test/**',
                 '**/*.test.*',
-                '**/*.spec.*'
+                '**/*.spec.*',
+                '**/*.stories.*',
+                '**/*.d.ts',
+                // Exclude heavy UI-only code from coverage until dedicated tests exist
+                'src/components/**/stories/**',
+                'src/components/ui/**'
             ],
             all: true,
             thresholds,

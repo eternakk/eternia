@@ -26,6 +26,7 @@ from .routers import (
     log_router,
     law_router,
     monitoring_router,
+    quantum_router,
 )
 
 # Configure logging
@@ -133,6 +134,8 @@ async def auth(credentials: HTTPAuthorizationCredentials = Depends(security)):
     except Exception as e:
         # Log failed authentication attempts with detailed error
         logger.warning(f"Failed authentication attempt{client_info}: {str(e)}")
+        # Prepare partial token for security
+        token_preview = token[:3] + "..." + token[-3:] if len(token) > 6 else token
         # Log token details for debugging (partial token for security)
         logger.warning(f"Failed token{client_info}: {token_preview}")
         # Log token and DEV_TOKEN comparison for debugging
@@ -165,6 +168,7 @@ app.include_router(state_router)
 app.include_router(log_router)
 app.include_router(law_router)
 app.include_router(monitoring_router)
+app.include_router(quantum_router)
 
 # Configure CORS - allow necessary origins
 origins = [

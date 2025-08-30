@@ -754,3 +754,37 @@ export const getAgents = createSafeApiCall(
     baseGetAgents,
     "Failed to fetch agents"
 );
+
+
+// Quantum API types and functions
+export interface QRNGResponse {
+    bits: string;
+    entropy: number;
+    backend: string;
+}
+
+export interface VariationalFieldResponse {
+    field: number[][];
+    seed: number;
+    backend: string;
+}
+
+const baseQuantumQrng = async (n: number = 128): Promise<QRNGResponse> => {
+    await ensureToken();
+    return api.post<QRNGResponse>("/api/quantum/qrng", { n }).then(r => r.data);
+};
+
+const baseVariationalField = async (seed: number, size: number = 32): Promise<VariationalFieldResponse> => {
+    await ensureToken();
+    return api.post<VariationalFieldResponse>("/api/quantum/variational-field", { seed, size }).then(r => r.data);
+};
+
+export const getQuantumBits = createSafeApiCall(
+    baseQuantumQrng,
+    "Failed to get quantum random bits"
+);
+
+export const getVariationalField = createSafeApiCall(
+    baseVariationalField,
+    "Failed to get quantum variational field"
+);

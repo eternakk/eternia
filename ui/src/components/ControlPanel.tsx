@@ -1,6 +1,7 @@
-import { sendCommand, rollbackTo, sendReward } from "../api";
+import { sendCommand, rollbackTo, sendReward, getQuantumBits } from "../api";
 import { useErrorHandler } from "../utils/errorHandling";
 import { useState } from "react";
+import { useNotification } from "../contexts/NotificationContext";
 
 // Icons for buttons
 const icons = {
@@ -17,8 +18,26 @@ export default function ControlPanel() {
     // Default companion name or get it from somewhere else if needed
     const companionName = "default";
     const { withErrorHandling } = useErrorHandler();
+    const { addNotification } = useNotification();
     const [isLoading, setIsLoading] = useState<Record<string, boolean>>({});
     const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
+
+    const handleObserveOracle = withErrorHandling(async () => {
+        setIsLoading(prev => ({ ...prev, observe: true }));
+        try {
+            const res = await getQuantumBits(128);
+            if (res) {
+                const preview = res.bits?.slice(0, 16) || "";
+                addNotification({
+                    type: 'success',
+                    message: `Observed oracle → backend=${res.backend}, H≈${res.entropy.toFixed(3)}, bits=${preview}…`,
+                    duration: 5000,
+                });
+            }
+        } finally {
+            setIsLoading(prev => ({ ...prev, observe: false }));
+        }
+    }, "Failed to observe oracle");
 
     // Wrap API calls with error handling
     const handleSendCommand = withErrorHandling(async (action: string) => {
@@ -179,6 +198,23 @@ export default function ControlPanel() {
                         >
                             <span className="mr-1">{icons.punish}</span>
                             {isLoading.negative ? "..." : "Negative"}
+                        </button>
+                    </div>
+                </div>
+
+                {/* Quantum Controls */}
+                <div className="mt-4">
+                    <h3 className="text-sm font-medium mb-2 text-gray-700">Quantum</h3>
+                    <div className="flex gap-2" role="toolbar" aria-label="Quantum controls">
+                        <button
+                            onClick={handleObserveOracle}
+                            className="flex items-center px-3 py-2 rounded bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            disabled={isLoading.observe}
+                            aria-busy={isLoading.observe}
+                            aria-label={`Observe Oracle${isLoading.observe ? ', loading' : ''}`}
+                        >
+                            <span className="mr-1">🌀</span>
+                            {isLoading.observe ? "..." : "Observe Oracle"}
                         </button>
                     </div>
                 </div>

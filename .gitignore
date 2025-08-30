@@ -26,3 +26,22 @@ docs/config/
 *.swp
 .idea/
 .vscode/
+
+# Python virtualenv & local Python version
+.venv/
+.python-version
+
+# Node.js
+node_modules/
+
+# Test artifacts (Hypothesis)
+.hypothesis/
+tests/.hypothesis/
+tests/performance/.hypothesis/
+
+# Local outputs
+.output.txt
+
+# Databases and data
+data/
+*.db

@@ -1,5 +1,11 @@
 # Default configuration for Eternia
 
+# Feature flags
+features:
+  quantum:
+    enabled: false
+    timeout_ms: 1500
+
 # User acceptance thresholds
 user_acceptance:
   intellect_threshold: 110

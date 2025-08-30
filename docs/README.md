@@ -9,6 +9,8 @@ Welcome to the Eternia Project documentation directory. This directory contains 
 - [Running the Server](running_the_server.md): Instructions for running the server
 - [Environment Setup](environment_setup.md): Setting up the development environment
 - [Tasks](tasks.md): Prioritized list of improvement tasks
+- [Quantum Tasks](quantum_tasks.md): Quantum integration roadmap and progress
+- [Quantum Overview](quantum_overview.md): Simple explanation of what quantum does in Eternia and how it’s used
 
 ## Technical Documentation
 

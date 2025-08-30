@@ -2,9 +2,11 @@
 
 ## Introduction
 
-Welcome to the Eternia Project! This guide will help you get started with the project, understand its architecture, and learn how to contribute effectively.
+Welcome to the Eternia Project! This guide will help you get started with the project, understand its architecture, and
+learn how to contribute effectively.
 
-Eternia is a simulation system that models a world with companions (agents), emotions, social interactions, and various other components. The system is designed to be safe, observable, and controllable through a governance layer.
+Eternia is a simulation system that models a world with companions (agents), emotions, social interactions, and various
+other components. The system is designed to be safe, observable, and controllable through a governance layer.
 
 ## Project Structure
 
@@ -31,7 +33,7 @@ The Eternia project is organized into several key directories:
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-organization/eternia.git
+   git clone https://github.com/klajdikkolaj/eternia.git
    cd eternia
    ```
 
@@ -84,31 +86,31 @@ The Eternia project is organized into several key directories:
 ### UI Development Workflow
 
 1. **Component Development**:
-   - UI components are located in `ui/src/components/`
-   - Each component should be in its own file with a `.tsx` extension
-   - Use TypeScript interfaces for prop types
-   - Follow the component design principles in the [UI Architecture Documentation](ui_architecture.md)
+    - UI components are located in `ui/src/components/`
+    - Each component should be in its own file with a `.tsx` extension
+    - Use TypeScript interfaces for prop types
+    - Follow the component design principles in the [UI Architecture Documentation](ui_architecture.md)
 
 2. **State Management**:
-   - The UI uses React's Context API for state management
-   - Context providers are located in `ui/src/contexts/`
-   - Use the appropriate context in your components
+    - The UI uses React's Context API for state management
+    - Context providers are located in `ui/src/contexts/`
+    - Use the appropriate context in your components
 
 3. **API Integration**:
-   - The UI communicates with the backend through the API client in `ui/src/api.ts`
-   - Use the API client for all backend communication
-   - Handle loading states and errors appropriately
+    - The UI communicates with the backend through the API client in `ui/src/api.ts`
+    - Use the API client for all backend communication
+    - Handle loading states and errors appropriately
 
 4. **Styling**:
-   - The UI uses Tailwind CSS for styling
-   - Use Tailwind's utility classes for styling components
-   - For complex components, consider using component composition
+    - The UI uses Tailwind CSS for styling
+    - Use Tailwind's utility classes for styling components
+    - For complex components, consider using component composition
 
 5. **Testing UI Components**:
-   - UI tests are located in `ui/src/__tests__/`
-   - Use Vitest and React Testing Library for testing
-   - Write tests for all components
-   - Run UI tests with `npm test`
+    - UI tests are located in `ui/src/__tests__/`
+    - Use Vitest and React Testing Library for testing
+    - Write tests for all components
+    - Run UI tests with `npm test`
 
 ## Architecture Overview
 
@@ -117,7 +119,8 @@ The Eternia project follows a layered architecture:
 ### Core Runtime
 
 - **EternaWorld**: The main container for the simulation state, providing access to all subsystems.
-- **Alignment-Governor**: Hard-safety layer that can pause, rollback, or shut down the simulation based on safety criteria.
+- **Alignment-Governor**: Hard-safety layer that can pause, rollback, or shut down the simulation based on safety
+  criteria.
 - **Eval Harness**: Unit-tests that flag disallowed behaviors.
 - **State-Tracker**: Tracks the state of the simulation, including checkpoints and rollbacks.
 
@@ -194,7 +197,8 @@ The Eternia project follows a layered architecture:
    ```bash
    ./run_api.py
    ```
-   This will start the server on http://0.0.0.0:8000. The server provides API endpoints for the UI to interact with the Eternia simulation.
+   This will start the server on http://0.0.0.0:8000. The server provides API endpoints for the UI to interact with the
+   Eternia simulation.
 
 2. Start the frontend development server:
    ```bash
@@ -273,11 +277,13 @@ Follow the setup instructions above to run the project locally.
 
 ### Continuous Integration
 
-The project uses GitHub Actions for continuous integration. The workflow is defined in `.github/workflows/python-tests.yml`. It runs the tests on every push to the main branch and on pull requests.
+The project uses GitHub Actions for continuous integration. The workflow is defined in
+`.github/workflows/python-tests.yml`. It runs the tests on every push to the main branch and on pull requests.
 
 ### Production Deployment
 
-For production deployment, the project should be containerized using Docker and deployed to a suitable environment. This is a future task that has not yet been implemented.
+For production deployment, the project should be containerized using Docker and deployed to a suitable environment. This
+is a future task that has not yet been implemented.
 
 ## Additional Resources
 
@@ -296,4 +302,5 @@ If you have any questions or need help, please reach out to the team through the
 
 ## Contributing
 
-We welcome contributions to the Eternia project! Please follow the development workflow described above and ensure that your changes adhere to the project's coding standards.
+We welcome contributions to the Eternia project! Please follow the development workflow described above and ensure that
+your changes adhere to the project's coding standards.

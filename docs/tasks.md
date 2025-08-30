@@ -143,10 +143,10 @@ zone, and ritual endpoints)
 
 ## Infrastructure and DevOps Tasks
 
-[ ] 401. Implement infrastructure as code using Terraform or similar tool
-[ ] 402. Set up blue/green deployment strategy to minimize downtime during updates
-[ ] 403. Implement automated database backup and verification procedures
-[ ] 404. Set up distributed tracing across all services using OpenTelemetry
+[x] 401. Implement infrastructure as code using Terraform or similar tool
+[x] 402. Set up blue/green deployment strategy to minimize downtime during updates
+[x] 403. Implement automated database backup and verification procedures
+[x] 404. Set up distributed tracing across all services using OpenTelemetry
 [ ] 405. Implement chaos engineering tests to verify system resilience
 [ ] 406. Create runbooks for common operational tasks and incident response
 [ ] 407. Implement cost optimization for cloud resources with automated reporting
@@ -192,3 +192,42 @@ zone, and ritual endpoints)
 [ ] 708. Add real-time analytics dashboard for key business metrics
 [ ] 709. Implement data lineage tracking for compliance
 [ ] 710. Add machine learning pipeline for predictive analytics
+
+
+## Next Sprint Candidates (Planning)
+
+Last updated: 2025-08-30
+
+- Infrastructure and DevOps:
+  - [ ] 405. Implement chaos engineering tests to verify system resilience
+  - [ ] 406. Create runbooks for common operational tasks and incident response
+  - [ ] 409. Implement automatic scaling based on load metrics
+  - [ ] 410. Set up disaster recovery procedures and regular testing
+
+- Frontend:
+  - [ ] 501. Implement comprehensive error boundary system with fallback UI components
+  - [ ] 503. Implement performance monitoring for frontend with Core Web Vitals tracking
+  - [ ] 506. Add skeleton loading states for all async data fetching components
+  - [ ] 507. Implement client-side caching strategy for API responses
+  - [ ] 509. Implement dark mode and theme customization
+
+- Security:
+  - [ ] 601. Implement Content Security Policy (CSP) headers
+  - [ ] 603. Implement JWT token rotation and revocation capabilities
+  - [ ] 608. Add secure coding guidelines and training for developers
+
+- Data & Analytics:
+  - [ ] 701. Implement data retention policies and automated cleanup
+  - [ ] 706. Add data validation layer between frontend and backend
+  - [ ] 708. Add real-time analytics dashboard for key business metrics
+
+- Quantum Integration:
+  - See docs/quantum_tasks.md for detailed Sprint 2–3 roadmap.
+  - Near-term focus:
+    - Implement quantum_walk(params) producing adjacency/weights (quantum_tasks.md → Sprint 2)
+    - Add endpoints /api/quantum/quantum-walk and /api/quantum/qaoa-optimize (quantum_tasks.md → Sprint 2)
+    - Add metrics for quantum_requests_total, entropy avg, and timeouts (quantum_tasks.md → Sprint 3)
+
+- Cross-references:
+  - UI implementation detail plans: docs/ui_pending_tasks.md
+  - Quantum overview: docs/quantum_overview.md

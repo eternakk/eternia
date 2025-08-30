@@ -7,6 +7,7 @@ from .state import router as state_router
 from .log import router as log_router
 from .law import router as law_router
 from .monitoring import router as monitoring_router
+from .quantum import router as quantum_router
 
 # Export all routers
 __all__ = [
@@ -18,4 +19,5 @@ __all__ = [
     "log_router",
     "law_router",
     "monitoring_router",
+    "quantum_router",
 ]

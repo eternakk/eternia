@@ -90,6 +90,77 @@ class EternaWorld:
         setup_resonance_engine(self.eterna)
         setup_time_and_agents(self.eterna)
 
+        # ─── Minimal quantum integration behind feature flag ───────────────────
+        try:
+            from config.config_manager import config  # local import to avoid global dependency
+            # Flag from config (can be overridden by env ETERNIA_FEATURES_QUANTUM_ENABLED)
+            use_quantum = config.get('features.quantum.enabled', False)
+            # Normalize string-y booleans
+            if isinstance(use_quantum, str):
+                use_quantum = use_quantum.strip().lower() in ("1", "true", "yes", "on")
+
+            if use_quantum:
+                # Compute a deterministic seed from configured zones
+                zones_cfg = config.get('zones', {}) or {}
+                seed_base = 1337
+                try:
+                    for zk, zv in zones_cfg.items():
+                        if isinstance(zv, dict):
+                            seed_base += int(zv.get('complexity', 0))
+                except Exception:
+                    pass
+
+                # Generate a small variational field and derive a benign modifier
+                from modules.quantum_service import QuantumService
+                qs = QuantumService()
+                field, backend = qs.variational_field(seed=seed_base, size=32)
+                # Compute mean as a simple summary
+                total = 0.0
+                count = 0
+                for row in field:
+                    total += sum(row)
+                    count += len(row)
+                mean_val = (total / max(1, count)) if count else 0.0
+
+                # Pick a harmless visual modifier based on mean
+                modifier = "Harmonic Resonance" if mean_val >= 0.5 else "Luminous Cascade"
+
+                # Apply to a known zone name; fall back to last known
+                target_zone = zones_cfg.get('quantum_forest', {}).get('name', 'Quantum Forest')
+                try:
+                    self.state_tracker.add_modifier(target_zone, modifier)
+                except Exception:
+                    # Ensure we never fail world boot due to optional quantum integration
+                    pass
+
+                # Record a discovery with quantum metadata for transparency
+                try:
+                    self.state_tracker.track_discovery({
+                        "type": "quantum_init",
+                        "seed": int(seed_base),
+                        "backend": backend,
+                        "field_mean": round(float(mean_val), 3),
+                    })
+                except Exception:
+                    pass
+
+                # Optional tracing if tracer is available
+                try:
+                    from modules.tracing import get_tracer
+                    tracer = get_tracer()
+                    with tracer.start_as_current_span("quantum.initial_field") as span:
+                        span.set_attribute("quantum.backend", backend)
+                        span.set_attribute("quantum.type", "variational_field")
+                        span.set_attribute("quantum.size", 32)
+                        span.set_attribute("quantum.seed", int(seed_base))
+                        span.set_attribute("quantum.field_mean", float(mean_val))
+                except Exception:
+                    # Tracing not configured; ignore
+                    pass
+        except Exception:
+            # Any issue in optional quantum integration should not block initialization
+            pass
+
         # Create a thread pool executor for parallel processing
         # Using max_workers=3 as we have 3 main components to parallelize
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=3)

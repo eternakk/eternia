@@ -1,0 +1,47 @@
+# Eternia Infrastructure as Code
+# Example Terraform Variables File
+
+# AWS Region
+aws_region = "us-west-2"
+
+# Environment
+environment = "dev"
+
+# Docker Host
+docker_host = "unix:///var/run/docker.sock"
+
+# S3 Backup
+backup_bucket_name = "eternia-backups"
+backup_retention_days = 7
+
+# Monitoring
+prometheus_port = 9090
+alertmanager_port = 9093
+grafana_port = 3000
+
+# Blue/Green Deployment
+app_name = "eternia"
+vpc_id = "vpc-12345678"  # Replace with your VPC ID
+subnet_ids = [
+  "subnet-12345678",  # Replace with your subnet IDs
+  "subnet-87654321"
+]
+backend_port = 8000
+frontend_port = 80
+health_check_path = "/health"
+
+# Database Backup
+db_backup_bucket_name = "eternia-db-backups"
+db_backup_retention_days = 7
+db_backup_schedule = "0 2 * * ? *"  # 2 AM every day
+db_backup_notification_email = "admin@example.com"
+use_rds = false
+db_path = "data/eternia.db"
+# db_instance_id = "eternia-db"  # Uncomment if using RDS
+
+# OpenTelemetry
+otel_collector_port = 4317
+jaeger_port = 16686
+jaeger_collector_port = 14250
+jaeger_agent_port = 6831
+otel_retention_days = 7

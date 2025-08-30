@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { AxiosRequestConfig } from "axios";
 import {createSafeApiCall} from "./utils/errorHandling";
 
 // We'll fetch the token from the server
@@ -315,287 +315,235 @@ export const fetchToken = async () => {
   }
 };
 
+// Helpers to keep interceptor simple and reduce cyclomatic complexity
+const isUnauthorized = (error: unknown): boolean => {
+  const e = error as { response?: { status?: number } };
+  return e?.response?.status === 401;
+};
+type RequestConfig = { headers?: Record<string, unknown>; _retryCount?: number; timeout?: number; url?: string };
+type ErrorLike = { config?: RequestConfig; response?: { status?: number }; message?: string; code?: string } & Record<string, unknown>;
+
+const getRetryCount = (error: unknown) => {
+  const e = error as ErrorLike;
+  return e?.config?._retryCount || 0;
+};
+const clearAuthHeader = () => { delete api.defaults.headers.common['Authorization']; };
+
+const resetTokenStateHard = () => {
+  lastTokenFetch = 0;
+  tokenFetchPromise = null;
+  tokenFetchRetries = 0;
+  consecutiveFailures = 0;
+  circuitBreakerTripped = false;
+  circuitBreakerResetTime = 0;
+  TOKEN = '';
+  clearAuthHeader();
+  localStorage.removeItem('tokenData');
+  localStorage.removeItem('token');
+};
+
+const applyBackoff = async (retryCount: number) => {
+  if (retryCount > 0) {
+    const backoffTime = RETRY_BACKOFF_MS * Math.pow(2, retryCount - 1);
+    console.log(`Interceptor retry ${retryCount + 1}/2, waiting ${backoffTime}ms before retry`);
+    await new Promise(resolve => setTimeout(resolve, backoffTime));
+  }
+};
+
+const retryWithNewToken = async (error: unknown) => {
+  const e = error as ErrorLike;
+  const retryCount = getRetryCount(e);
+  const maxRetries = 2;
+  if (retryCount >= maxRetries) {
+    console.error(`Request has already been retried ${retryCount} times, giving up`);
+    cancelAllRequests();
+    return Promise.reject(e);
+  }
+
+  console.log(`Token invalid (retry ${retryCount + 1}/${maxRetries}), clearing and refreshing...`);
+  resetTokenStateHard();
+  await applyBackoff(retryCount);
+
+  try {
+    const token = await fetchToken();
+    if (token) {
+      const originalRequest = (e.config || {}) as RequestConfig;
+      (originalRequest.headers as Record<string, string> | undefined) ||= {};
+      (originalRequest.headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
+      originalRequest._retryCount = retryCount + 1;
+      originalRequest.timeout = 10000;
+      console.log('Token refreshed, retrying original request');
+      return axios(originalRequest as AxiosRequestConfig);
+    }
+    console.error('Token refresh returned null, cannot retry request');
+    return Promise.reject(e);
+  } catch (refreshError) {
+    console.error('Failed to refresh token:', refreshError);
+    (e as Record<string, unknown>).refreshError = refreshError;
+    return Promise.reject(e);
+  }
+};
+
+const isNetworkError = (error: unknown) => (error as ErrorLike)?.message === 'Network Error';
+const isTimeoutError = (error: unknown) => {
+  const e = error as ErrorLike;
+  return e?.code === 'ECONNABORTED' && typeof e?.message === 'string' && e.message.includes('timeout');
+};
+const isTokenFetchUrl = (url?: string) => Boolean(url && url.includes('/api/token'));
+
+const markErrorFlag = (error: unknown, key: 'isNetworkError' | 'isTimeoutError', value: boolean) => {
+  const obj = error as Record<string, unknown>;
+  obj[key] = value;
+};
+
+const scheduleSoftReset = (reason: string) => {
+  setTimeout(() => {
+    console.log(`Performing complete token state reset after ${reason}`);
+    lastTokenFetch = 0;
+    tokenFetchRetries = 0;
+    consecutiveFailures = 0;
+    circuitBreakerTripped = false;
+    circuitBreakerResetTime = 0;
+    localStorage.removeItem('tokenData');
+    localStorage.removeItem('token');
+    console.log(`Token state completely reset after ${reason}`);
+  }, 5000);
+};
+
+const handleNetworkSideEffects = (error: unknown) => {
+  const e = error as ErrorLike;
+  if (isTokenFetchUrl(e?.config?.url)) {
+    console.log('Network error on token fetch, performing state reset');
+    if (tokenFetchPromise) tokenFetchPromise = null;
+    TOKEN = '';
+    clearAuthHeader();
+    scheduleSoftReset('network error');
+  }
+};
+
+const handleTimeoutSideEffects = (error: unknown) => {
+  const e = error as ErrorLike;
+  if (isTokenFetchUrl(e?.config?.url)) {
+    console.log('Timeout on token fetch, performing state reset');
+    if (tokenFetchPromise) tokenFetchPromise = null;
+    TOKEN = '';
+    clearAuthHeader();
+    scheduleSoftReset('timeout');
+  }
+};
+
 // Add response interceptor for global error handling and token refresh
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    // Don't log aborted requests as errors
     if (axios.isCancel(error)) {
-      console.log("Request cancelled:", error.message);
+      console.log('Request cancelled:', error.message);
       return Promise.reject(error);
     }
 
-    console.error("API Error:", error);
+    console.error('API Error:', error);
 
-    // Check if the error is due to an invalid token (401 Unauthorized)
-    if (error.response && error.response.status === 401) {
-      // Check if this request has already been retried to prevent infinite loops
-      const retryCount = error.config._retryCount || 0;
-      const maxRetries = 2; // Fewer retries for interceptor to avoid blocking UI
-
-      if (retryCount >= maxRetries) {
-        console.error(`Request has already been retried ${retryCount} times, giving up`);
-        // When we give up after max retries, we should perform a complete reset
-        // to ensure a clean state for future requests
-        console.log("Performing complete token state reset after max retries");
-        cancelAllRequests();
-        return Promise.reject(error);
-      }
-
-      console.log(`Token invalid (retry ${retryCount + 1}/${maxRetries}), clearing and refreshing...`);
-
-      // Clear the stored token data
-      localStorage.removeItem('tokenData');
-      // Also clear old format token if it exists
-      localStorage.removeItem('token');
-      TOKEN = '';
-
-      try {
-        // Always perform a complete reset of token fetch state for 401 errors
-        // This ensures we start fresh with each authentication failure
-        console.log("Resetting token fetch state for fresh attempt after 401 error");
-
-        // Reset all token-related state variables
-        lastTokenFetch = 0;
-        tokenFetchPromise = null;
-        tokenFetchRetries = 0;
-        consecutiveFailures = 0;
-        circuitBreakerTripped = false;
-        circuitBreakerResetTime = 0;
-
-        // Also reset axios default headers to ensure no stale token is used
-        delete api.defaults.headers.common['Authorization'];
-
-        console.log("Complete token state reset performed for 401 error");
-
-        // Add delay with exponential backoff for retries
-        if (retryCount > 0) {
-          const backoffTime = RETRY_BACKOFF_MS * Math.pow(2, retryCount - 1);
-          console.log(`Interceptor retry ${retryCount + 1}/${maxRetries}, waiting ${backoffTime}ms before retry`);
-          await new Promise(resolve => setTimeout(resolve, backoffTime));
-        }
-
-        // Try to get a new token
-        const token = await fetchToken();
-
-        // If the token was refreshed successfully, retry the original request
-        if (token) {
-          // Get the original request configuration
-          const originalRequest = error.config;
-          // Update the Authorization header with the new token
-          originalRequest.headers['Authorization'] = `Bearer ${token}`;
-          // Mark this request as retried
-          originalRequest._retryCount = retryCount + 1;
-          // Add a timeout to prevent hanging requests
-          originalRequest.timeout = 10000;
-          // Retry the request with the new token
-          console.log("Token refreshed, retrying original request");
-          return axios(originalRequest);
-        } else {
-          console.error("Token refresh returned null, cannot retry request");
-          return Promise.reject(error);
-        }
-      } catch (refreshError: unknown) {
-        console.error(`Failed to refresh token: ${refreshError instanceof Error ? refreshError.message : String(refreshError)}`);
-        // Add the refresh error to the original error for better debugging
-        error.refreshError = refreshError;
-        return Promise.reject(error);
-      }
+    if (isUnauthorized(error)) {
+      return retryWithNewToken(error);
     }
 
-    // For network errors, provide more helpful error message
-    if (error.message === 'Network Error') {
-      console.error("Network error detected. Please check your internet connection.");
-      error.isNetworkError = true;
-
-      // If this is a token fetch request that failed with a network error,
-      // we should reset the token fetch state to allow future attempts
-      if (error.config && error.config.url && error.config.url.includes('/api/token')) {
-        console.log("Network error on token fetch, performing complete state reset");
-
-        // Immediately mark the current fetch as failed by setting tokenFetchPromise to null
-        // This allows new fetch attempts to start without waiting for the timeout
-        if (tokenFetchPromise) {
-          console.log("Clearing failed token fetch promise immediately");
-          tokenFetchPromise = null;
-        }
-
-        // Perform an immediate partial reset to prevent further requests from using stale state
-        TOKEN = '';
-        delete api.defaults.headers.common['Authorization'];
-
-        // Reset the rest of the state after a delay to prevent immediate retries
-        setTimeout(() => {
-          console.log("Performing complete token state reset after network error");
-
-          // Reset all token-related state variables
-          lastTokenFetch = 0;
-          tokenFetchRetries = 0;
-          consecutiveFailures = 0;
-          circuitBreakerTripped = false;
-          circuitBreakerResetTime = 0;
-
-          // Also clear localStorage to ensure no stale token is used
-          localStorage.removeItem('tokenData');
-          localStorage.removeItem('token');
-
-          console.log("Token state completely reset after network error");
-        }, 5000); // Wait 5 seconds before allowing new token fetches
-      }
+    if (isNetworkError(error)) {
+      console.error('Network error detected. Please check your internet connection.');
+      markErrorFlag(error, 'isNetworkError', true);
+      handleNetworkSideEffects(error);
     }
 
-    // For timeout errors, provide more helpful error message
-    if (error.code === 'ECONNABORTED' && error.message.includes('timeout')) {
-      console.error("Request timed out. The server might be overloaded or unreachable.");
-      error.isTimeoutError = true;
-
-      // If this is a token fetch request that timed out,
-      // we should reset the token fetch state to allow future attempts
-      if (error.config && error.config.url && error.config.url.includes('/api/token')) {
-        console.log("Timeout on token fetch, performing complete state reset");
-
-        // Immediately mark the current fetch as failed by setting tokenFetchPromise to null
-        // This allows new fetch attempts to start without waiting for the timeout
-        if (tokenFetchPromise) {
-          console.log("Clearing timed out token fetch promise immediately");
-          tokenFetchPromise = null;
-        }
-
-        // Perform an immediate partial reset to prevent further requests from using stale state
-        TOKEN = '';
-        delete api.defaults.headers.common['Authorization'];
-
-        // Reset the rest of the state after a delay to prevent immediate retries
-        setTimeout(() => {
-          console.log("Performing complete token state reset after timeout");
-
-          // Reset all token-related state variables
-          lastTokenFetch = 0;
-          tokenFetchRetries = 0;
-          consecutiveFailures = 0;
-          circuitBreakerTripped = false;
-          circuitBreakerResetTime = 0;
-
-          // Also clear localStorage to ensure no stale token is used
-          localStorage.removeItem('tokenData');
-          localStorage.removeItem('token');
-
-          console.log("Token state completely reset after timeout");
-        }, 5000); // Wait 5 seconds before allowing new token fetches
-      }
+    if (isTimeoutError(error)) {
+      console.error('Request timed out. The server might be overloaded or unreachable.');
+      markErrorFlag(error, 'isTimeoutError', true);
+      handleTimeoutSideEffects(error);
     }
 
     return Promise.reject(error);
   }
 );
 
+// Helpers for ensureToken to reduce complexity
+const tryUseStoredToken = (): boolean => {
+  const storedTokenData = localStorage.getItem('tokenData');
+  if (!storedTokenData) return false;
+  try {
+    const { token, timestamp } = JSON.parse(storedTokenData);
+    const now = Date.now();
+    if (token && timestamp && (now - timestamp < TOKEN_CACHE_DURATION)) {
+      TOKEN = token;
+      api.defaults.headers.common['Authorization'] = `Bearer ${TOKEN}`;
+      return true;
+    }
+  } catch {
+    console.warn('Invalid token data in localStorage, will fetch a new one');
+  }
+  return false;
+};
+
+const waitForOngoingFetch = async (): Promise<boolean> => {
+  if (!tokenFetchPromise) return false;
+  console.log('Token fetch already in progress in ensureToken, waiting for it to complete');
+  try {
+    const token = await tokenFetchPromise;
+    if (!token && tokenFetchRetries < MAX_TOKEN_FETCH_RETRIES) {
+      throw new Error(`Token fetch in progress failed, will be retried later (${tokenFetchRetries}/${MAX_TOKEN_FETCH_RETRIES})`);
+    }
+    if (token) return true;
+  } catch (promiseError) {
+    console.warn('Existing token fetch promise failed:', promiseError);
+    tokenFetchPromise = null;
+  }
+  return false;
+};
+
+const fetchWithImmediateRetry = async (): Promise<void> => {
+  const token = await fetchToken();
+  if (token) return;
+  if (tokenFetchRetries < MAX_TOKEN_FETCH_RETRIES) {
+    const currentRetryCount = tokenFetchRetries;
+    console.log(`Token fetch failed, retrying immediately (${currentRetryCount}/${MAX_TOKEN_FETCH_RETRIES})`);
+    const backoffTime = RETRY_BACKOFF_MS * Math.pow(2, currentRetryCount);
+    await new Promise(resolve => setTimeout(resolve, backoffTime));
+    tokenFetchPromise = null;
+    lastTokenFetch = 0;
+    const retryToken = await fetchToken();
+    if (retryToken) {
+      console.log(`Immediate retry successful after attempt ${currentRetryCount + 1}`);
+      return;
+    }
+    console.error(`Immediate retry returned null after attempt ${currentRetryCount + 1}`);
+    throw new Error(`Failed to fetch authentication token after immediate retry (${currentRetryCount}/${MAX_TOKEN_FETCH_RETRIES})`);
+  }
+  console.error(`Maximum retry attempts (${MAX_TOKEN_FETCH_RETRIES}) exceeded`);
+  throw new Error('Failed to fetch authentication token after maximum retries');
+};
+
+const throwWithContext = (error: unknown): never => {
+  if (error instanceof Error) {
+    if (error.message.includes('Network Error')) {
+      throw new Error('Failed to fetch authentication token: Network error. Please check your connection.');
+    } else if (error.message.includes('timeout')) {
+      throw new Error('Failed to fetch authentication token: Request timed out. Server might be overloaded.');
+    } else {
+      throw new Error(`Failed to fetch authentication token: ${error.message}`);
+    }
+  }
+  throw new Error(`Failed to fetch authentication token: ${String(error)}`);
+};
+
 // Function to ensure token is fetched before making API calls
 const ensureToken = async () => {
-  // Check if we have a valid token in memory
-  if (!TOKEN) {
-    // Try to get token from localStorage first
-    const storedTokenData = localStorage.getItem('tokenData');
-    if (storedTokenData) {
-      try {
-        const { token, timestamp } = JSON.parse(storedTokenData);
-        const now = Date.now();
-        // If token exists and is not expired, use it
-        if (token && timestamp && (now - timestamp < TOKEN_CACHE_DURATION)) {
-          TOKEN = token;
-          api.defaults.headers.common['Authorization'] = `Bearer ${TOKEN}`;
-          return;
-        }
-      } catch {
-        // Invalid token data, will fetch a new one
-        console.warn('Invalid token data in localStorage, will fetch a new one');
-      }
-    }
+  if (TOKEN) return;
 
-    // If no valid token in memory or localStorage, fetch a new one
-    try {
-      // If there's already a token fetch in progress, wait for it to complete
-      if (tokenFetchPromise) {
-        console.log('Token fetch already in progress in ensureToken, waiting for it to complete');
-        try {
-          const token = await tokenFetchPromise;
+  if (tryUseStoredToken()) return;
 
-          // If the token fetch completed but didn't return a token and we haven't exceeded max retries,
-          // we should still throw to prevent API calls from proceeding with an invalid token
-          if (!token && tokenFetchRetries < MAX_TOKEN_FETCH_RETRIES) {
-            throw new Error(`Token fetch in progress failed, will be retried later (${tokenFetchRetries}/${MAX_TOKEN_FETCH_RETRIES})`);
-          }
-
-          // If we have a token now, we can proceed
-          if (token) {
-            return;
-          }
-        } catch (promiseError) {
-          // If the existing promise failed, log it but continue to try a new fetch
-          console.warn('Existing token fetch promise failed:', promiseError);
-          // Clear the failed promise to allow a new attempt
-          tokenFetchPromise = null;
-          // Don't reset retry counter here, let fetchToken handle that
-        }
-      }
-
-      // If we get here, either there was no existing promise or it failed
-      // Try to fetch a new token
-      const token = await fetchToken();
-      if (!token) {
-        // If token fetch failed but hasn't exceeded max retries, retry immediately
-        if (tokenFetchRetries < MAX_TOKEN_FETCH_RETRIES) {
-          // Store the current retry count for logging
-          const currentRetryCount = tokenFetchRetries;
-          console.log(`Token fetch failed, retrying immediately (${currentRetryCount}/${MAX_TOKEN_FETCH_RETRIES})`);
-
-          // Wait a moment before retrying to avoid hammering the server
-          const backoffTime = RETRY_BACKOFF_MS * Math.pow(2, currentRetryCount);
-          await new Promise(resolve => setTimeout(resolve, backoffTime));
-
-          // Force a new token fetch by clearing the promise and last fetch time
-          tokenFetchPromise = null;
-          lastTokenFetch = 0;
-
-          try {
-            // Retry the token fetch
-            const retryToken = await fetchToken();
-            if (retryToken) {
-              console.log(`Immediate retry successful after attempt ${currentRetryCount + 1}`);
-              return; // Success, we can continue
-            }
-
-            // If we get here, the retry returned null but didn't throw
-            console.error(`Immediate retry returned null after attempt ${currentRetryCount + 1}`);
-            throw new Error(`Failed to fetch authentication token after immediate retry (${currentRetryCount}/${MAX_TOKEN_FETCH_RETRIES})`);
-          } catch (retryError: unknown) {
-            // If the retry threw an error, log it and throw a more informative error
-            console.error(`Error during immediate retry attempt ${currentRetryCount + 1}:`, retryError);
-            throw new Error(`Failed to fetch authentication token after immediate retry (${currentRetryCount}/${MAX_TOKEN_FETCH_RETRIES}): ${retryError instanceof Error ? retryError.message : String(retryError)}`);
-          }
-        } else {
-          // If we've exceeded max retries, throw a more detailed error
-          console.error(`Maximum retry attempts (${MAX_TOKEN_FETCH_RETRIES}) exceeded`);
-          throw new Error('Failed to fetch authentication token after maximum retries');
-        }
-      }
-    } catch (error: unknown) {
-      console.error('Error in ensureToken:', error);
-
-      // Add more context to the error for better debugging
-      if (error instanceof Error) {
-        if (error.message.includes('Network Error')) {
-          throw new Error('Failed to fetch authentication token: Network error. Please check your connection.');
-        } else if (error.message.includes('timeout')) {
-          throw new Error('Failed to fetch authentication token: Request timed out. Server might be overloaded.');
-        } else {
-          // Rethrow the original error with more context
-          throw new Error(`Failed to fetch authentication token: ${error.message}`);
-        }
-      } else {
-        // Handle non-Error objects
-        throw new Error(`Failed to fetch authentication token: ${String(error)}`);
-      }
-    }
+  try {
+    if (await waitForOngoingFetch()) return;
+    await fetchWithImmediateRetry();
+  } catch (error) {
+    console.error('Error in ensureToken:', error);
+    throwWithContext(error);
   }
 };
 

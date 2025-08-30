@@ -1,5 +1,6 @@
 {
   "scripts": {
-    "typecheck": "npm --prefix ui run typecheck"
+    "typecheck": "npm --prefix ui run typecheck",
+    "test": "npm --prefix ui run test --"
   }
 }

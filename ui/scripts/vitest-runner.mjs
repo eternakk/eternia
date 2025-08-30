@@ -5,7 +5,7 @@
 
 import { fileURLToPath } from 'url';
 import path from 'path';
-import { startVitest } from 'vitest/node';
+import { spawn } from 'node:child_process';
 
 // Ensure we run from the UI package root regardless of where npm was invoked
 const __filename = fileURLToPath(import.meta.url);
@@ -63,11 +63,23 @@ async function main() {
   }
 
   try {
-    // Ensure non-watch mode by mimicking `vitest run`
-    const args = filtered.includes('run') ? filtered : ['run', ...filtered];
-    const ctx = await startVitest('test', args, {});
-    // Ensure Vitest cleans up; exit code should be set by Vitest
-    await ctx?.close?.();
+    // Build CLI args for Vitest, ensuring non-watch mode with `run`
+    const cleaned = filtered.filter(a => a !== 'run');
+    const args = ['run', ...cleaned];
+
+    const vitestBin = path.resolve(projectRoot, 'node_modules', '.bin', process.platform === 'win32' ? 'vitest.cmd' : 'vitest');
+    const child = spawn(vitestBin, args, { stdio: 'inherit', env: process.env });
+
+    await new Promise((resolve, reject) => {
+      child.on('close', (code) => {
+        if (code !== 0) {
+          reject(new Error(`Vitest exited with code ${code}`));
+        } else {
+          resolve(null);
+        }
+      });
+      child.on('error', reject);
+    });
   } catch (err) {
     console.error('[vitest-runner] Error:', err);
     process.exitCode = 1;

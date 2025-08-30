@@ -505,7 +505,7 @@ const ensureToken = async () => {
           api.defaults.headers.common['Authorization'] = `Bearer ${TOKEN}`;
           return;
         }
-      } catch (e) {
+      } catch {
         // Invalid token data, will fetch a new one
         console.warn('Invalid token data in localStorage, will fetch a new one');
       }
@@ -740,7 +740,7 @@ export interface Agent {
     role: string;
     emotion: string | null;
     zone: string | Zone | null;
-    memory: any;
+    memory: unknown;
     stressLevel: number;
 }
 

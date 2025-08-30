@@ -113,7 +113,7 @@ export default function RitualPanel() {
                 aria-labelledby="rituals-heading"
                 aria-live="polite"
             >
-                {currentRituals.map((ritual: any) => (
+                {currentRituals.map((ritual: Ritual) => (
                     <li key={ritual.id} className="flex items-center mb-2 p-2 border-b border-gray-200">
                         <span className="flex-1">{ritual.name}</span>
                         <button

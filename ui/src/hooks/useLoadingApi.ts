@@ -18,7 +18,7 @@ export const useLoadingApi = () => {
    * @returns A new function that manages loading state and handles errors
    */
   const withLoading = useCallback(
-    <T extends (...args: any[]) => Promise<any>>(
+    <T extends (...args: unknown[]) => Promise<unknown>>(
       fn: T,
       operationKey: string,
       errorMessage?: string

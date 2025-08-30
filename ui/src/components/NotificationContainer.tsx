@@ -43,7 +43,7 @@ const formatMessage = (message: string): React.ReactNode => {
       const jsonData = JSON.parse(message);
       return <JsonFormatter data={jsonData} />;
     }
-  } catch (e) {
+  } catch {
     // Not valid JSON, continue with other formatting
   }
 
@@ -106,15 +106,18 @@ const formatMessageWithLinks = (message: string): React.ReactNode => {
 /**
  * Component to format JSON data in a user-friendly way
  */
-const JsonFormatter = ({ data }: { data: any }): React.ReactElement => {
+const JsonFormatter = ({ data }: { data: unknown }): React.ReactElement => {
   // For simple error objects with a message property
-  if (data && typeof data === 'object' && data.message) {
-    return <span>{data.message}</span>;
-  }
-
-  // For API error responses
-  if (data && typeof data === 'object' && data.error) {
-    return <span>{typeof data.error === 'string' ? data.error : JSON.stringify(data.error)}</span>;
+  if (data && typeof data === 'object') {
+    const obj = data as Record<string, unknown>;
+    if ('message' in obj) {
+      return <span>{String(obj.message)}</span>;
+    }
+    // For API error responses
+    if ('error' in obj) {
+      const errVal = obj.error;
+      return <span>{typeof errVal === 'string' ? errVal : JSON.stringify(errVal)}</span>;
+    }
   }
 
   // For arrays, show a summary
@@ -134,7 +137,7 @@ const JsonFormatter = ({ data }: { data: any }): React.ReactElement => {
 
   // For other objects, show a formatted version
   if (data && typeof data === 'object') {
-    const entries = Object.entries(data);
+    const entries = Object.entries(data as Record<string, unknown>);
     if (entries.length <= 3) {
       // For simple objects, show inline
       return (

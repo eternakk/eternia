@@ -4,7 +4,7 @@ import ReconnectingWebSocket from "reconnecting-websocket";
 export interface GovEvent {
   t: number;
   event: string;
-  payload: any;
+  payload: unknown;
 }
 
 export function useGovEvents() {

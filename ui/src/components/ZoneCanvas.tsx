@@ -264,7 +264,7 @@ const ZoneCanvas = () => {
     const getModifiersForZone = zoneModifiersResult?.getModifiersForZone ?? (() => []); // Use the zone modifiers with fallback
     const [assets, setAssets] = useState<Assets | null>(null);
     const errorHandlerResult = useErrorHandler();
-    const handleApiError = errorHandlerResult?.handleApiError ?? ((error: any, message?: string) => console.error(message, error));
+    const handleApiError = errorHandlerResult?.handleApiError ?? ((error: unknown, message?: string) => console.error(message, error));
 
     // State for zone details modal
     const [showZoneDetails, setShowZoneDetails] = useState(false);

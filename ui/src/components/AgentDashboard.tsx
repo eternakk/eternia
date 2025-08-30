@@ -254,7 +254,7 @@ export default function AgentDashboard() {
                     role="list"
                     aria-label={`List of agents, page ${currentPage} of ${Math.ceil(agents.length / itemsPerPage)}`}
                 >
-                    {currentAgents.map((agent: any) => {
+                    {currentAgents.map((agent: Agent) => {
                         const emotionDisplay = getEmotionDisplay(agent.emotion);
 
                         return (

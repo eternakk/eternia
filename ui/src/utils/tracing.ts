@@ -14,7 +14,7 @@ import { DocumentLoadInstrumentation } from '@opentelemetry/instrumentation-docu
 import { XMLHttpRequestInstrumentation } from '@opentelemetry/instrumentation-xml-http-request';
 import { FetchInstrumentation } from '@opentelemetry/instrumentation-fetch';
 import { UserInteractionInstrumentation } from '@opentelemetry/instrumentation-user-interaction';
-import { trace, context, SpanStatusCode, Span, SpanKind, Context } from '@opentelemetry/api';
+import { trace, context, SpanStatusCode, Span, SpanKind } from '@opentelemetry/api';
 
 // Global tracer instance
 let tracer: ReturnType<typeof trace.getTracer> | null = null;
@@ -108,7 +108,7 @@ export function getTracer(): ReturnType<typeof trace.getTracer> {
 export function createSpan(
   name: string,
   attributes: Record<string, string | number | boolean> = {},
-  kind: SpanKind = SpanKind.INTERNAL
+  kind: unknown = SpanKind.INTERNAL
 ): Span {
   if (!tracer) {
     throw new Error('Tracing has not been initialized. Call initTracing() first.');
@@ -137,7 +137,7 @@ export async function withSpan<T>(
   name: string,
   fn: (span: Span) => Promise<T> | T,
   attributes: Record<string, string | number | boolean> = {},
-  kind: SpanKind = SpanKind.INTERNAL
+  kind: unknown = SpanKind.INTERNAL
 ): Promise<T> {
   if (!tracer) {
     return fn({} as Span);

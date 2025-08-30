@@ -57,11 +57,11 @@ export const useErrorHandler = () => {
      * @param errorMessage - Optional custom error message
      * @returns A new function that handles errors
      */
-    const withErrorHandling = <T extends (...args: unknown[]) => Promise<unknown>>(
-        fn: T,
+    const withErrorHandling = <A extends unknown[], R>(
+        fn: (...args: A) => Promise<R>,
         errorMessage?: string
-    ): ((...args: Parameters<T>) => Promise<Awaited<ReturnType<T>> | undefined>) => {
-        return async (...args: Parameters<T>) => {
+    ): ((...args: A) => Promise<R | undefined>) => {
+        return async (...args: A) => {
             try {
                 return await fn(...args);
             } catch (error) {
@@ -77,26 +77,25 @@ export const useErrorHandler = () => {
     };
 };
 
-// @ts-expect-error
 /**
  * Creates a wrapped version of an API function with error handling
  * @param apiFn - The API function to wrap
  * @param errorMessage - Optional custom error message
  * @returns A new function that handles errors
  */
-export const createSafeApiCall = <T extends (...args: unknown[]) => Promise<unknown>>(
-    apiFn: T,
+export const createSafeApiCall = <A extends unknown[], R>(
+    apiFn: (...args: A) => Promise<R>,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     _errorMessage?: string
 ) => {
-    return async (...args: Parameters<T>): Promise<Awaited<ReturnType<T>> | undefined> => {
+    return async (...args: A): Promise<R | undefined> => {
         try {
             return await apiFn(...args);
         } catch (error) {
             console.error('API Error:', error);
             // Note: This function doesn't show notifications because it's not inside a component
             // Use useErrorHandler().withErrorHandling inside components instead
-            return Promise.resolve(undefined);
+            return undefined;
         }
     };
 };

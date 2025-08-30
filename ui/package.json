@@ -21,7 +21,7 @@
   "dependencies": {
     "@react-three/drei": "^10.1.5",
     "@react-three/fiber": "^9.2.0",
-    "@react-three/postprocessing": "^2.10.3",
+    "@react-three/postprocessing": "^3.0.4",
     "axios": "^1.9.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

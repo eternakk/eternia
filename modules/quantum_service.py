@@ -121,7 +121,7 @@ class QuantumService:
         return QRNGResult(bits=bits, entropy=self._entropy(bits), backend="classical")
 
     def variational_field(
-            self, seed: int, size: int = 32
+        self, seed: int, size: int = 32
     ) -> Tuple[List[List[float]], str]:
         """Generate a normalized 2D field in [0,1] with shape (size, size).
 

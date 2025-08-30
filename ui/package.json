@@ -17,7 +17,9 @@
     "cypress:open": "cypress open",
     "cypress:run": "cypress run",
     "e2e": "start-server-and-test dev http://localhost:5173 cypress:run",
-    "e2e:open": "start-server-and-test dev http://localhost:5173 cypress:open"
+    "e2e:open": "start-server-and-test dev http://localhost:5173 cypress:open",
+    "complexity:report": "complexity-report --maxcyc 15 --maxfile 1000 --maxfunc 100 --format json src/",
+    "complexity:file": "complexity-report --maxcyc 15 --maxfile 1000 --maxfunc 100 --format json"
   },
   "dependencies": {
     "@react-three/drei": "^10.0.6",

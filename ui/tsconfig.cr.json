@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "outDir": ".cr-out",
+    "noEmit": false,
+    "noEmitOnError": false,
+    "declaration": false,
+    "emitDeclarationOnly": false,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "allowJs": true,
+    "strict": false,
+    "isolatedModules": false
+  },
+  "include": ["src/**/*"],
+  "exclude": [
+    "src/__tests__/**",
+    "src/test/**",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx",
+    "src/App.tsx",
+    "src/main.tsx"
+  ]
+}

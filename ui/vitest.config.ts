@@ -6,27 +6,34 @@ function parseCoverageThresholdFromEnv(): Partial<Record<'branches' | 'functions
   const candidates = [
     process.env.npm_config_coveragethreshold, // from --coverageThreshold=...
     // Some environments might preserve casing
-    // @ts-ignore - env keys are strings
     (process.env as Record<string, string | undefined>)['npm_config_coverageThreshold'],
     process.env.COVERAGE_THRESHOLD,
   ];
 
-  const raw = candidates.find(Boolean);
+  const raw = candidates.find((v): v is string => Boolean(v));
   if (!raw) return undefined;
 
   try {
-    const parsed = JSON.parse(raw);
-    const global = parsed && typeof parsed === 'object' && 'global' in parsed ? (parsed as any).global : parsed;
-    if (!global || typeof global !== 'object') return undefined;
+    const parsed: unknown = JSON.parse(raw);
+    const hasGlobal =
+      parsed !== null &&
+      typeof parsed === 'object' &&
+      'global' in (parsed as Record<string, unknown>);
+
+    const globalCandidate: unknown = hasGlobal
+      ? (parsed as { global: unknown }).global
+      : parsed;
+
+    if (!globalCandidate || typeof globalCandidate !== 'object') return undefined;
 
     const out: Partial<Record<'branches' | 'functions' | 'lines' | 'statements', number>> = {};
+    const g = globalCandidate as Record<string, unknown>;
     for (const key of ['branches', 'functions', 'lines', 'statements'] as const) {
-      const v = (global as Record<string, unknown>)[key];
+      const v = g[key];
       if (typeof v === 'number') out[key] = v;
     }
     return Object.keys(out).length ? out : undefined;
   } catch (err) {
-    // eslint-disable-next-line no-console
     console.warn('[vitest] Failed to parse COVERAGE_THRESHOLD JSON:', err);
     return undefined;
   }

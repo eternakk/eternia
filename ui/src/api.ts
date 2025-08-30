@@ -22,6 +22,9 @@ const api = axios.create({
     baseURL: import.meta.env.VITE_API_URL || "http://localhost:8000",
 });
 
+// Expose axios instance for tests and advanced usage
+export const apiClient = api;
+
 // Detect test environment (Vitest / NODE_ENV=test)
 const IS_TEST_ENV = (typeof process !== 'undefined' && (process.env.VITEST || process.env.NODE_ENV === 'test')) ||
     (typeof import.meta !== 'undefined' && (import.meta as { env?: { MODE?: string } }).env?.MODE === 'test');
@@ -42,7 +45,7 @@ if (IS_TEST_ENV) {
         if (url.includes('/api/token')) {
             return {token: 'test-token'};
         }
-        if (url.includes('/api/state')) {
+        if (url.includes('/api/state') || url.includes('/state')) {
             return {
                 cycle: 1,
                 identity_score: 0.9,
@@ -145,7 +148,12 @@ export const fetchToken = async () => {
     if (isTestEnv) {
         if (!TOKEN) {
             TOKEN = 'test-token';
-            api.defaults.headers.common['Authorization'] = `Bearer ${TOKEN}`;
+            // Ensure axios defaults structure exists before assigning
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const defaults: any = api.defaults as any;
+            defaults.headers = defaults.headers || {};
+            defaults.headers.common = defaults.headers.common || {};
+            defaults.headers.common['Authorization'] = `Bearer ${TOKEN}`;
         }
         return TOKEN;
     }

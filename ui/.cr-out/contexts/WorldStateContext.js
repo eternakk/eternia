@@ -66,7 +66,6 @@ export const WorldStateProvider = ({ children, refreshInterval = 10000, // Incre
     const minRequestInterval = 1000; // Minimum time between requests in ms
     // Function to refresh the state
     const refreshState = async () => {
-        var _a;
         // Check if enough time has passed since the last request
         const now = Date.now();
         if (now - lastRequestTimeRef.current < minRequestInterval) {
@@ -103,7 +102,7 @@ export const WorldStateProvider = ({ children, refreshInterval = 10000, // Incre
             dispatch({ type: 'FETCH_STATE_ERROR', payload: error });
             // If the error is related to authentication, try to refresh the token
             // but only if we haven't tried too recently to avoid hammering the server
-            if (axios.isAxiosError(error) && ((_a = error.response) === null || _a === void 0 ? void 0 : _a.status) === 401) {
+            if (axios.isAxiosError(error) && error.response?.status === 401) {
                 const lastTokenRefresh = parseInt(localStorage.getItem('lastTokenRefresh') || '0');
                 const now = Date.now();
                 const tokenRefreshCooldown = 30000; // 30 seconds cooldown between 401-triggered refreshes

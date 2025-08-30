@@ -50,7 +50,6 @@ export const AppStateProvider = ({ children, refreshInterval = 1000, }) => {
     const lastRequestTimeRef = useRef(0);
     const minRequestInterval = 1000; // Minimum time between requests in ms
     const refreshState = async () => {
-        var _a;
         // Check if enough time has passed since the last request
         const now = Date.now();
         if (now - lastRequestTimeRef.current < minRequestInterval) {
@@ -92,7 +91,7 @@ export const AppStateProvider = ({ children, refreshInterval = 1000, }) => {
             handleApiError(error, 'Failed to fetch world state');
             dispatch({ type: 'FETCH_STATE_ERROR', payload: error });
             // If the error is related to authentication, try to refresh the token
-            if (axios.isAxiosError(error) && ((_a = error.response) === null || _a === void 0 ? void 0 : _a.status) === 401) {
+            if (axios.isAxiosError(error) && error.response?.status === 401) {
                 console.log('Authentication error during state refresh, attempting to get new token...');
                 try {
                     // Clear existing token

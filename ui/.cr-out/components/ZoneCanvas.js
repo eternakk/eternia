@@ -24,7 +24,7 @@ const Scene = memo(({ assets, emotion, intensity, modifiers = [] }) => {
             fear: "#4a148c",
             neutral: "#999999",
         };
-        return colors[emotion !== null && emotion !== void 0 ? emotion : "neutral"] || "#777777";
+        return colors[emotion ?? "neutral"] || "#777777";
     }, [emotion]);
     // Determine visual effects based on modifiers
     const hasModifier = useCallback((name) => {
@@ -112,10 +112,7 @@ const ModifierLegend = ({ modifiers }) => {
     const activeModifiers = modifiers.filter(mod => modifierIcons[mod]);
     if (activeModifiers.length === 0)
         return null;
-    return (_jsxs("div", { className: "absolute bottom-4 right-4 bg-black bg-opacity-70 rounded-lg p-2 text-white z-10 max-w-xs", children: [_jsx("h3", { className: "text-sm font-semibold mb-1", children: "Zone Modifiers" }), _jsx("div", { className: "space-y-1 text-xs", children: activeModifiers.map((modifier) => {
-                    var _a, _b;
-                    return (_jsxs("div", { className: "flex items-center", children: [_jsx("span", { className: "mr-2 w-6 h-6 flex items-center justify-center rounded-full", style: { backgroundColor: ((_a = modifierIcons[modifier]) === null || _a === void 0 ? void 0 : _a.color) || '#777' }, children: ((_b = modifierIcons[modifier]) === null || _b === void 0 ? void 0 : _b.icon) || '❓' }), _jsx("span", { className: "truncate", title: modifier, children: modifier })] }, modifier));
-                }) })] }));
+    return (_jsxs("div", { className: "absolute bottom-4 right-4 bg-black bg-opacity-70 rounded-lg p-2 text-white z-10 max-w-xs", children: [_jsx("h3", { className: "text-sm font-semibold mb-1", children: "Zone Modifiers" }), _jsx("div", { className: "space-y-1 text-xs", children: activeModifiers.map((modifier) => (_jsxs("div", { className: "flex items-center", children: [_jsx("span", { className: "mr-2 w-6 h-6 flex items-center justify-center rounded-full", style: { backgroundColor: modifierIcons[modifier]?.color || '#777' }, children: modifierIcons[modifier]?.icon || '❓' }), _jsx("span", { className: "truncate", title: modifier, children: modifier })] }, modifier))) })] }));
 };
 // Define the ZoneDetails component
 const ZoneDetails = ({ zoneName, modifiers, emotion, onClose }) => {
@@ -123,17 +120,16 @@ const ZoneDetails = ({ zoneName, modifiers, emotion, onClose }) => {
 };
 // Memoize the ZoneCanvas component to prevent unnecessary re-renders
 const ZoneCanvas = () => {
-    var _a, _b, _c, _d;
     const worldStateResult = useWorldState();
-    const state = (_a = worldStateResult === null || worldStateResult === void 0 ? void 0 : worldStateResult.state) !== null && _a !== void 0 ? _a : { worldState: null, isLoading: false, error: null };
+    const state = worldStateResult?.state ?? { worldState: null, isLoading: false, error: null };
     const { worldState, isLoading: isStateLoading, error } = state;
     const currentZoneResult = useCurrentZone();
-    const currentZone = (_b = currentZoneResult === null || currentZoneResult === void 0 ? void 0 : currentZoneResult.currentZone) !== null && _b !== void 0 ? _b : null; // Use the currentZone from WorldStateContext with fallback
+    const currentZone = currentZoneResult?.currentZone ?? null; // Use the currentZone from WorldStateContext with fallback
     const zoneModifiersResult = useZoneModifiers();
-    const getModifiersForZone = (_c = zoneModifiersResult === null || zoneModifiersResult === void 0 ? void 0 : zoneModifiersResult.getModifiersForZone) !== null && _c !== void 0 ? _c : (() => []); // Use the zone modifiers with fallback
+    const getModifiersForZone = zoneModifiersResult?.getModifiersForZone ?? (() => []); // Use the zone modifiers with fallback
     const [assets, setAssets] = useState(null);
     const errorHandlerResult = useErrorHandler();
-    const handleApiError = (_d = errorHandlerResult === null || errorHandlerResult === void 0 ? void 0 : errorHandlerResult.handleApiError) !== null && _d !== void 0 ? _d : ((error, message) => console.error(message, error));
+    const handleApiError = errorHandlerResult?.handleApiError ?? ((error, message) => console.error(message, error));
     // State for zone details modal
     const [showZoneDetails, setShowZoneDetails] = useState(false);
     // Create a ref for the container element to attach click handler
@@ -158,11 +154,11 @@ const ZoneCanvas = () => {
         };
     }, []);
     // Memoize the emotion to prevent unnecessary re-renders
-    const emotion = useMemo(() => worldState === null || worldState === void 0 ? void 0 : worldState.emotion, [worldState === null || worldState === void 0 ? void 0 : worldState.emotion]);
+    const emotion = useMemo(() => worldState?.emotion, [worldState?.emotion]);
     // Memoize the identity score calculation
     const identityScore = useMemo(() => {
         return worldState ? worldState.identity_score : 0;
-    }, [worldState === null || worldState === void 0 ? void 0 : worldState.identity_score]);
+    }, [worldState?.identity_score]);
     // Memoize the fetchAssets function to prevent unnecessary re-renders
     const fetchAssets = useCallback(async (zone) => {
         if (!zone)

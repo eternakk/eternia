@@ -51,7 +51,7 @@ export const FeatureFlagProvider = ({ children, initialFlags = {}, flagsUrl, }) 
         }
         // Check if the user is in an enabled group
         if (flag.enabledForGroups && flag.enabledForGroups.length > 0) {
-            if (userGroups.some(group => { var _a; return (_a = flag.enabledForGroups) === null || _a === void 0 ? void 0 : _a.includes(group); })) {
+            if (userGroups.some(group => flag.enabledForGroups?.includes(group))) {
                 return true;
             }
         }

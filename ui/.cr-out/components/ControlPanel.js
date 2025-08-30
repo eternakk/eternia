@@ -21,12 +21,11 @@ export default function ControlPanel() {
     const [isLoading, setIsLoading] = useState({});
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const handleObserveOracle = withErrorHandling(async () => {
-        var _a;
         setIsLoading(prev => ({ ...prev, observe: true }));
         try {
             const res = await getQuantumBits(128);
             if (res) {
-                const preview = ((_a = res.bits) === null || _a === void 0 ? void 0 : _a.slice(0, 16)) || "";
+                const preview = res.bits?.slice(0, 16) || "";
                 addNotification({
                     type: 'success',
                     message: `Observed oracle → backend=${res.backend}, H≈${res.entropy.toFixed(3)}, bits=${preview}…`,

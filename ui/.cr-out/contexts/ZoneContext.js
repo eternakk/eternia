@@ -6,7 +6,6 @@ import { useErrorHandler } from '../utils/errorHandling';
 // Create the context
 const ZoneContext = createContext(undefined);
 export const ZoneProvider = ({ children }) => {
-    var _a, _b;
     const { state } = useAppState();
     const [currentZone, setCurrentZone] = useState(null);
     const [zoneModifiers, setZoneModifiers] = useState({});
@@ -33,22 +32,20 @@ export const ZoneProvider = ({ children }) => {
     };
     // Only update the zone state when current_zone changes from worldState
     useEffect(() => {
-        var _a;
-        const newZone = ((_a = state.worldState) === null || _a === void 0 ? void 0 : _a.current_zone) || null;
+        const newZone = state.worldState?.current_zone || null;
         // Always update from worldState if it's different, even if it's null
         if (newZone !== currentZone) {
             console.log(`ZoneContext: Updating zone from ${currentZone} to ${newZone} (from worldState)`);
             setCurrentZone(newZone);
         }
-    }, [(_a = state.worldState) === null || _a === void 0 ? void 0 : _a.current_zone, currentZone]);
+    }, [state.worldState?.current_zone, currentZone]);
     // Update zone modifiers when worldState changes
     useEffect(() => {
-        var _a;
-        if ((_a = state.worldState) === null || _a === void 0 ? void 0 : _a.modifiers) {
+        if (state.worldState?.modifiers) {
             console.log(`ZoneContext: Updating zone modifiers`, state.worldState.modifiers);
             setZoneModifiers(state.worldState.modifiers);
         }
-    }, [(_b = state.worldState) === null || _b === void 0 ? void 0 : _b.modifiers]);
+    }, [state.worldState?.modifiers]);
     // Create the context value object
     const contextValue = {
         currentZone,

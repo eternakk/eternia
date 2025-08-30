@@ -84,10 +84,9 @@ export default function RitualPanel() {
     const currentRituals = rituals.slice(indexOfFirstItem, indexOfLastItem);
     // Handle page change
     const handlePageChange = (pageNumber) => {
-        var _a;
         setCurrentPage(pageNumber);
         // Scroll to top of the list when page changes
-        (_a = document.getElementById('rituals-list')) === null || _a === void 0 ? void 0 : _a.scrollIntoView({ behavior: 'smooth' });
+        document.getElementById('rituals-list')?.scrollIntoView({ behavior: 'smooth' });
     };
     return (_jsxs("div", { className: "p-4", children: [_jsx("h3", { className: "text-xl font-bold mb-2", id: "rituals-heading", children: "Available Rituals" }), _jsxs("ul", { id: "rituals-list", className: "mb-4", role: "list", "aria-labelledby": "rituals-heading", "aria-live": "polite", children: [currentRituals.map((ritual) => (_jsxs("li", { className: "flex items-center mb-2 p-2 border-b border-gray-200", children: [_jsx("span", { className: "flex-1", children: ritual.name }), _jsx("button", { onClick: () => handleTriggerRitual(ritual.id), className: "ml-2 px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500", "aria-label": `Trigger ${ritual.name} ritual`, children: "Trigger" })] }, ritual.id))), currentRituals.length === 0 && (_jsx("li", { className: "p-2 text-gray-500", children: "No rituals available." }))] }), rituals.length > itemsPerPage && (_jsx(Pagination, { totalItems: rituals.length, itemsPerPage: itemsPerPage, currentPage: currentPage, onPageChange: handlePageChange, className: "mt-4" }))] }));
 }

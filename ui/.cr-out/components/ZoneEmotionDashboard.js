@@ -31,16 +31,16 @@ export const ZoneEmotionDashboard = ({ className = '' }) => {
     }, [currentZone, prevState.zone]);
     // Effect to detect and log emotion changes
     useEffect(() => {
-        if ((worldState === null || worldState === void 0 ? void 0 : worldState.emotion) !== prevState.emotion) {
+        if (worldState?.emotion !== prevState.emotion) {
             const newChange = {
                 timestamp: new Date(),
                 type: 'emotion',
-                message: `Emotion changed from ${prevState.emotion || 'none'} to ${(worldState === null || worldState === void 0 ? void 0 : worldState.emotion) || 'none'}`,
+                message: `Emotion changed from ${prevState.emotion || 'none'} to ${worldState?.emotion || 'none'}`,
             };
             setChanges(prev => [newChange, ...prev].slice(0, 50)); // Keep last 50 changes
-            setPrevState(prev => ({ ...prev, emotion: (worldState === null || worldState === void 0 ? void 0 : worldState.emotion) || null }));
+            setPrevState(prev => ({ ...prev, emotion: worldState?.emotion || null }));
         }
-    }, [worldState === null || worldState === void 0 ? void 0 : worldState.emotion, prevState.emotion]);
+    }, [worldState?.emotion, prevState.emotion]);
     // Effect to detect and log modifier changes
     useEffect(() => {
         // Check if modifiers have changed
@@ -121,7 +121,7 @@ export const ZoneEmotionDashboard = ({ className = '' }) => {
                 return '📝';
         }
     };
-    return (_jsxs("div", { className: `zone-emotion-dashboard ${className}`, children: [_jsx("h2", { className: "text-xl font-bold mb-4", children: "Zone & Emotion Dashboard" }), _jsxs("div", { className: "current-state mb-4 p-4 bg-gray-100 rounded-md", children: [_jsx("h3", { className: "text-lg font-semibold mb-2", children: "Current State" }), _jsxs("div", { className: "grid grid-cols-2 gap-4", children: [_jsxs("div", { children: [_jsx("p", { className: "font-medium", children: "Current Zone:" }), _jsx("p", { className: "ml-2", children: currentZone || 'None' })] }), _jsxs("div", { children: [_jsx("p", { className: "font-medium", children: "Current Emotion:" }), _jsx("p", { className: "ml-2", children: (worldState === null || worldState === void 0 ? void 0 : worldState.emotion) || 'None' })] })] })] }), _jsxs("div", { className: "changes-log", children: [_jsx("h3", { className: "text-lg font-semibold mb-2", children: "Recent Changes" }), changes.length === 0 ? (_jsx("p", { className: "text-gray-500 italic", children: "No changes detected yet" })) : (_jsx("div", { className: "max-h-96 overflow-y-auto", children: changes.map((change, index) => (_jsx("div", { className: `mb-2 p-2 rounded-md ${change.type === 'zone'
+    return (_jsxs("div", { className: `zone-emotion-dashboard ${className}`, children: [_jsx("h2", { className: "text-xl font-bold mb-4", children: "Zone & Emotion Dashboard" }), _jsxs("div", { className: "current-state mb-4 p-4 bg-gray-100 rounded-md", children: [_jsx("h3", { className: "text-lg font-semibold mb-2", children: "Current State" }), _jsxs("div", { className: "grid grid-cols-2 gap-4", children: [_jsxs("div", { children: [_jsx("p", { className: "font-medium", children: "Current Zone:" }), _jsx("p", { className: "ml-2", children: currentZone || 'None' })] }), _jsxs("div", { children: [_jsx("p", { className: "font-medium", children: "Current Emotion:" }), _jsx("p", { className: "ml-2", children: worldState?.emotion || 'None' })] })] })] }), _jsxs("div", { className: "changes-log", children: [_jsx("h3", { className: "text-lg font-semibold mb-2", children: "Recent Changes" }), changes.length === 0 ? (_jsx("p", { className: "text-gray-500 italic", children: "No changes detected yet" })) : (_jsx("div", { className: "max-h-96 overflow-y-auto", children: changes.map((change, index) => (_jsx("div", { className: `mb-2 p-2 rounded-md ${change.type === 'zone'
                                 ? 'bg-blue-50'
                                 : change.type === 'emotion'
                                     ? 'bg-yellow-50'

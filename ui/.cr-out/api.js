@@ -264,14 +264,12 @@ export const fetchToken = async () => {
 };
 // Helpers to keep interceptor simple and reduce cyclomatic complexity
 const isUnauthorized = (error) => {
-    var _a;
     const e = error;
-    return ((_a = e === null || e === void 0 ? void 0 : e.response) === null || _a === void 0 ? void 0 : _a.status) === 401;
+    return e?.response?.status === 401;
 };
 const getRetryCount = (error) => {
-    var _a;
     const e = error;
-    return ((_a = e === null || e === void 0 ? void 0 : e.config) === null || _a === void 0 ? void 0 : _a._retryCount) || 0;
+    return e?.config?._retryCount || 0;
 };
 const clearAuthHeader = () => { delete api.defaults.headers.common['Authorization']; };
 const resetTokenStateHard = () => {
@@ -325,10 +323,10 @@ const retryWithNewToken = async (error) => {
         return Promise.reject(e);
     }
 };
-const isNetworkError = (error) => (error === null || error === void 0 ? void 0 : error.message) === 'Network Error';
+const isNetworkError = (error) => error?.message === 'Network Error';
 const isTimeoutError = (error) => {
     const e = error;
-    return (e === null || e === void 0 ? void 0 : e.code) === 'ECONNABORTED' && typeof (e === null || e === void 0 ? void 0 : e.message) === 'string' && e.message.includes('timeout');
+    return e?.code === 'ECONNABORTED' && typeof e?.message === 'string' && e.message.includes('timeout');
 };
 const isTokenFetchUrl = (url) => Boolean(url && url.includes('/api/token'));
 const markErrorFlag = (error, key, value) => {
@@ -349,9 +347,8 @@ const scheduleSoftReset = (reason) => {
     }, 5000);
 };
 const handleNetworkSideEffects = (error) => {
-    var _a;
     const e = error;
-    if (isTokenFetchUrl((_a = e === null || e === void 0 ? void 0 : e.config) === null || _a === void 0 ? void 0 : _a.url)) {
+    if (isTokenFetchUrl(e?.config?.url)) {
         console.log('Network error on token fetch, performing state reset');
         if (tokenFetchPromise)
             tokenFetchPromise = null;
@@ -361,9 +358,8 @@ const handleNetworkSideEffects = (error) => {
     }
 };
 const handleTimeoutSideEffects = (error) => {
-    var _a;
     const e = error;
-    if (isTokenFetchUrl((_a = e === null || e === void 0 ? void 0 : e.config) === null || _a === void 0 ? void 0 : _a.url)) {
+    if (isTokenFetchUrl(e?.config?.url)) {
         console.log('Timeout on token fetch, performing state reset');
         if (tokenFetchPromise)
             tokenFetchPromise = null;

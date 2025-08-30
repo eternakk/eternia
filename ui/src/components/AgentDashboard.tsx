@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { getAgents, Agent } from '../api';
+import { getAgents, Agent, Zone } from '../api';
 import { useErrorHandler } from '../utils/errorHandling';
 import { useSwipeable } from 'react-swipeable';
 import { Pagination } from './ui/Pagination';
@@ -36,6 +36,16 @@ const StressLevelBar = ({ level }: { level: number }) => {
       <div className={`${color} h-2.5 rounded-full`} style={{ width: `${normalizedLevel}%` }}></div>
     </div>
   );
+};
+
+const isZone = (z: unknown): z is Zone => {
+  return typeof z === 'object' && z !== null && 'name' in (z as Record<string, unknown>) && typeof (z as { name?: unknown }).name === 'string';
+};
+
+const renderZoneLabel = (z: string | Zone | null): string => {
+  if (typeof z === 'string') return z;
+  if (isZone(z)) return z.name;
+  return 'Unknown';
 };
 
 export default function AgentDashboard() {
@@ -170,7 +180,7 @@ export default function AgentDashboard() {
                         <span className="ml-2 text-sm text-gray-500">({agent.role})</span>
                     </div>
                     <div>
-                        <span>Zone: {agent.zone && typeof agent.zone === 'object' ? agent.zone.name : agent.zone || "Unknown"}</span>
+                        <span>Zone: {renderZoneLabel(agent.zone)}</span>
                     </div>
                     <div className="mt-2 flex items-center w-full">
                         <span className="mr-2">Mood:</span>
@@ -269,7 +279,7 @@ export default function AgentDashboard() {
                                     <div className="col-span-3 font-semibold">{agent.name}</div>
                                     <div className="col-span-3 text-sm text-gray-600">{agent.role}</div>
                                     <div className="col-span-2 text-sm">
-                                        {agent.zone && typeof agent.zone === 'object' ? agent.zone.name : agent.zone || "Unknown"}
+                                        {renderZoneLabel(agent.zone)}
                                     </div>
                                     <div className="col-span-2">
                                         <span 

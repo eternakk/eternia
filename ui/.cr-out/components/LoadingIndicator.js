@@ -5,13 +5,12 @@ import { useLoading } from '../contexts/LoadingContext';
  * If no operationKey is provided, it will show the loading indicator when any operation is loading
  */
 export const LoadingIndicator = ({ operationKey, fallback, children, }) => {
-    var _a, _b;
     const { isLoading, loadingOperations } = useLoading();
     const loading = isLoading(operationKey);
     // Get the message from the first matching operation
     const message = operationKey
-        ? (_a = loadingOperations.find((op) => op.operationKey === operationKey)) === null || _a === void 0 ? void 0 : _a.message
-        : (_b = loadingOperations[0]) === null || _b === void 0 ? void 0 : _b.message;
+        ? loadingOperations.find((op) => op.operationKey === operationKey)?.message
+        : loadingOperations[0]?.message;
     if (loading) {
         return (_jsxs("div", { className: "relative", children: [fallback || (_jsx("div", { className: "absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 z-10", children: _jsxs("div", { className: "bg-white p-4 rounded-lg shadow-lg flex flex-col items-center", children: [_jsx("div", { className: "animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-2" }), message && _jsx("div", { className: "text-sm text-gray-600", children: message })] }) })), _jsx("div", { className: "opacity-50 pointer-events-none", children: children })] }));
     }

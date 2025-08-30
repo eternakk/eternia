@@ -6,10 +6,9 @@ import { useState, useEffect, useRef } from "react";
 const CACHE_DURATION = 5 * 60 * 1000;
 // Helper function to parse checkpoint filename and extract information
 const parseCheckpointInfo = (filename) => {
-    var _a;
     // Example filename format: checkpoint_2023-05-15_14-30-45_0.85.json
     // Try to extract timestamp and continuity score from filename
-    const parts = ((_a = filename.split("/").pop()) === null || _a === void 0 ? void 0 : _a.split("_")) || [];
+    const parts = filename.split("/").pop()?.split("_") || [];
     let timestamp = null;
     let continuityScore = null;
     // Check if we have date and time parts (at positions 1 and 2)

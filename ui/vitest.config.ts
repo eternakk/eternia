@@ -72,6 +72,8 @@ export default defineConfig({
                 '**/*.d.ts',
                 // Exclude heavy UI-only code from coverage until dedicated tests exist
                 'src/components/**',
+                // Exclude complex integration layer from unit coverage (covered by e2e/integration in app)
+                'src/api.ts',
                 // Exclude React contexts and hooks until dedicated tests are implemented
                 'src/contexts/**',
                 'src/hooks/**'

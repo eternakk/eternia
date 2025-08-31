@@ -29,27 +29,30 @@ describe('api additional coverage (stubbed in test env)', () => {
 
     const state = await getState();
     expect(state).toBeTruthy();
-    // @ts-expect-error runtime check only
-    expect(state.current_zone).toBe('Zone-α');
+    if (state) {
+      expect(state.current_zone).toBe('Zone-α');
+    } else {
+      throw new Error('state should not be undefined in test env');
+    }
   });
 
   it('executes command endpoints and returns a 200 response object', async () => {
     const res1 = await sendCommand('noop');
     // sendCommand returns the Axios response-like object in our stub
-    // @ts-expect-error runtime check only
-    expect(res1 && res1.status).toBe(200);
+    const s1 = (res1 && typeof res1 === 'object' && 'status' in res1) ? (res1 as { status?: unknown }).status : undefined;
+    expect(s1).toBe(200);
 
     const res2 = await rollbackTo('checkpoint.json');
-    // @ts-expect-error runtime check only
-    expect(res2 && res2.status).toBe(200);
+    const s2 = (res2 && typeof res2 === 'object' && 'status' in res2) ? (res2 as { status?: unknown }).status : undefined;
+    expect(s2).toBe(200);
 
     const res3 = await triggerRitual(1);
-    // @ts-expect-error runtime check only
-    expect(res3 && res3.status).toBe(200);
+    const s3 = (res3 && typeof res3 === 'object' && 'status' in res3) ? (res3 as { status?: unknown }).status : undefined;
+    expect(s3).toBe(200);
 
     const res4 = await sendReward('Companion', 42);
-    // @ts-expect-error runtime check only
-    expect(res4 && res4.status).toBe(200);
+    const s4 = (res4 && typeof res4 === 'object' && 'status' in res4) ? (res4 as { status?: unknown }).status : undefined;
+    expect(s4).toBe(200);
   });
 
   it('gets checkpoints (stub returns an object)', async () => {

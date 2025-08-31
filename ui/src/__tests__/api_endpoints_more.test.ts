@@ -30,8 +30,8 @@ describe('api endpoints (zones/rituals/agents) under stubbed test env', () => {
   it('changeZone returns a response object', async () => {
     await fetchToken();
     const res = await changeZone('Zone-β');
-    // @ts-expect-error runtime property from stub
-    expect(res.status).toBe(200);
+    const status = (res && typeof res === 'object' && 'status' in res) ? (res as { status?: unknown }).status : undefined;
+    expect(status).toBe(200);
   });
 
   it('getRituals returns list of rituals', async () => {

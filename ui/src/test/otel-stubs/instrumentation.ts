@@ -1,1 +1,1 @@
-export function registerInstrumentations(_cfg: any) {}
+export function registerInstrumentations(...args: unknown[]) { void args; }

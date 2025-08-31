@@ -1,1 +1,1 @@
-export class FetchInstrumentation { constructor(_opts?: any) {} }
+export class FetchInstrumentation { constructor(...args: unknown[]) { void args; } }

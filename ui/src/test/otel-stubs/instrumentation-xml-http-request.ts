@@ -1,1 +1,1 @@
-export class XMLHttpRequestInstrumentation { constructor(_opts?: any) {} }
+export class XMLHttpRequestInstrumentation { constructor(...args: unknown[]) { void args; } }

@@ -1,5 +1,5 @@
 export class WebTracerProvider {
-  constructor(_opts?: any) {}
-  addSpanProcessor(_p: any) {}
-  register(_cfg?: any) {}
+  constructor(...args: unknown[]) { void args; }
+  addSpanProcessor(...args: unknown[]) { void args; }
+  register(...args: unknown[]) { void args; }
 }

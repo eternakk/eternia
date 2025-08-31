@@ -5,23 +5,26 @@ export const SpanStatusCode = { ERROR: 'ERROR' } as const;
 export const SpanKind = { INTERNAL: 'INTERNAL' } as const;
 
 const tracer = {
-  startSpan: (name: string, _opts?: any) => ({
-    name,
-    attributes: {} as Record<string, unknown>,
-    setAttribute: (_k: string, _v: unknown) => {},
-    setStatus: (_s: any) => {},
-    recordException: (_e: unknown) => {},
-    end: () => {},
-  }),
+  startSpan: (name: string, ...args: unknown[]) => {
+    void args;
+    return {
+      name,
+      attributes: {} as Record<string, unknown>,
+      setAttribute: (k: string, v: unknown) => { void k; void v; },
+      setStatus: (s: unknown) => { void s; },
+      recordException: (e: unknown) => { void e; },
+      end: () => {},
+    };
+  },
 };
 
 export const trace = {
-  getTracer: (_serviceName?: string) => tracer,
-  setSpan: (_ctx: any, _span: any) => ({}),
-  getSpan: (_ctx: any) => undefined,
+  getTracer: (serviceName?: string) => { void serviceName; return tracer; },
+  setSpan: (ctx: unknown, span: unknown) => { void ctx; void span; return {}; },
+  getSpan: (ctx: unknown) => { void ctx; return undefined as unknown; },
 };
 
 export const context = {
   active: () => ({}),
-  with: (_ctx: any, fn: any) => fn(),
+  with: (ctx: unknown, fn: (...args: unknown[]) => unknown) => { void ctx; return (fn as () => unknown)(); },
 };

@@ -1,3 +1,3 @@
 export class OTLPTraceExporter {
-  constructor(_opts?: any) {}
+  constructor(...args: unknown[]) { void args; }
 }

@@ -1,3 +1,3 @@
-export class XMLHttpRequestInstrumentation { constructor(_opts?: any) {} }
-export class FetchInstrumentation { constructor(_opts?: any) {} }
+export class XMLHttpRequestInstrumentation { constructor(...args: unknown[]) { void args; } }
+export class FetchInstrumentation { constructor(...args: unknown[]) { void args; } }
 export class UserInteractionInstrumentation {}

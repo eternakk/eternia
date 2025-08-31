@@ -1,3 +1,3 @@
 export class BatchSpanProcessor {
-  constructor(_exporter: any) {}
+  constructor(...args: unknown[]) { void args; }
 }

@@ -12,7 +12,6 @@ import GlobalLoadingIndicator from "./components/GlobalLoadingIndicator";
 import {createLazyComponent} from "./components/LazyLoad";
 import featureFlags from "./config/featureFlags";
 import './index.css';
-import ZoneCanvas from "./components/ZoneCanvas.tsx";
 import RitualPanel from "./components/RitualPanel";
 
 // Lazy load components that are not immediately visible or are large

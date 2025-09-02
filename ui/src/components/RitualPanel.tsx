@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNotification } from '../contexts/NotificationContext';
-import { triggerRitual, getRituals, Ritual } from '../api';
+import { getRituals, Ritual } from '../api';
 import { useErrorHandler } from '../utils/errorHandling';
 import { Pagination } from './ui/Pagination';
 
@@ -10,7 +10,6 @@ const CACHE_DURATION = 5 * 60 * 1000;
 export default function RitualPanel() {
     const [rituals, setRituals] = useState<Ritual[]>([]);
     const [error, setError] = useState<Error | null>(null);
-    const [isLoading, setIsLoading] = useState<boolean>(true);
     const { handleApiError } = useErrorHandler();
     const { addNotification } = useNotification();
     const [selectedRitual, setSelectedRitual] = useState<Ritual | null>(null);
@@ -43,7 +42,6 @@ export default function RitualPanel() {
         // Use cache if it's valid and not expired
         if (cache.data && now - cache.timestamp < CACHE_DURATION) {
             setRituals(cache.data);
-            setIsLoading(false);
             return;
         }
 
@@ -55,7 +53,6 @@ export default function RitualPanel() {
         lastRequestTimeRef.current = now;
 
         try {
-            setIsLoading(true);
             const data = await getRituals();
             if (data) {
                 // Update state and cache
@@ -69,8 +66,6 @@ export default function RitualPanel() {
         } catch (err) {
             handleApiError(err, 'Failed to fetch rituals');
             setError(err as Error);
-        } finally {
-            setIsLoading(false);
         }
     }, [handleApiError]);
 
@@ -84,15 +79,6 @@ export default function RitualPanel() {
         return () => clearInterval(intervalId);
     }, [fetchRituals]);
 
-    const handleTriggerRitual = async (id: number) => {
-        try {
-            await triggerRitual(id);
-            // Refetch rituals after triggering
-            fetchRituals();
-        } catch (err) {
-            handleApiError(err, 'Failed to trigger ritual');
-        }
-    };
 
     if (error) return <div>Error loading rituals.</div>;
 

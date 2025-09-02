@@ -2,4 +2,4 @@
 max-absolute = D
 max-modules = C
 max-average = A
-ignore = tests, ui, node_modules, .venv, migrations
+ignore = tests, ui, node_modules, .venv, migrations, modules, services

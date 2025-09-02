@@ -64,8 +64,24 @@ class EternaDatabase:
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
 
     def _connect(self):
-        """Connect to the SQLite database."""
-        self.conn = sqlite3.connect(self.db_path)
+        """Connect to the SQLite database with sane concurrency defaults."""
+        # Increase busy timeout and allow cross-thread usage for test harness concurrency
+        self.conn = sqlite3.connect(self.db_path, timeout=30.0, check_same_thread=False)
+        # Enable WAL mode to reduce writer blocking readers
+        try:
+            self.conn.execute("PRAGMA journal_mode=WAL")
+        except sqlite3.Error:
+            pass
+        # Set reasonable sync level for performance tests while maintaining durability
+        try:
+            self.conn.execute("PRAGMA synchronous=NORMAL")
+        except sqlite3.Error:
+            pass
+        # Increase busy timeout at the SQLite engine level
+        try:
+            self.conn.execute("PRAGMA busy_timeout=30000")
+        except sqlite3.Error:
+            pass
         # Enable foreign keys
         self.conn.execute("PRAGMA foreign_keys = ON")
         # Use Row factory to get column names
@@ -696,10 +712,32 @@ class EternaDatabase:
                 print(f"⚠️ Failed to create backup of current database: {e}")
 
         try:
-            # Copy the backup file to the database path
-            import shutil
+            # Use SQLite backup API to copy from the backup file into the destination DB
+            # This avoids filesystem-level copy issues under WAL mode and is resilient
+            # to platform-specific file locking semantics.
+            src_conn = sqlite3.connect(backup_path, timeout=30.0)
+            try:
+                # Open destination connection with same concurrency settings
+                dest_conn = sqlite3.connect(self.db_path, timeout=30.0, check_same_thread=False)
+                try:
+                    # Perform the restore (copy from source to destination)
+                    src_conn.backup(dest_conn)
+                    dest_conn.commit()
+                finally:
+                    dest_conn.close()
+            finally:
+                src_conn.close()
 
-            shutil.copy2(backup_path, self.db_path)
+            # Remove any leftover WAL/SHM files to avoid replaying newer transactions
+            try:
+                wal_path = f"{self.db_path}-wal"
+                shm_path = f"{self.db_path}-shm"
+                for p in (wal_path, shm_path):
+                    if os.path.exists(p):
+                        os.remove(p)
+            except Exception:
+                # Non-fatal cleanup
+                pass
 
             # Reconnect to the database
             self._connect()

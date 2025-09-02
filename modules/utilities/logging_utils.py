@@ -67,16 +67,16 @@ def log_function_entry_exit(logger: Optional[logging.Logger] = None, include_arg
                 except Exception as e:
                     context['arg_binding_error'] = str(e)
 
-            logger.debug(f"Entering {func.__name__}", extra=context)
+            logger.debug(f"Entering {func.__name__}")
             try:
                 result = func(*args, **kwargs)
-                logger.debug(f"Exiting {func.__name__}", extra=context)
+                logger.debug(f"Exiting {func.__name__}")
                 return result
             except Exception as e:
                 error_context = context.copy()
                 error_context['error'] = str(e)
                 error_context['error_type'] = type(e).__name__
-                logger.error(f"Error in {func.__name__}: {e}", extra=error_context)
+                logger.error(f"Error in {func.__name__}: {e}")
                 raise
         return wrapper
     return decorator
@@ -137,11 +137,11 @@ def log_operation(
         extra.update(context)
 
     if success:
-        logger.info(message, extra=extra)
+        logger.info(message)
     else:
         if error:
             message += f" - Error: {error}"
-        logger.error(message, extra=extra)
+        logger.error(message)
 
 def get_module_logger(module_name: str) -> logging.Logger:
     """
@@ -223,11 +223,11 @@ def log_config_operation(
         extra.update(context)
 
     if success:
-        logger.info(message, extra=extra)
+        logger.info(message)
     else:
         if error:
             message += f" - Error: {error}"
-        logger.error(message, extra=extra)
+        logger.error(message)
 
 def log_batch_operation(
     operation: str,
@@ -277,11 +277,11 @@ def log_batch_operation(
         extra.update(context)
 
     if failure_count == 0:
-        logger.info(message, extra=extra)
+        logger.info(message)
     elif failure_count < total_count:
-        logger.warning(message, extra=extra)
+        logger.warning(message)
     else:
-        logger.error(message, extra=extra)
+        logger.error(message)
 
 class ContextAdapter(logging.LoggerAdapter):
     """

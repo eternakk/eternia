@@ -55,29 +55,19 @@ describe('Zone and Agent Interactions', () => {
   });
 
   it('should show the relationship between agents and zones', () => {
-    // Get the name of the first agent
-    let agentName;
-    cy.get('[data-testid="agent-item"]').first().within(() => {
-      cy.get('[data-testid="agent-name"]').invoke('text').then((text) => {
-        agentName = text;
+    // Read agent name and zone from the first agent card, then act globally
+    cy.get('[data-testid="agent-item"]').first().then(($item) => {
+      const agentName = $item.find('[data-testid="agent-name"]').text().trim();
+      const agentZone = $item.find('[data-testid="agent-zone"]').text().trim();
+
+      // Click on the zone that matches the agent's zone
+      cy.get('[data-testid="zone-element"]').contains(agentZone).click();
+
+      // Verify zone details show the agent is in this zone
+      cy.get('[data-testid="zone-details"]').within(() => {
+        cy.contains('Agents in this zone');
+        cy.contains(agentName);
       });
-    });
-    
-    // Get the zone of the first agent
-    let agentZone;
-    cy.get('[data-testid="agent-item"]').first().within(() => {
-      cy.get('[data-testid="agent-zone"]').invoke('text').then((text) => {
-        agentZone = text;
-      });
-    });
-    
-    // Click on the zone that matches the agent's zone
-    cy.get('[data-testid="zone-element"]').contains(agentZone).click();
-    
-    // Verify zone details show the agent is in this zone
-    cy.get('[data-testid="zone-details"]').within(() => {
-      cy.contains('Agents in this zone');
-      cy.contains(agentName);
     });
   });
 

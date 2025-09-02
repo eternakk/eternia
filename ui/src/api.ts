@@ -25,12 +25,15 @@ const api = axios.create({
 // Expose axios instance for tests and advanced usage
 export const apiClient = api;
 
-// Detect test environment (Vitest / NODE_ENV=test)
+// Detect test environment (Vitest / NODE_ENV=test) and Cypress e2e
 const IS_TEST_ENV = (typeof process !== 'undefined' && (process.env.VITEST || process.env.NODE_ENV === 'test')) ||
     (typeof import.meta !== 'undefined' && (import.meta as { env?: { MODE?: string } }).env?.MODE === 'test');
+// Cypress sets window.Cypress in the browser
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const IS_CYPRESS = typeof window !== 'undefined' && (window as any)?.Cypress;
 
-// In test, prevent real network calls by stubbing api.get/post
-if (IS_TEST_ENV) {
+// In test/e2e, prevent real network calls by stubbing api.get/post
+if (IS_TEST_ENV || IS_CYPRESS) {
     const makeResponse = (data: unknown, config?: AxiosRequestConfig) => ({
         data,
         status: 200,

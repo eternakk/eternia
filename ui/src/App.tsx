@@ -12,10 +12,11 @@ import GlobalLoadingIndicator from "./components/GlobalLoadingIndicator";
 import {createLazyComponent} from "./components/LazyLoad";
 import featureFlags from "./config/featureFlags";
 import './index.css';
+import ZoneCanvas from "./components/ZoneCanvas.tsx";
+import RitualPanel from "./components/RitualPanel";
 
 // Lazy load components that are not immediately visible or are large
 const LazyLogConsole = createLazyComponent(() => import("./components/LogConsole"));
-const LazyRitualPanel = createLazyComponent(() => import("./components/RitualPanel"));
 const LazyZoneCanvas = createLazyComponent(() => import("./components/ZoneCanvas.tsx"));
 
 export default function App() {
@@ -43,7 +44,7 @@ export default function App() {
                                 <div className="md:col-span-3">
                                     <LazyLogConsole/>
                                 </div>
-                                <LazyRitualPanel/>
+                                <RitualPanel/>
                             </main>
 
                             {/* Notification container for displaying error messages and other notifications */}

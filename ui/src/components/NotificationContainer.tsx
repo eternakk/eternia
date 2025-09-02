@@ -172,10 +172,6 @@ const JsonFormatter = ({ data }: { data: unknown }): React.ReactElement => {
 const NotificationContainer: React.FC = () => {
   const { notifications, removeNotification } = useNotification();
 
-  if (notifications.length === 0) {
-    return null;
-  }
-
   return (
     <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-md" data-testid="notification-container">
       {notifications.map((notification) => {

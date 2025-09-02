@@ -8,6 +8,40 @@ import jwt
 import re
 from jwt.exceptions import InvalidTokenError
 
+# ---- Password validation helpers (module-internal) ----
+_SPECIAL_CHARS = set("!@#$%^&*()_+-=[]{}|;:,.<>?/")
+
+def _has_min_length(pwd: str, min_len: int = 8) -> bool:
+    return len(pwd) >= min_len
+
+def _has_upper(pwd: str) -> bool:
+    return any(c.isupper() for c in pwd)
+
+def _has_lower(pwd: str) -> bool:
+    return any(c.islower() for c in pwd)
+
+def _has_digit(pwd: str) -> bool:
+    return any(c.isdigit() for c in pwd)
+
+def _has_special(pwd: str) -> bool:
+    return any(c in _SPECIAL_CHARS for c in pwd)
+
+def _validate_password_strength(pwd: str) -> str:
+    """Common password strength validation used by create/update models.
+    Returns the password if valid; raises ValueError otherwise.
+    """
+    if not _has_min_length(pwd):
+        raise ValueError("Password must be at least 8 characters long")
+    if not _has_upper(pwd):
+        raise ValueError("Password must contain at least one uppercase letter")
+    if not _has_lower(pwd):
+        raise ValueError("Password must contain at least one lowercase letter")
+    if not _has_digit(pwd):
+        raise ValueError("Password must contain at least one number")
+    if not _has_special(pwd):
+        raise ValueError("Password must contain at least one special character")
+    return pwd
+
 # Define user roles
 class UserRole(str, Enum):
     ADMIN = "admin"
@@ -120,18 +154,7 @@ class UserCreate(BaseModel):
     @field_validator('password')
     def password_strength(cls, v):
         """Validate password strength."""
-        if len(v) < 8:
-            raise ValueError("Password must be at least 8 characters long")
-        if not any(c.isupper() for c in v):
-            raise ValueError("Password must contain at least one uppercase letter")
-        if not any(c.islower() for c in v):
-            raise ValueError("Password must contain at least one lowercase letter")
-        if not any(c.isdigit() for c in v):
-            raise ValueError("Password must contain at least one number")
-        # Additional check for special characters
-        if not any(c in "!@#$%^&*()_+-=[]{}|;:,.<>?/" for c in v):
-            raise ValueError("Password must contain at least one special character")
-        return v
+        return _validate_password_strength(v)
 
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = Field(default=None, description="New email address")
@@ -144,18 +167,7 @@ class UserUpdate(BaseModel):
         """Validate password strength if provided."""
         if v is None:
             return v
-        if len(v) < 8:
-            raise ValueError("Password must be at least 8 characters long")
-        if not any(c.isupper() for c in v):
-            raise ValueError("Password must contain at least one uppercase letter")
-        if not any(c.islower() for c in v):
-            raise ValueError("Password must contain at least one lowercase letter")
-        if not any(c.isdigit() for c in v):
-            raise ValueError("Password must contain at least one number")
-        # Additional check for special characters
-        if not any(c in "!@#$%^&*()_+-=[]{}|;:,.<>?/" for c in v):
-            raise ValueError("Password must contain at least one special character")
-        return v
+        return _validate_password_strength(v)
 
 # User response model (without sensitive data)
 class UserResponse(BaseModel):

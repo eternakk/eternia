@@ -222,43 +222,57 @@ async def list_zones(request: Request, current_user: Union[str, User] = Depends(
         List of zones with their details
     """
     try:
-        # Check if world.eterna and exploration are properly initialized
-        if not hasattr(world, 'eterna') or not world.eterna:
-            logger.error("World or Eterna not initialized")
-            return []
-
-        if not hasattr(world.eterna, 'exploration') or not world.eterna.exploration:
-            logger.error("Exploration module not initialized")
-            return []
-
-        if not hasattr(world.eterna.exploration, 'registry') or not world.eterna.exploration.registry:
-            logger.error("Exploration registry not initialized")
-            return []
-
-        if not hasattr(world.eterna.exploration.registry, 'zones'):
-            logger.error("Zones list not found in exploration registry")
-            return []
-
-        zones = world.eterna.exploration.registry.zones
-        if zones is None:
-            logger.error("Zones list is None")
-            return []
-
-        return [
-            {
-                "id": i,  # Use index as ID
-                "name": zone.name,
-                "origin": zone.origin,
-                "complexity": zone.complexity_level,
-                "explored": zone.explored,
-                "emotion": zone.emotion_tag,
-                "modifiers": zone.modifiers,
-            }
-            for i, zone in enumerate(zones)
-        ]
+        zones = _get_zones_safely()
+        return _serialize_zones(zones)
     except Exception as e:
         logger.error(f"Error retrieving zones: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve zones: {str(e)}")
+
+
+def _get_zones_safely():
+    """Safely retrieve zones list from the world exploration registry.
+
+    Returns the zones list or an empty list if not available, with appropriate logging.
+    """
+    # Check if world.eterna and exploration are properly initialized
+    if not hasattr(world, 'eterna') or not world.eterna:
+        logger.error("World or Eterna not initialized")
+        return []
+
+    if not hasattr(world.eterna, 'exploration') or not world.eterna.exploration:
+        logger.error("Exploration module not initialized")
+        return []
+
+    if not hasattr(world.eterna.exploration, 'registry') or not world.eterna.exploration.registry:
+        logger.error("Exploration registry not initialized")
+        return []
+
+    if not hasattr(world.eterna.exploration.registry, 'zones'):
+        logger.error("Zones list not found in exploration registry")
+        return []
+
+    zones = world.eterna.exploration.registry.zones
+    if zones is None:
+        logger.error("Zones list is None")
+        return []
+
+    return zones
+
+
+def _serialize_zones(zones):
+    """Serialize zone objects into dictionaries for API response."""
+    return [
+        {
+            "id": i,  # Use index as ID
+            "name": zone.name,
+            "origin": zone.origin,
+            "complexity": zone.complexity_level,
+            "explored": zone.explored,
+            "emotion": zone.emotion_tag,
+            "modifiers": zone.modifiers,
+        }
+        for i, zone in enumerate(zones)
+    ]
 
 
 @router.post(

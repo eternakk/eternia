@@ -1,0 +1,5 @@
+[xenon]
+max-absolute = D
+max-modules = C
+max-average = A
+exclude = tests, ui, node_modules, .venv, migrations, modules/state_tracker.py

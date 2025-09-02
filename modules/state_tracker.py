@@ -802,6 +802,105 @@ class EternaStateTracker(StateTrackerInterface):
             save_json(self.save_path, snapshot, create_dirs=True, indent=None)
             print(f"💾 Eterna state saved to {self.save_path} (version {snapshot['version']}, {'incremental' if incremental else 'full'})")
 
+    def _load_snapshot(self) -> Optional[dict]:
+        """Internal helper to load a snapshot from DB or JSON with identical behavior and prints."""
+        snapshot = None
+        # Try to load from database if enabled
+        if self.use_database and self.db:
+            snapshot = self.db.load_latest_state(lazy_load=self.use_lazy_loading)
+            if snapshot:
+                print(
+                    f"📂 Loaded Eterna state from database (version {snapshot.get('version', 'unknown')}, "
+                    f"{'lazy' if self.use_lazy_loading else 'eager'} loading)"
+                )
+                if self.use_lazy_loading:
+                    # Store the lazy-loaded state for future access
+                    self._lazy_state = snapshot
+                    self._collections_accessed = set()
+        # Fall back to JSON file if database load failed or is disabled
+        if not snapshot:
+            snapshot = load_json(self.save_path)
+            if snapshot:
+                print(
+                    f"📂 Loaded Eterna state from {self.save_path} (version {snapshot.get('version', 'unknown')})"
+                )
+            else:
+                print(f"⚠️ No saved state found at {self.save_path}")
+                return None
+        return snapshot
+
+    def _apply_version_and_config(self, snapshot: dict) -> bool:
+        """Apply version info and configuration limits from the snapshot. Returns is_incremental."""
+        is_incremental = "version" in snapshot and "timestamp" in snapshot
+        if is_incremental:
+            self._state_version = snapshot.get("version", 0)
+        # Update configuration parameters if present
+        if "max_memories" in snapshot:
+            self.max_memories = snapshot.get("max_memories", self.max_memories)
+            self.max_discoveries = snapshot.get("max_discoveries", self.max_discoveries)
+            self.max_explored_zones = snapshot.get("max_explored_zones", self.max_explored_zones)
+            self.max_modifiers = snapshot.get("max_modifiers", self.max_modifiers)
+            self.max_checkpoints = snapshot.get("max_checkpoints", self.max_checkpoints)
+        return is_incremental
+
+    def _apply_scalar_fields(self, snapshot: dict) -> None:
+        if "emotion" in snapshot:
+            self.last_emotion = snapshot.get("emotion")
+        if "last_intensity" in snapshot:
+            self.last_intensity = snapshot.get("last_intensity", 0.0)
+        if "last_dominance" in snapshot:
+            self.last_dominance = snapshot.get("last_dominance", 0.0)
+        if "modifiers" in snapshot:
+            self.applied_modifiers = snapshot.get("modifiers", {})
+
+    def _setup_collections(self, snapshot: dict) -> None:
+        # If using lazy loading with database, don't load collections now
+        if self.use_lazy_loading and self.use_database and self.db and getattr(self, "_lazy_state", None):
+            # Initialize empty collections with proper bounds
+            self.memories = deque(maxlen=self.max_memories)
+            self.discoveries = deque(maxlen=self.max_discoveries)
+            self.explored_zones = deque(maxlen=self.max_explored_zones)
+            self.modifiers = deque(maxlen=self.max_modifiers)
+            self.checkpoints = deque(maxlen=self.max_checkpoints)
+            # Clear indexes
+            self._zone_index = set()
+            self._memory_index = {}
+            self._discovery_index = {}
+            self._modifier_index = {}
+            return
+        # Eager loading of collections
+        if "memories" in snapshot:
+            self.memories = deque(snapshot.get("memories", []), maxlen=self.max_memories)
+            self._rebuild_memory_index()
+        if "discoveries" in snapshot:
+            self.discoveries = deque(snapshot.get("discoveries", []), maxlen=self.max_discoveries)
+            self._rebuild_discovery_index()
+        if "explored_zones" in snapshot:
+            self.explored_zones = deque(snapshot.get("explored_zones", []), maxlen=self.max_explored_zones)
+            self._zone_index = set(self.explored_zones)
+        if "checkpoints" in snapshot:
+            self.checkpoints = deque(snapshot.get("checkpoints", []), maxlen=self.max_checkpoints)
+
+    def _apply_evolution_and_zone(self, snapshot: dict) -> None:
+        if "evolution" in snapshot:
+            self.evolution_stats = snapshot.get("evolution", self.evolution_stats)
+            # Handle missing intellect
+            self._prev_intellect = self.evolution_stats.get("intellect", 100)
+        if "last_zone" in snapshot:
+            self.last_zone = snapshot.get("last_zone")
+
+    def _init_last_saved_state(self) -> None:
+        lazy_mode = self.use_lazy_loading and self.use_database and self.db and getattr(self, "_lazy_state", None)
+        self._last_saved_state = {
+            "emotion": copy.deepcopy(self.last_emotion) if self.last_emotion else None,
+            "modifiers": copy.deepcopy(self.applied_modifiers),
+            "memories": [] if lazy_mode else list(getattr(self, "memories", [])),
+            "evolution": copy.deepcopy(self.evolution_stats),
+            "explored_zones": [] if lazy_mode else list(getattr(self, "explored_zones", [])),
+            "discoveries": [] if lazy_mode else list(getattr(self, "discoveries", [])),
+            "last_zone": self.last_zone,
+        }
+
     def load(self):
         """
         Load the state from persistent storage.
@@ -817,112 +916,14 @@ class EternaStateTracker(StateTrackerInterface):
         - Maintains a cache of the loaded state for future incremental saves
         - Supports lazy loading of collections for reduced memory usage
         """
-        snapshot = None
-
-        # Try to load from database if enabled
-        if self.use_database and self.db:
-            # Use lazy loading if enabled
-            snapshot = self.db.load_latest_state(lazy_load=self.use_lazy_loading)
-            if snapshot:
-                print(f"📂 Loaded Eterna state from database (version {snapshot.get('version', 'unknown')}, {'lazy' if self.use_lazy_loading else 'eager'} loading)")
-
-                # Store the lazy-loaded state for future access
-                if self.use_lazy_loading:
-                    self._lazy_state = snapshot
-                    self._collections_accessed = set()
-
-        # Fall back to JSON file if database load failed or is disabled
+        snapshot = self._load_snapshot()
         if not snapshot:
-            snapshot = load_json(self.save_path)
-            if snapshot:
-                print(f"📂 Loaded Eterna state from {self.save_path} (version {snapshot.get('version', 'unknown')})")
-            else:
-                print(f"⚠️ No saved state found at {self.save_path}")
-                return
-
-        # Check if this is an incremental update (has version and timestamp)
-        is_incremental = "version" in snapshot and "timestamp" in snapshot
-
-        # Store the version for future saves
-        if is_incremental:
-            self._state_version = snapshot.get("version", 0)
-
-        # Update configuration parameters if present
-        if "max_memories" in snapshot:
-            self.max_memories = snapshot.get("max_memories", self.max_memories)
-            self.max_discoveries = snapshot.get("max_discoveries", self.max_discoveries)
-            self.max_explored_zones = snapshot.get("max_explored_zones", self.max_explored_zones)
-            self.max_modifiers = snapshot.get("max_modifiers", self.max_modifiers)
-            self.max_checkpoints = snapshot.get("max_checkpoints", self.max_checkpoints)
-
-        # Update state attributes if present in the snapshot
-        if "emotion" in snapshot:
-            self.last_emotion = snapshot.get("emotion")
-
-        if "last_intensity" in snapshot:
-            self.last_intensity = snapshot.get("last_intensity", 0.0)
-
-        if "last_dominance" in snapshot:
-            self.last_dominance = snapshot.get("last_dominance", 0.0)
-
-        if "modifiers" in snapshot:
-            self.applied_modifiers = snapshot.get("modifiers", {})
-
-        # If using lazy loading with database, don't load collections now
-        if self.use_lazy_loading and self.use_database and self.db and self._lazy_state:
-            # Initialize empty collections
-            self.memories = deque(maxlen=self.max_memories)
-            self.discoveries = deque(maxlen=self.max_discoveries)
-            self.explored_zones = deque(maxlen=self.max_explored_zones)
-            self.modifiers = deque(maxlen=self.max_modifiers)
-            self.checkpoints = deque(maxlen=self.max_checkpoints)
-
-            # Clear indexes
-            self._zone_index = set()
-            self._memory_index = {}
-            self._discovery_index = {}
-            self._modifier_index = {}
-        else:
-            # Load collections eagerly
-            if "memories" in snapshot:
-                # Reset deques with new max sizes
-                self.memories = deque(snapshot.get("memories", []), maxlen=self.max_memories)
-                # Rebuild memory index
-                self._rebuild_memory_index()
-
-            if "discoveries" in snapshot:
-                self.discoveries = deque(snapshot.get("discoveries", []), maxlen=self.max_discoveries)
-                # Rebuild discovery index
-                self._rebuild_discovery_index()
-
-            if "explored_zones" in snapshot:
-                self.explored_zones = deque(snapshot.get("explored_zones", []), maxlen=self.max_explored_zones)
-                # Rebuild zone index
-                self._zone_index = set(self.explored_zones)
-
-            if "checkpoints" in snapshot:
-                self.checkpoints = deque(snapshot.get("checkpoints", []), maxlen=self.max_checkpoints)
-
-        if "evolution" in snapshot:
-            self.evolution_stats = snapshot.get("evolution", self.evolution_stats)
-            # Update previous intellect for identity_continuity
-            # Handle the case when "intellect" key doesn't exist
-            self._prev_intellect = self.evolution_stats.get("intellect", 100)  # Default to 100 if not present
-
-        if "last_zone" in snapshot:
-            self.last_zone = snapshot.get("last_zone")
-
-        # Store a copy of the current state for future incremental saves
-        # For lazy loading, we'll update this as collections are loaded
-        self._last_saved_state = {
-            "emotion": copy.deepcopy(self.last_emotion) if self.last_emotion else None,
-            "modifiers": copy.deepcopy(self.applied_modifiers),
-            "memories": [] if self.use_lazy_loading and self.use_database and self.db and self._lazy_state else list(self.memories),
-            "evolution": copy.deepcopy(self.evolution_stats),
-            "explored_zones": [] if self.use_lazy_loading and self.use_database and self.db and self._lazy_state else list(self.explored_zones),
-            "discoveries": [] if self.use_lazy_loading and self.use_database and self.db and self._lazy_state else list(self.discoveries),
-            "last_zone": self.last_zone,
-        }
+            return
+        self._apply_version_and_config(snapshot)
+        self._apply_scalar_fields(snapshot)
+        self._setup_collections(snapshot)
+        self._apply_evolution_and_zone(snapshot)
+        self._init_last_saved_state()
 
     # --- quick‑and‑dirty identity drift metric -------------------------------
     # ------------------------------------------------------------------

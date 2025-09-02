@@ -177,7 +177,7 @@ const NotificationContainer: React.FC = () => {
   }
 
   return (
-    <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-md">
+    <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-md" data-testid="notification-container">
       {notifications.map((notification) => {
         const { bgColor, textColor, icon } = notificationStyles[notification.type];
 

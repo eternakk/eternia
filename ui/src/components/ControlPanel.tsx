@@ -106,6 +106,7 @@ export default function ControlPanel() {
                     <h3 className="text-sm font-medium mb-2 text-gray-700">Simulation Control</h3>
                     <div className="flex gap-2 flex-wrap" role="toolbar" aria-label="Simulation controls">
                         <button
+                            data-testid="resume-button"
                             onClick={() => handleSendCommand("resume")}
                             className="flex items-center px-3 py-2 rounded bg-green-600 text-white text-sm hover:bg-green-700 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-green-500"
                             disabled={isLoading.resume}
@@ -116,6 +117,7 @@ export default function ControlPanel() {
                             {isLoading.resume ? "..." : "Run"}
                         </button>
                         <button
+                            data-testid="pause-button"
                             onClick={() => handleSendCommand("pause")}
                             className="flex items-center px-3 py-2 rounded bg-yellow-600 text-white text-sm hover:bg-yellow-700 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-yellow-500"
                             disabled={isLoading.pause}

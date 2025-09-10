@@ -1,12 +1,10 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 import bcrypt
-import jwt
 import re
-from jwt.exceptions import InvalidTokenError
 
 # ---- Password validation helpers (module-internal) ----
 _SPECIAL_CHARS = set("!@#$%^&*()_+-=[]{}|;:,.<>?/")

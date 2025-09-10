@@ -3,7 +3,7 @@ import json
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
 import jwt
 from jwt.exceptions import InvalidTokenError
@@ -118,6 +118,50 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
+def _decode_jwt(token: str) -> Dict:
+    try:
+        logger.info("Attempting to decode JWT token")
+        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except InvalidTokenError as e:
+        logger.warning(f"JWT token validation failed: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
+def _extract_claims(payload: Dict) -> tuple[str, str, int]:
+    username: Optional[str] = payload.get("sub")
+    role: Optional[str] = payload.get("role")
+    exp: Optional[int] = payload.get("exp")
+    logger.info(f"JWT token claims - username: {username}, role: {role}, exp: {exp}")
+    if not username or not role or exp is None:
+        logger.warning(
+            f"Invalid JWT token claims - username: {username}, role: {role}, exp: {exp}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token claims",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return username, role, exp
+
+
+def _ensure_not_expired(exp: int) -> datetime:
+    exp_datetime = datetime.fromtimestamp(exp)
+    now = datetime.utcnow()
+    if exp_datetime < now:
+        logger.warning(f"JWT token expired at {exp_datetime}, current time: {now}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token expired",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    logger.info(f"JWT token valid until {exp_datetime}")
+    return exp_datetime
+
+
 def verify_token(token: str) -> TokenData:
     """
     Verify a JWT token and return the token data.
@@ -131,51 +175,13 @@ def verify_token(token: str) -> TokenData:
     Raises:
         HTTPException: If the token is invalid
     """
-    # Log token verification attempt (partial token for security)
     token_preview = token[:5] + "..." if len(token) > 10 else "***"
     logger.info(f"Verifying JWT token: {token_preview}")
 
-    try:
-        logger.info("Attempting to decode JWT token")
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        logger.info("JWT token decoded successfully")
-
-        username: str = payload.get("sub")
-        role: str = payload.get("role")
-        exp: int = payload.get("exp")
-
-        logger.info(f"JWT token claims - username: {username}, role: {role}, exp: {exp}")
-
-        if username is None or role is None:
-            logger.warning(f"Invalid JWT token claims - username: {username}, role: {role}")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token claims",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-
-        # Convert exp to datetime
-        exp_datetime = datetime.fromtimestamp(exp)
-
-        # Check if token is expired
-        now = datetime.utcnow()
-        if exp_datetime < now:
-            logger.warning(f"JWT token expired at {exp_datetime}, current time: {now}")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token expired",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-
-        logger.info(f"JWT token valid until {exp_datetime}")
-        return TokenData(username=username, role=UserRole(role), exp=exp_datetime)
-    except InvalidTokenError as e:
-        logger.warning(f"JWT token validation failed: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    payload = _decode_jwt(token)
+    username, role, exp = _extract_claims(payload)
+    exp_datetime = _ensure_not_expired(exp)
+    return TokenData(username=username, role=UserRole(role), exp=exp_datetime)
 
 async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
     """

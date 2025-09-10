@@ -727,22 +727,72 @@ class EternaDatabase:
             print(f"❌ Backup file not found: {backup_path}")
             return False
 
+        # Step 1: close any open connections and snapshot current DB (for rollback)
+        current_backup = self._pre_restore_close_and_backup()
+
+        # Step 2: remove any stray WAL/SHM files before we replace
+        self._remove_wal_shm()
+
+        tmp_restore_path = f"{self.db_path}.restore.tmp"
+        try:
+            # Step 3: stage the incoming backup to a temp file
+            self._copy_to_tmp(backup_path, tmp_restore_path)
+
+            # Step 4: atomically replace the live DB
+            self._atomic_replace(tmp_restore_path)
+
+            # Step 5: cleanup any WAL/SHM from the previous incarnation
+            self._remove_wal_shm()
+
+            # Step 6: reconnect and validate integrity
+            self._reconnect_and_check()
+
+            print(f"✅ Database restored from {backup_path}")
+            return True
+        except Exception as e:
+            print(f"❌ Database restore failed: {e}")
+            # Try to rollback to the previous DB if we created a snapshot
+            self._rollback_to_previous(current_backup)
+            # Best-effort reconnect after rollback attempt
+            try:
+                self._connect()
+            except Exception:
+                pass
+            # Ensure temp file is removed
+            try:
+                if os.path.exists(tmp_restore_path):
+                    os.remove(tmp_restore_path)
+            except Exception:
+                pass
+            return False
+
+    # --- Helper methods for restore_from_backup (reduce complexity) ---
+    def _pre_restore_close_and_backup(self) -> Optional[str]:
+        """Close connection and create a timestamped backup of current DB (if exists).
+        Returns the path to the snapshot or None.
+        """
         # Close the current connection to release file locks
-        self.close()
+        try:
+            self.close()
+        except Exception:
+            pass
 
         # Create a backup of the current database before restoring
-        current_backup = None
-        if os.path.exists(self.db_path):
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            current_backup = f"{self.db_path}.{timestamp}.bak"
-            try:
-                import shutil
-                shutil.copy2(self.db_path, current_backup)
-                print(f"✅ Created backup of current database at {current_backup}")
-            except Exception as e:
-                print(f"⚠️ Failed to create backup of current database: {e}")
+        if not os.path.exists(self.db_path):
+            return None
 
-        # Remove any leftover WAL/SHM files from the destination before replacing
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        snapshot_path = f"{self.db_path}.{timestamp}.bak"
+        try:
+            import shutil
+            shutil.copy2(self.db_path, snapshot_path)
+            print(f"✅ Created backup of current database at {snapshot_path}")
+        except Exception as e:
+            print(f"⚠️ Failed to create backup of current database: {e}")
+        return snapshot_path
+
+    def _remove_wal_shm(self) -> None:
+        """Remove SQLite -wal/-shm sidecar files for current DB path, ignore errors."""
         try:
             for p in (f"{self.db_path}-wal", f"{self.db_path}-shm"):
                 if os.path.exists(p):
@@ -750,68 +800,41 @@ class EternaDatabase:
         except Exception:
             pass
 
-        tmp_restore_path = f"{self.db_path}.restore.tmp"
+    def _copy_to_tmp(self, backup_path: str, tmp_restore_path: str) -> None:
+        """Copy backup file to a temp location and fsync it to disk."""
+        import shutil
+        shutil.copy2(backup_path, tmp_restore_path)
         try:
-            # Copy backup file to a temporary path first
+            with open(tmp_restore_path, 'rb+') as f:
+                f.flush()
+                os.fsync(f.fileno())
+        except Exception:
+            # Non-fatal: continue even if fsync fails
+            pass
+
+    def _atomic_replace(self, tmp_restore_path: str) -> None:
+        """Atomically replace the live DB with the staged temp file."""
+        os.replace(tmp_restore_path, self.db_path)
+
+    def _reconnect_and_check(self) -> None:
+        """Reconnect to the DB and run integrity check; raise on failure."""
+        self._connect()
+        row = self.conn.execute("PRAGMA integrity_check").fetchone()
+        if not row or row[0] != 'ok':
+            raise sqlite3.DatabaseError(
+                f"Integrity check failed: {row[0] if row else 'unknown'}"
+            )
+
+    def _rollback_to_previous(self, snapshot_path: Optional[str]) -> None:
+        """Attempt to restore the DB from a snapshot; log outcome."""
+        if not snapshot_path or not os.path.exists(snapshot_path):
+            return
+        try:
             import shutil
-            shutil.copy2(backup_path, tmp_restore_path)
-
-            # Ensure data is flushed to disk before atomic replace
-            try:
-                with open(tmp_restore_path, 'rb+') as f:
-                    f.flush()
-                    os.fsync(f.fileno())
-            except Exception:
-                pass
-
-            # Atomic replace of the database file
-            os.replace(tmp_restore_path, self.db_path)
-
-            # Clean any WAL/SHM that might belong to the previous incarnation
-            try:
-                for p in (f"{self.db_path}-wal", f"{self.db_path}-shm"):
-                    if os.path.exists(p):
-                        os.remove(p)
-            except Exception:
-                pass
-
-            # Reconnect and validate integrity
-            self._connect()
-            try:
-                row = self.conn.execute("PRAGMA integrity_check").fetchone()
-                if not row or row[0] != 'ok':
-                    raise sqlite3.DatabaseError(f"Integrity check failed: {row[0] if row else 'unknown'}")
-            except Exception as ic_err:
-                raise ic_err
-
-            print(f"✅ Database restored from {backup_path}")
-            return True
-        except Exception as e:
-            print(f"❌ Database restore failed: {e}")
-            # Attempt to roll back to previous database state
-            try:
-                # Close any partial connection
-                self.close()
-            except Exception:
-                pass
-            if current_backup and os.path.exists(current_backup):
-                try:
-                    shutil.copy2(current_backup, self.db_path)
-                    print(f"✅ Reverted to previous database state from {current_backup}")
-                except Exception as e2:
-                    print(f"❌ Failed to revert to previous database state: {e2}")
-            # Attempt to reconnect regardless
-            try:
-                self._connect()
-            except Exception:
-                pass
-            # Clean temp file if left
-            try:
-                if os.path.exists(tmp_restore_path):
-                    os.remove(tmp_restore_path)
-            except Exception:
-                pass
-            return False
+            shutil.copy2(snapshot_path, self.db_path)
+            print(f"✅ Reverted to previous database state from {snapshot_path}")
+        except Exception as e2:
+            print(f"❌ Failed to revert to previous database state: {e2}")
 
     def list_backups(self):
         """

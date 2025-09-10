@@ -699,7 +699,7 @@ class EternaStateTracker(StateTrackerInterface):
         either the database (if use_database is True) or a JSON file (if use_database is False).
         It creates the directory if it doesn't exist.
 
-        Memory optimization: 
+        Memory optimization:
         - Converts deques to lists before serialization
         - Limits the amount of data saved
         - Supports incremental updates to avoid saving unchanged data
@@ -709,98 +709,111 @@ class EternaStateTracker(StateTrackerInterface):
             incremental: If True, only save data that has changed since the last save.
                          If False, save the entire state. Defaults to True.
         """
-        # Initialize the snapshot with metadata
+        snapshot = self._init_snapshot_metadata()
+
+        if not incremental or not hasattr(self, "_last_saved_state"):
+            snapshot.update(self._full_snapshot_fields())
+        else:
+            snapshot.update(self._compute_incremental_changes())
+
+        self._persist_snapshot(snapshot, incremental)
+
+    # --- Save helpers to reduce cyclomatic complexity ---
+    def _init_snapshot_metadata(self) -> Dict[str, Any]:
+        """Initialize snapshot metadata and bump internal version counter."""
         snapshot = {
             "timestamp": time.time(),
             "version": getattr(self, "_state_version", 0) + 1,
             "last_intensity": self.last_intensity,
-            "last_dominance": self.last_dominance
+            "last_dominance": self.last_dominance,
         }
-
         # Store the current version for future comparisons
         self._state_version = snapshot["version"]
+        return snapshot
 
-        # If this is the first save or a full save is requested, save everything
-        if not incremental or not hasattr(self, "_last_saved_state"):
-            # Convert deques to lists for serialization
-            snapshot.update({
-                "emotion": self.last_emotion,
-                "modifiers": self.applied_modifiers,
-                "memories": list(self.memories),
-                "evolution": self.evolution_stats,
-                "explored_zones": list(self.explored_zones),
-                "discoveries": list(self.discoveries),
-                "last_zone": self.last_zone,
-                # Save configuration for when we load
-                "max_memories": self.max_memories,
-                "max_discoveries": self.max_discoveries,
-                "max_explored_zones": self.max_explored_zones,
-                "max_modifiers": self.max_modifiers,
-                "max_checkpoints": self.max_checkpoints,
-                "checkpoints": list(self.checkpoints)
-            })
+    def _full_snapshot_fields(self) -> Dict[str, Any]:
+        """Return the full set of fields for a non-incremental save and update cache."""
+        full = {
+            "emotion": self.last_emotion,
+            "modifiers": self.applied_modifiers,
+            "memories": list(self.memories),
+            "evolution": self.evolution_stats,
+            "explored_zones": list(self.explored_zones),
+            "discoveries": list(self.discoveries),
+            "last_zone": self.last_zone,
+            # Save configuration for when we load
+            "max_memories": self.max_memories,
+            "max_discoveries": self.max_discoveries,
+            "max_explored_zones": self.max_explored_zones,
+            "max_modifiers": self.max_modifiers,
+            "max_checkpoints": self.max_checkpoints,
+            "checkpoints": list(self.checkpoints),
+        }
+        # Store a copy of the current state for future incremental saves
+        self._last_saved_state = {
+            "emotion": copy.deepcopy(self.last_emotion) if self.last_emotion else None,
+            "modifiers": copy.deepcopy(self.applied_modifiers),
+            "memories": list(self.memories),
+            "evolution": copy.deepcopy(self.evolution_stats),
+            "explored_zones": list(self.explored_zones),
+            "discoveries": list(self.discoveries),
+            "last_zone": self.last_zone,
+        }
+        return full
 
-            # Store a copy of the current state for future incremental saves
-            self._last_saved_state = {
-                "emotion": copy.deepcopy(self.last_emotion) if self.last_emotion else None,
-                "modifiers": copy.deepcopy(self.applied_modifiers),
-                "memories": list(self.memories),
-                "evolution": copy.deepcopy(self.evolution_stats),
-                "explored_zones": list(self.explored_zones),
-                "discoveries": list(self.discoveries),
-                "last_zone": self.last_zone,
-            }
-        else:
-            # Incremental save: only include data that has changed
-            if self.last_emotion != self._last_saved_state["emotion"]:
-                snapshot["emotion"] = self.last_emotion
-                self._last_saved_state["emotion"] = copy.deepcopy(self.last_emotion) if self.last_emotion else None
+    def _compute_incremental_changes(self) -> Dict[str, Any]:
+        """Compute fields that changed since last save and update the cache."""
+        changes: Dict[str, Any] = {}
+        # Emotion
+        if self.last_emotion != self._last_saved_state.get("emotion"):
+            changes["emotion"] = self.last_emotion
+            self._last_saved_state["emotion"] = copy.deepcopy(self.last_emotion) if self.last_emotion else None
+        # Modifiers
+        if self.applied_modifiers != self._last_saved_state.get("modifiers"):
+            changes["modifiers"] = self.applied_modifiers
+            self._last_saved_state["modifiers"] = copy.deepcopy(self.applied_modifiers)
+        # Memories
+        current_memories = list(self.memories)
+        if (
+            len(current_memories) != len(self._last_saved_state.get("memories", []))
+            or {str(m) for m in current_memories} != {str(m) for m in self._last_saved_state.get("memories", [])}
+        ):
+            changes["memories"] = current_memories
+            self._last_saved_state["memories"] = current_memories
+        # Evolution
+        if self.evolution_stats != self._last_saved_state.get("evolution"):
+            changes["evolution"] = self.evolution_stats
+            self._last_saved_state["evolution"] = copy.deepcopy(self.evolution_stats)
+        # Explored zones
+        current_zones = list(self.explored_zones)
+        if set(current_zones) != set(self._last_saved_state.get("explored_zones", [])):
+            changes["explored_zones"] = current_zones
+            self._last_saved_state["explored_zones"] = current_zones
+        # Discoveries
+        current_discoveries = list(self.discoveries)
+        if {str(d) for d in current_discoveries} != {str(d) for d in self._last_saved_state.get("discoveries", [])}:
+            changes["discoveries"] = current_discoveries
+            self._last_saved_state["discoveries"] = current_discoveries
+        # Last zone
+        if self.last_zone != self._last_saved_state.get("last_zone"):
+            changes["last_zone"] = self.last_zone
+            self._last_saved_state["last_zone"] = self.last_zone
+        # Always include checkpoints
+        changes["checkpoints"] = list(self.checkpoints)
+        return changes
 
-            # Check if modifiers have changed
-            if self.applied_modifiers != self._last_saved_state["modifiers"]:
-                snapshot["modifiers"] = self.applied_modifiers
-                self._last_saved_state["modifiers"] = copy.deepcopy(self.applied_modifiers)
-
-            # For collections, check if they've changed in size or content
-            current_memories = list(self.memories)
-            if len(current_memories) != len(self._last_saved_state["memories"]) or set(str(m) for m in current_memories) != set(str(m) for m in self._last_saved_state["memories"]):
-                snapshot["memories"] = current_memories
-                self._last_saved_state["memories"] = current_memories
-
-            # Check if evolution stats have changed
-            if self.evolution_stats != self._last_saved_state["evolution"]:
-                snapshot["evolution"] = self.evolution_stats
-                self._last_saved_state["evolution"] = copy.deepcopy(self.evolution_stats)
-
-            # Check if explored zones have changed
-            current_zones = list(self.explored_zones)
-            if set(current_zones) != set(self._last_saved_state["explored_zones"]):
-                snapshot["explored_zones"] = current_zones
-                self._last_saved_state["explored_zones"] = current_zones
-
-            # Check if discoveries have changed
-            current_discoveries = list(self.discoveries)
-            if set(str(d) for d in current_discoveries) != set(str(d) for d in self._last_saved_state["discoveries"]):
-                snapshot["discoveries"] = current_discoveries
-                self._last_saved_state["discoveries"] = current_discoveries
-
-            # Check if last zone has changed
-            if self.last_zone != self._last_saved_state["last_zone"]:
-                snapshot["last_zone"] = self.last_zone
-                self._last_saved_state["last_zone"] = self.last_zone
-
-            # Always include checkpoints in the snapshot
-            snapshot["checkpoints"] = list(self.checkpoints)
-
-        # Save to database if enabled, otherwise save to JSON file
+    def _persist_snapshot(self, snapshot: Dict[str, Any], incremental: bool) -> None:
+        """Persist the snapshot either to DB or to JSON file."""
         if self.use_database and self.db:
-            # Save to database
             state_id = self.db.save_state(snapshot)
-            print(f"💾 Eterna state saved to database (ID: {state_id}, version {snapshot['version']}, {'incremental' if incremental else 'full'})")
+            print(
+                f"💾 Eterna state saved to database (ID: {state_id}, version {snapshot['version']}, {'incremental' if incremental else 'full'})"
+            )
         else:
-            # Use a more compact JSON representation (no indent) to save space
             save_json(self.save_path, snapshot, create_dirs=True, indent=None)
-            print(f"💾 Eterna state saved to {self.save_path} (version {snapshot['version']}, {'incremental' if incremental else 'full'})")
+            print(
+                f"💾 Eterna state saved to {self.save_path} (version {snapshot['version']}, {'incremental' if incremental else 'full'})"
+            )
 
     def _load_snapshot(self) -> Optional[dict]:
         """Internal helper to load a snapshot from DB or JSON with identical behavior and prints."""

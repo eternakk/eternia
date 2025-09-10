@@ -15,46 +15,57 @@ class StructuredLogFormatter(logging.Formatter):
     Includes contextual information from the 'extra' parameter.
     """
     def format(self, record):
-        # Get the standard message
+        # Base fields
         log_record = {
             'timestamp': self.formatTime(record, self.datefmt),
             'level': record.levelname,
             'logger': record.name,
             'message': record.getMessage(),
         }
+        # Location
+        self._add_location(log_record, record)
+        # Exception
+        self._add_exception(log_record, record)
+        # Extra context
+        self._add_extra_context(log_record, record)
+        # Output
+        return self._to_output(log_record)
 
-        # Add location information if available
-        if hasattr(record, 'pathname') and record.pathname:
+    # --- helpers to reduce cyclomatic complexity ---
+    def _add_location(self, log_record: Dict[str, Any], record: logging.LogRecord) -> None:
+        if getattr(record, 'pathname', None):
             log_record['file'] = record.pathname
             log_record['line'] = record.lineno
             log_record['function'] = record.funcName
 
-        # Add exception info if available
-        if record.exc_info:
+    def _add_exception(self, log_record: Dict[str, Any], record: logging.LogRecord) -> None:
+        if getattr(record, 'exc_info', None):
             log_record['exception'] = self.formatException(record.exc_info)
 
-        # Add any extra contextual information
+    def _add_extra_context(self, log_record: Dict[str, Any], record: logging.LogRecord) -> None:
+        exclude = {
+            'args', 'asctime', 'created', 'exc_info', 'exc_text', 'filename', 'funcName',
+            'id', 'levelname', 'levelno', 'lineno', 'module', 'msecs', 'message', 'msg', 'name',
+            'pathname', 'process', 'processName', 'relativeCreated', 'stack_info', 'thread', 'threadName'
+        }
         for key, value in record.__dict__.items():
-            if key not in ['args', 'asctime', 'created', 'exc_info', 'exc_text', 'filename',
-                          'funcName', 'id', 'levelname', 'levelno', 'lineno', 'module',
-                          'msecs', 'message', 'msg', 'name', 'pathname', 'process',
-                          'processName', 'relativeCreated', 'stack_info', 'thread', 'threadName']:
+            if key not in exclude:
                 log_record[key] = value
 
-        # Format based on output type
+    def _to_output(self, log_record: Dict[str, Any]) -> str:
         if self.datefmt == 'json':
             return json.dumps(log_record)
-        else:
-            # Create a formatted string with context
-            context_str = ""
-            for key, value in log_record.items():
-                if key not in ['timestamp', 'level', 'logger', 'message']:
-                    context_str += f"{key}={value} "
-
-            if context_str:
-                return f"{log_record['timestamp']} | {log_record['level']:<8} | {log_record['logger']} | {log_record['message']} | {context_str.strip()}"
-            else:
-                return f"{log_record['timestamp']} | {log_record['level']:<8} | {log_record['logger']} | {log_record['message']}"
+        # human readable
+        parts = [
+            f"{log_record['timestamp']} | {log_record['level']:<8} | {log_record['logger']} | {log_record['message']}"
+        ]
+        context_items = [
+            f"{k}={v}" for k, v in log_record.items()
+            if k not in ['timestamp', 'level', 'logger', 'message']
+        ]
+        if context_items:
+            parts.append(" | " + " ".join(context_items))
+        return "".join(parts)
 
 # Configure root logger
 def configure_logging(level=logging.INFO):

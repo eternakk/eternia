@@ -275,6 +275,51 @@ def _serialize_zones(zones):
     ]
 
 
+def _validate_zone_name(zone_name: str):
+    if not zone_name or not isinstance(zone_name, str):
+        raise HTTPException(status_code=400, detail="Invalid zone name")
+    # Prevent simple injection/path traversal characters
+    if any(char in zone_name for char in "\"'\\;:,.<>/{}[]()"):
+        logger.warning(f"Possible injection attempt with zone name: {zone_name}")
+        raise HTTPException(status_code=400, detail="Invalid zone name")
+
+
+def _ensure_world_ready():
+    """Ensure world and exploration registry with zones are available; return zones list."""
+    if not hasattr(world, 'eterna') or not world.eterna:
+        logger.error("World or Eterna not initialized")
+        raise HTTPException(status_code=500, detail="World not initialized")
+
+    exploration = getattr(world.eterna, 'exploration', None)
+    if not exploration:
+        logger.error("Exploration module not initialized")
+        raise HTTPException(status_code=500, detail="Exploration module not initialized")
+
+    registry = getattr(exploration, 'registry', None)
+    if not registry:
+        logger.error("Exploration registry not initialized")
+        raise HTTPException(status_code=500, detail="Exploration registry not initialized")
+
+    zones = getattr(registry, 'zones', None)
+    if zones is None:
+        logger.error("Zones list is None")
+        raise HTTPException(status_code=500, detail="Zones not found")
+
+    return zones
+
+
+def _ensure_state_tracker_ready():
+    """Ensure state_tracker exists and supports mark_zone; return it."""
+    st = getattr(world, 'state_tracker', None)
+    if not st:
+        logger.error("State tracker not initialized")
+        raise HTTPException(status_code=500, detail="State tracker not initialized")
+    if not hasattr(st, 'mark_zone'):
+        logger.error("mark_zone method not found in state tracker")
+        raise HTTPException(status_code=500, detail="Method not found")
+    return st
+
+
 @router.post(
     "/api/change_zone",
     summary="Change active zone",
@@ -311,61 +356,23 @@ async def change_zone(request: Request, body: dict = Body(...), current_user: Un
 
     # Validate zone name
     zone_name = body.get("zone")
-    if not zone_name or not isinstance(zone_name, str):
-        raise HTTPException(status_code=400, detail="Invalid zone name")
-
-    # Prevent injection attacks
-    if any(char in zone_name for char in "\"'\\;:,.<>/{}[]()"):
-        logger.warning(f"Possible injection attempt with zone name: {zone_name}")
-        raise HTTPException(status_code=400, detail="Invalid zone name")
+    _validate_zone_name(zone_name)
 
     try:
-        # Check if world.eterna and exploration are properly initialized
-        if not hasattr(world, 'eterna') or not world.eterna:
-            logger.error("World or Eterna not initialized")
-            raise HTTPException(status_code=500, detail="World not initialized")
+        zones = _ensure_world_ready()
 
-        if not hasattr(world.eterna, 'exploration') or not world.eterna.exploration:
-            logger.error("Exploration module not initialized")
-            raise HTTPException(status_code=500, detail="Exploration module not initialized")
-
-        if not hasattr(world.eterna.exploration, 'registry') or not world.eterna.exploration.registry:
-            logger.error("Exploration registry not initialized")
-            raise HTTPException(status_code=500, detail="Exploration registry not initialized")
-
-        if not hasattr(world.eterna.exploration.registry, 'zones'):
-            logger.error("Zones list not found in exploration registry")
-            raise HTTPException(status_code=500, detail="Zones not found")
-
-        # Check if zone exists
-        zones = world.eterna.exploration.registry.zones
-        if zones is None:
-            logger.error("Zones list is None")
-            raise HTTPException(status_code=500, detail="Zones list is None")
-
-        zone_exists = False
-        for zone in zones:
-            if zone.name == zone_name:
-                zone_exists = True
-                break
-
-        if not zone_exists:
+        # Ensure the zone exists
+        if not any(z.name == zone_name for z in zones):
             raise HTTPException(status_code=404, detail="Zone not found")
 
-        # Check if state_tracker is properly initialized
-        if not hasattr(world, 'state_tracker') or not world.state_tracker:
-            logger.error("State tracker not initialized")
-            raise HTTPException(status_code=500, detail="State tracker not initialized")
-
-        if not hasattr(world.state_tracker, 'mark_zone'):
-            logger.error("mark_zone method not found in state tracker")
-            raise HTTPException(status_code=500, detail="Method not found")
+        # Ensure state tracker is ready
+        st = _ensure_state_tracker_ready()
 
         # Log the user who changed the zone
         user_info = current_user.username if isinstance(current_user, User) else "legacy_token"
 
         # Update the current zone
-        world.state_tracker.mark_zone(zone_name)
+        st.mark_zone(zone_name)
         logger.info(f"Zone changed to {zone_name} by {user_info}")
 
         return {"status": "success", "message": f"Zone changed to {zone_name}"}

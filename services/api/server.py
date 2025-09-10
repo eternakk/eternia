@@ -43,6 +43,44 @@ limiter = Limiter(key_func=get_remote_address)
 # Set up security
 security = HTTPBearer()
 
+# Shared test token used across endpoints and WebSocket
+TEST_TOKEN = "test-token-for-authentication"
+
+# ─────────────────────────  Helper utilities  ─────────────────────────
+
+def _client_info_from_request() -> str:
+    """Best-effort extraction of client host for logging."""
+    client_host = None
+    try:
+        from fastapi import Request as _Req
+        request = _Req.scope.get("request")  # type: ignore[attr-defined]
+        if request and getattr(request, "client", None):
+            client_host = request.client.host
+    except Exception:
+        pass
+    return f" from {client_host}" if client_host else ""
+
+
+def _sanitize_token(token: str | None) -> str:
+    return token.strip() if isinstance(token, str) else ""
+
+
+def _is_test_token(token: str) -> bool:
+    """Accept test token exact, prefix, or containment matches."""
+    return bool(token) and (token == TEST_TOKEN or token.startswith(TEST_TOKEN) or TEST_TOKEN in token)
+
+
+def _is_legacy_token(token: str) -> bool:
+    """Accept DEV_TOKEN exact, prefix, or containment matches."""
+    return bool(token) and (token == DEV_TOKEN or token.startswith(DEV_TOKEN) or DEV_TOKEN in token)
+
+
+async def _auth_via_jwt(token: str, client_info: str):
+    logger.info(f"Legacy token authentication failed{client_info}, trying JWT authentication")
+    user = await get_current_active_user(token)
+    logger.info(f"JWT authentication successful{client_info} for user: {user.username}")
+    return user
+
 
 async def auth(credentials: HTTPAuthorizationCredentials = Depends(security)):
     """
@@ -50,17 +88,7 @@ async def auth(credentials: HTTPAuthorizationCredentials = Depends(security)):
 
     Supports both legacy DEV_TOKEN and JWT-based authentication.
     """
-    client_host = None
-    try:
-        # Try to get client information from request
-        from fastapi import Request
-        request = Request.scope.get("request")
-        if request:
-            client_host = request.client.host
-    except Exception:
-        pass
-
-    client_info = f" from {client_host}" if client_host else ""
+    client_info = _client_info_from_request()
     logger.info(f"Authentication attempt{client_info}")
 
     if credentials.scheme.lower() != "bearer":
@@ -71,80 +99,28 @@ async def auth(credentials: HTTPAuthorizationCredentials = Depends(security)):
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Clean the token by removing any leading/trailing whitespace
-    token = credentials.credentials.strip()
-
-    # Log token details for debugging
+    token = _sanitize_token(getattr(credentials, "credentials", None))
     logger.info(f"Authenticating with token{client_info}: '{token}'")
 
-    # Define the test token that we're using for testing
-    TEST_TOKEN = "test-token-for-authentication"
-
-    # Log detailed token comparison for debugging
-    logger.info(f"Token comparison - Token: '{token}', TEST_TOKEN: '{TEST_TOKEN}'")
-    logger.info(f"Token length: {len(token)}, TEST_TOKEN length: {len(TEST_TOKEN)}")
-    logger.info(f"Token == TEST_TOKEN: {token == TEST_TOKEN}")
-    logger.info(f"Token startswith TEST_TOKEN: {token.startswith(TEST_TOKEN)}")
-    logger.info(f"TEST_TOKEN in Token: {TEST_TOKEN in token}")
-
-    # IMPORTANT: For testing purposes, directly check if this is our test token
-    # and return immediately if it is, bypassing all other checks
-    if token == TEST_TOKEN:
-        logger.info(f"Exact test token match - authentication successful{client_info}")
+    # Accept test token or legacy DEV_TOKEN
+    if _is_test_token(token):
+        logger.info(f"Test token accepted - authentication successful{client_info}")
+        return token
+    if _is_legacy_token(token):
+        logger.info(f"Legacy token accepted - authentication successful{client_info}")
         return token
 
-    if token.startswith(TEST_TOKEN):
-        logger.info(f"Test token prefix match - authentication successful{client_info}")
-        return token
-
-    if TEST_TOKEN in token:
-        logger.info(f"Test token contained in credentials - authentication successful{client_info}")
-        return token
-
-    # Log DEV_TOKEN details for comparison
-    logger.info(f"DEV_TOKEN for comparison: '{DEV_TOKEN}'")
-
-    # Also check against DEV_TOKEN for backward compatibility
-    if token == DEV_TOKEN:
-        logger.info(f"Exact legacy token match - authentication successful{client_info}")
-        return token
-
-    if token.startswith(DEV_TOKEN):
-        logger.info(f"Legacy token prefix match - authentication successful{client_info}")
-        return token
-
-    if DEV_TOKEN in token:
-        logger.info(f"Legacy token contained in credentials - authentication successful{client_info}")
-        return token
-
-    logger.warning(f"Token did not match any expected format{client_info}: '{token}'")
-    logger.warning(f"Expected TEST_TOKEN: '{TEST_TOKEN}'")
-    logger.warning(f"Expected DEV_TOKEN: '{DEV_TOKEN}'")
-
-    # If we get here, the token didn't match any of our expected formats
-    # We'll try JWT authentication as a fallback
-
-    # If not legacy token, try JWT authentication
+    # Fallback to JWT validation
     try:
-        logger.info(f"Legacy token authentication failed{client_info}, trying JWT authentication")
-        # Get current user from JWT token
-        user = await get_current_active_user(token)
-        logger.info(f"JWT authentication successful{client_info} for user: {user.username}")
-        return user
+        return await _auth_via_jwt(token, client_info)
     except Exception as e:
-        # Log failed authentication attempts with detailed error
         logger.warning(f"Failed authentication attempt{client_info}: {str(e)}")
-        # Prepare partial token for security
         token_preview = token[:3] + "..." + token[-3:] if len(token) > 6 else token
-        # Log token details for debugging (partial token for security)
         logger.warning(f"Failed token{client_info}: {token_preview}")
-        # Log token and DEV_TOKEN comparison for debugging
-        logger.warning(f"Token comparison - Token: {token[:3]}...{token[-3:] if len(token) > 6 else ''}, DEV_TOKEN: {DEV_TOKEN[:3]}...{DEV_TOKEN[-3:] if len(DEV_TOKEN) > 6 else ''}")
+        logger.warning(
+            f"Token comparison - Token: {token[:3]}...{token[-3:] if len(token) > 6 else ''}, DEV_TOKEN: {DEV_TOKEN[:3]}...{DEV_TOKEN[-3:] if len(DEV_TOKEN) > 6 else ''}"
+        )
         logger.warning(f"Token length: {len(token)}, DEV_TOKEN length: {len(DEV_TOKEN)}")
-        logger.warning(f"Token == DEV_TOKEN: {token == DEV_TOKEN}")
-        logger.warning(f"Token startswith DEV_TOKEN: {token.startswith(DEV_TOKEN)}")
-        logger.warning(f"DEV_TOKEN in Token: {DEV_TOKEN in token}")
-
         raise HTTPException(
             status_code=401,
             detail="Invalid token",
@@ -273,6 +249,67 @@ clients = set()
 connection_attempts = {}
 
 
+def _ws_register_attempt(client: str, now: float) -> bool:
+    """Update connection attempts and enforce simple rate limiting (10/min)."""
+    if client in connection_attempts:
+        # Remove attempts older than 1 minute
+        connection_attempts[client] = [t for t in connection_attempts[client] if now - t < 60]
+        attempt_count = len(connection_attempts[client])
+        logger.info(f"WebSocket connection attempts for {client}: {attempt_count}/10 in the last minute")
+        if attempt_count > 10:  # Max 10 connections per minute
+            logger.warning(
+                f"WebSocket connection rate limit exceeded for {client}: {attempt_count} attempts in the last minute"
+            )
+            return False
+        connection_attempts[client].append(now)
+    else:
+        logger.info(f"First WebSocket connection attempt from {client} in this session")
+        connection_attempts[client] = [now]
+    return True
+
+
+async def _ws_accept_and_receive_auth(ws: WebSocket, client: str) -> str | None:
+    """Accept the WS and receive auth payload. Returns sanitized token or None if invalid and already closed."""
+    logger.info(f"Accepting WebSocket connection from {client}, waiting for authentication")
+    await ws.accept()
+
+    logger.info(f"Waiting for authentication message from {client}")
+    auth_message = await asyncio.wait_for(ws.receive_json(), timeout=5.0)
+    logger.info(f"Received authentication message from {client}")
+
+    if not isinstance(auth_message, dict) or "token" not in auth_message:
+        logger.warning(f"Invalid WebSocket authentication format from {client}: {type(auth_message)}")
+        await ws.close(code=1008)
+        return None
+
+    token = _sanitize_token(auth_message.get("token"))
+
+    token_preview = token[:5] + "..." if token and len(token) > 10 else "***"
+    logger.info(f"WebSocket authentication attempt from {client} with token: {token_preview}")
+
+    dev_token_preview = DEV_TOKEN[:5] + "..." if len(DEV_TOKEN) > 10 else "***"
+    logger.info(f"WebSocket DEV_TOKEN for comparison: {dev_token_preview}")
+
+    if not token:
+        logger.warning(f"Empty WebSocket authentication token from {client}")
+        await ws.close(code=1008)
+        return None
+
+    return token
+
+
+def _ws_token_ok(token: str, client: str) -> bool:
+    """Validate token for WebSocket using test or legacy checks with logging."""
+    if _is_test_token(token):
+        logger.info(f"WebSocket test token authentication successful for {client}")
+        return True
+    if _is_legacy_token(token):
+        logger.info(f"WebSocket legacy token authentication successful for {client}")
+        return True
+    logger.warning(f"Invalid WebSocket authentication token from {client}")
+    return False
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket):
     """
@@ -287,83 +324,16 @@ async def websocket_endpoint(ws: WebSocket):
     logger.info(f"WebSocket connection attempt from {client}")
 
     # Implement basic rate limiting for WebSocket connections
-    if client in connection_attempts:
-        # Remove attempts older than 1 minute
-        connection_attempts[client] = [
-            t for t in connection_attempts[client] if current_time - t < 60
-        ]
-
-        # Log connection attempt count
-        attempt_count = len(connection_attempts[client])
-        logger.info(f"WebSocket connection attempts for {client}: {attempt_count}/10 in the last minute")
-
-        # Check if too many connection attempts
-        if attempt_count > 10:  # Max 10 connections per minute
-            logger.warning(f"WebSocket connection rate limit exceeded for {client}: {attempt_count} attempts in the last minute")
-            await ws.close(code=1008)  # Policy violation
-            return
-
-        connection_attempts[client].append(current_time)
-    else:
-        logger.info(f"First WebSocket connection attempt from {client} in this session")
-        connection_attempts[client] = [current_time]
+    if not _ws_register_attempt(client, current_time):
+        await ws.close(code=1008)  # Policy violation
+        return
 
     # Authenticate the WebSocket connection
     try:
-        # Wait for authentication message with token
-        logger.info(f"Accepting WebSocket connection from {client}, waiting for authentication")
-        await ws.accept()
-
-        logger.info(f"Waiting for authentication message from {client}")
-        auth_message = await asyncio.wait_for(ws.receive_json(), timeout=5.0)
-        logger.info(f"Received authentication message from {client}")
-
-        if not isinstance(auth_message, dict) or "token" not in auth_message:
-            logger.warning(f"Invalid WebSocket authentication format from {client}: {type(auth_message)}")
-            await ws.close(code=1008)
+        token = await _ws_accept_and_receive_auth(ws, client)
+        if token is None:
             return
-
-        token = auth_message.get("token")
-        # Clean the token by removing any leading/trailing whitespace
-        if token:
-            token = token.strip()
-
-        # Log token details for debugging (partial token for security)
-        token_preview = token[:5] + "..." if token and len(token) > 10 else "***"
-        logger.info(f"WebSocket authentication attempt from {client} with token: {token_preview}")
-
-        # Log DEV_TOKEN details for comparison (partial token for security)
-        dev_token_preview = DEV_TOKEN[:5] + "..." if len(DEV_TOKEN) > 10 else "***"
-        logger.info(f"WebSocket DEV_TOKEN for comparison: {dev_token_preview}")
-
-        # Check if the provided token matches DEV_TOKEN, starts with DEV_TOKEN, or contains DEV_TOKEN
-        # This handles cases where there might be extra characters at the beginning, end, or middle
-
-        # Define the test token that we're using for testing
-        TEST_TOKEN = "test-token-for-authentication"
-
-        # Log detailed token comparison for debugging
-        logger.info(f"WebSocket token comparison - Token: '{token}', TEST_TOKEN: '{TEST_TOKEN}'")
-        logger.info(f"WebSocket token length: {len(token) if token else 0}, TEST_TOKEN length: {len(TEST_TOKEN)}")
-        logger.info(f"WebSocket token == TEST_TOKEN: {token == TEST_TOKEN}")
-        logger.info(f"WebSocket token startswith TEST_TOKEN: {token.startswith(TEST_TOKEN) if token else False}")
-        logger.info(f"WebSocket TEST_TOKEN in token: {TEST_TOKEN in token if token else False}")
-
-        # Check if the token is empty
-        if not token:
-            logger.warning(f"Empty WebSocket authentication token from {client}")
-            await ws.close(code=1008)
-            return
-
-        # Check if the token matches our test token
-        if token == TEST_TOKEN or token.startswith(TEST_TOKEN) or TEST_TOKEN in token:
-            logger.info(f"WebSocket test token authentication successful for {client}")
-        # Also check against DEV_TOKEN for backward compatibility
-        elif token == DEV_TOKEN or token.startswith(DEV_TOKEN) or DEV_TOKEN in token:
-            logger.info(f"WebSocket legacy token authentication successful for {client}")
-        else:
-            # If token doesn't match either TEST_TOKEN or DEV_TOKEN, reject it
-            logger.warning(f"Invalid WebSocket authentication token from {client}")
+        if not _ws_token_ok(token, client):
             await ws.close(code=1008)
             return
 

@@ -21,7 +21,81 @@ limiter = Limiter(key_func=get_remote_address)
 security = HTTPBearer()
 
 # Create router
-router = APIRouter(tags=["state"])
+router = APIRouter(tags=["state"]) 
+
+# ---- Local helpers to reduce complexity ----
+TEST_TOKEN = "test-token-for-authentication"
+
+def _client_info() -> str:
+    try:
+        from fastapi import Request as _Req
+        request = _Req.scope.get("request")  # type: ignore[attr-defined]
+        if request and getattr(request, "client", None):
+            return f" from {request.client.host}"
+    except Exception:
+        pass
+    return ""
+
+
+def _sanitize_token(token: Optional[str]) -> str:
+    return token.strip() if isinstance(token, str) else ""
+
+
+def _is_test_token(token: str) -> bool:
+    return bool(token) and (token == TEST_TOKEN or token.startswith(TEST_TOKEN) or TEST_TOKEN in token)
+
+
+def _is_legacy_token(token: str) -> bool:
+    return bool(token) and (token == DEV_TOKEN or token.startswith(DEV_TOKEN) or DEV_TOKEN in token)
+
+
+async def _auth_via_jwt(token: str, client_info: str):
+    logger.info(f"Legacy token authentication failed in state router{client_info}, trying JWT authentication")
+    user = await get_current_active_user(token)
+    logger.info(f"JWT authentication successful in state router{client_info} for user: {user.username}")
+    return user
+
+
+def _get_tracker_or_error():
+    # World/state_tracker checks
+    if not hasattr(world, 'state_tracker') or not world.state_tracker:
+        logger.error("State tracker not initialized")
+        raise HTTPException(status_code=500, detail="State tracker not initialized")
+    tracker = world.state_tracker
+
+    if not hasattr(world, 'eterna') or not world.eterna:
+        logger.error("World or Eterna not initialized")
+        raise HTTPException(status_code=500, detail="World not initialized")
+    if not hasattr(world.eterna, 'runtime') or not world.eterna.runtime:
+        logger.error("Runtime not initialized")
+        raise HTTPException(status_code=500, detail="Runtime not initialized")
+    if not hasattr(world.eterna.runtime, 'cycle_count'):
+        logger.error("cycle_count not found in runtime")
+        raise HTTPException(status_code=500, detail="Cycle count not found")
+
+    # Tracker capability checks
+    if not hasattr(tracker, 'identity_continuity'):
+        logger.error("identity_continuity method not found in state tracker")
+        raise HTTPException(status_code=500, detail="Method not found")
+    if not hasattr(tracker, 'applied_modifiers'):
+        logger.error("applied_modifiers attribute not found in state tracker")
+        raise HTTPException(status_code=500, detail="Attribute not found")
+    if not hasattr(tracker, 'current_zone'):
+        logger.error("current_zone method not found in state tracker")
+        raise HTTPException(status_code=500, detail="Method not found")
+    if not hasattr(tracker, 'last_emotion'):
+        logger.error("last_emotion attribute not found in state tracker")
+        raise HTTPException(status_code=500, detail="Attribute not found")
+
+    return tracker
+
+
+def _emotion_to_name(emotion) -> str:
+    if isinstance(emotion, dict) and "name" in emotion:
+        return emotion["name"]
+    if hasattr(emotion, "name"):
+        return emotion.name
+    return emotion
 
 
 async def auth(credentials: HTTPAuthorizationCredentials = Depends(security)):
@@ -30,17 +104,7 @@ async def auth(credentials: HTTPAuthorizationCredentials = Depends(security)):
 
     Supports both legacy DEV_TOKEN and JWT-based authentication.
     """
-    client_host = None
-    try:
-        # Try to get client information from request
-        from fastapi import Request
-        request = Request.scope.get("request")
-        if request:
-            client_host = request.client.host
-    except Exception:
-        pass
-
-    client_info = f" from {client_host}" if client_host else ""
+    client_info = _client_info()
     logger.info(f"Authentication attempt in state router{client_info}")
 
     if credentials.scheme.lower() != "bearer":
@@ -51,78 +115,23 @@ async def auth(credentials: HTTPAuthorizationCredentials = Depends(security)):
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Clean the token by removing any leading/trailing whitespace
-    token = credentials.credentials.strip()
-
-    # Log token details for debugging
+    token = _sanitize_token(getattr(credentials, "credentials", None))
     logger.info(f"Authenticating with token in state router{client_info}: '{token}'")
 
-    # Define the test token that we're using for testing
-    TEST_TOKEN = "test-token-for-authentication"
-
-    # Log detailed token comparison for debugging
-    logger.info(f"Token comparison in state router - Token: '{token}', TEST_TOKEN: '{TEST_TOKEN}'")
-    logger.info(f"Token length: {len(token)}, TEST_TOKEN length: {len(TEST_TOKEN)}")
-    logger.info(f"Token == TEST_TOKEN: {token == TEST_TOKEN}")
-    logger.info(f"Token startswith TEST_TOKEN: {token.startswith(TEST_TOKEN)}")
-    logger.info(f"TEST_TOKEN in Token: {TEST_TOKEN in token}")
-
-    # IMPORTANT: For testing purposes, directly check if this is our test token
-    # and return immediately if it is, bypassing all other checks
-    if token == TEST_TOKEN:
-        logger.info(f"Exact test token match in state router - authentication successful{client_info}")
+    if _is_test_token(token):
+        logger.info(f"Exact test/contained token match in state router - authentication successful{client_info}")
+        return token
+    if _is_legacy_token(token):
+        logger.info(f"Legacy token match in state router - authentication successful{client_info}")
         return token
 
-    if token.startswith(TEST_TOKEN):
-        logger.info(f"Test token prefix match in state router - authentication successful{client_info}")
-        return token
-
-    if TEST_TOKEN in token:
-        logger.info(f"Test token contained in credentials in state router - authentication successful{client_info}")
-        return token
-
-    # Log DEV_TOKEN details for comparison
-    logger.info(f"DEV_TOKEN for comparison in state router: '{DEV_TOKEN}'")
-
-    # Also check against DEV_TOKEN for backward compatibility
-    if token == DEV_TOKEN:
-        logger.info(f"Exact legacy token match in state router - authentication successful{client_info}")
-        return token
-
-    if token.startswith(DEV_TOKEN):
-        logger.info(f"Legacy token prefix match in state router - authentication successful{client_info}")
-        return token
-
-    if DEV_TOKEN in token:
-        logger.info(f"Legacy token contained in credentials in state router - authentication successful{client_info}")
-        return token
-
-    logger.warning(f"Token did not match any expected format in state router{client_info}: '{token}'")
-    logger.warning(f"Expected TEST_TOKEN: '{TEST_TOKEN}'")
-    logger.warning(f"Expected DEV_TOKEN: '{DEV_TOKEN}'")
-
-    # If we get here, the token didn't match any of our expected formats
-    # We'll try JWT authentication as a fallback
-
-    # If not legacy token, try JWT authentication
     try:
-        logger.info(f"Legacy token authentication failed in state router{client_info}, trying JWT authentication")
-        # Get current user from JWT token
-        user = await get_current_active_user(token)
-        logger.info(f"JWT authentication successful in state router{client_info} for user: {user.username}")
-        return user
+        return await _auth_via_jwt(token, client_info)
     except Exception as e:
-        # Log failed authentication attempts with detailed error
         logger.warning(f"Failed authentication attempt in state router{client_info}: {str(e)}")
-        # Log token and DEV_TOKEN comparison for debugging
         token_preview = token[:3] + "..." + token[-3:] if len(token) > 6 else token
         logger.warning(f"Failed token in state router{client_info}: {token_preview}")
-        logger.warning(f"Token comparison - Token: {token[:3]}...{token[-3:] if len(token) > 6 else ''}, DEV_TOKEN: {DEV_TOKEN[:3]}...{DEV_TOKEN[-3:] if len(DEV_TOKEN) > 6 else ''}")
         logger.warning(f"Token length: {len(token)}, DEV_TOKEN length: {len(DEV_TOKEN)}")
-        logger.warning(f"Token == DEV_TOKEN: {token == DEV_TOKEN}")
-        logger.warning(f"Token startswith DEV_TOKEN: {token.startswith(DEV_TOKEN)}")
-        logger.warning(f"DEV_TOKEN in Token: {DEV_TOKEN in token}")
-
         raise HTTPException(
             status_code=401,
             detail="Invalid token",
@@ -222,59 +231,10 @@ async def send_reward(
 async def get_state(request: Request, current_user: Union[str, User] = Depends(auth)):
     """
     Get the current state of the system.
-
-    Args:
-        request: The request object (for rate limiting)
-        current_user: The authenticated user or legacy token
-
-    Returns:
-        The current state of the system
     """
     try:
-        # Check if world and state_tracker are properly initialized
-        if not hasattr(world, 'state_tracker') or not world.state_tracker:
-            logger.error("State tracker not initialized")
-            raise HTTPException(status_code=500, detail="State tracker not initialized")
-
-        tracker = world.state_tracker
-
-        # Check if world.eterna and runtime are properly initialized
-        if not hasattr(world, 'eterna') or not world.eterna:
-            logger.error("World or Eterna not initialized")
-            raise HTTPException(status_code=500, detail="World not initialized")
-
-        if not hasattr(world.eterna, 'runtime') or not world.eterna.runtime:
-            logger.error("Runtime not initialized")
-            raise HTTPException(status_code=500, detail="Runtime not initialized")
-
-        if not hasattr(world.eterna.runtime, 'cycle_count'):
-            logger.error("cycle_count not found in runtime")
-            raise HTTPException(status_code=500, detail="Cycle count not found")
-
-        # Check if required methods and attributes exist in tracker
-        if not hasattr(tracker, 'identity_continuity'):
-            logger.error("identity_continuity method not found in state tracker")
-            raise HTTPException(status_code=500, detail="Method not found")
-
-        if not hasattr(tracker, 'applied_modifiers'):
-            logger.error("applied_modifiers attribute not found in state tracker")
-            raise HTTPException(status_code=500, detail="Attribute not found")
-
-        if not hasattr(tracker, 'current_zone'):
-            logger.error("current_zone method not found in state tracker")
-            raise HTTPException(status_code=500, detail="Method not found")
-
-        if not hasattr(tracker, 'last_emotion'):
-            logger.error("last_emotion attribute not found in state tracker")
-            raise HTTPException(status_code=500, detail="Attribute not found")
-
-        # Extract emotion name if it's an object, otherwise use as is
-        emotion = tracker.last_emotion
-        if isinstance(emotion, dict) and "name" in emotion:
-            emotion = emotion["name"]
-        elif hasattr(emotion, "name"):
-            emotion = emotion.name
-
+        tracker = _get_tracker_or_error()
+        emotion = _emotion_to_name(tracker.last_emotion)
         return {
             "cycle": world.eterna.runtime.cycle_count,
             "identity_score": tracker.identity_continuity(),

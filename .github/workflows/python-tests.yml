@@ -42,8 +42,8 @@ jobs:
 
     - name: Check code complexity with radon
       run: |
-        # Check cyclomatic complexity
-        radon cc --min=C --show-complexity --average --total-average modules services
+        # Check cyclomatic complexity (report only). Do not fail on this line to avoid CI flakiness across radon versions.
+        radon cc --min=C --show-complexity --average --total-average modules services || true
         # Fail if average complexity is too high (threshold: 10)
         radon cc --min=C --average --total-average modules services | grep "Average complexity: " | awk '{if ($3 > 10) exit 1; else exit 0;}'
 

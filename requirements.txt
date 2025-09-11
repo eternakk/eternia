@@ -1,4 +1,5 @@
 # Eternia Project Dependencies
+cryptography==45.0.7
 
 # Testing
 pytest==7.4.4

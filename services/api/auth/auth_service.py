@@ -5,6 +5,10 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional
 
+import base64
+from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 import jwt
 from jwt.exceptions import InvalidTokenError
 from fastapi import Depends, HTTPException, status
@@ -20,26 +24,55 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 USERS_FILE = Path("artifacts/users.json")
 
-# Get JWT secret key from environment or generate a secure one
+# Helpers for secret key encryption
+def derive_encryption_key(password: str, salt: bytes) -> bytes:
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=390000,
+    )
+    return base64.urlsafe_b64encode(kdf.derive(password.encode()))
+
+SECRET_KEY_FILE = Path("artifacts/jwt_secret.txt")
+SECRET_KEY_ENCRYPTION_PASSWORD = os.getenv("SECRET_KEY_ENCRYPTION_PASSWORD")
+SECRET_KEY_SALT_FILE = Path("artifacts/jwt_secret_salt.bin")
+
 SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 if not SECRET_KEY:
-    # Check if a secret key file exists
-    SECRET_KEY_FILE = Path("artifacts/jwt_secret.txt")
+    # Check if encryption password is set
+    if not SECRET_KEY_ENCRYPTION_PASSWORD:
+        logger.error("Missing SECRET_KEY_ENCRYPTION_PASSWORD environment variable for encrypting JWT secret key.")
+        raise RuntimeError("Missing SECRET_KEY_ENCRYPTION_PASSWORD environment variable for JWT secret key encryption.")
+    # Load salt or create/save one
+    if SECRET_KEY_SALT_FILE.exists():
+        with open(SECRET_KEY_SALT_FILE, "rb") as f:
+            salt = f.read()
+    else:
+        salt = os.urandom(16)
+        SECRET_KEY_SALT_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(SECRET_KEY_SALT_FILE, "wb") as f:
+            f.write(salt)
+    fernet_key = derive_encryption_key(SECRET_KEY_ENCRYPTION_PASSWORD, salt)
+    fernet = Fernet(fernet_key)
+
     if SECRET_KEY_FILE.exists():
         try:
-            with open(SECRET_KEY_FILE, 'r') as f:
-                SECRET_KEY = f.read().strip()
+            with open(SECRET_KEY_FILE, 'rb') as f:
+                encrypted = f.read()
+                SECRET_KEY = fernet.decrypt(encrypted).decode()
         except Exception as e:
-            logger.error(f"Error reading JWT secret key file: {e}")
+            logger.error(f"Error reading or decrypting JWT secret key file: {e}")
             SECRET_KEY = os.urandom(32).hex()
     else:
         # Generate a secure secret key
         SECRET_KEY = os.urandom(32).hex()
-        # Save the secret key to a file for persistence
+        # Encrypt and save the secret key to a file for persistence
         try:
             SECRET_KEY_FILE.parent.mkdir(parents=True, exist_ok=True)
-            with open(SECRET_KEY_FILE, 'w') as f:
-                f.write(SECRET_KEY)
+            encrypted = fernet.encrypt(SECRET_KEY.encode())
+            with open(SECRET_KEY_FILE, 'wb') as f:
+                f.write(encrypted)
         except Exception as e:
             logger.error(f"Error saving JWT secret key file: {e}")
 

@@ -48,17 +48,22 @@ TEST_TOKEN = "test-token-for-authentication"
 
 # ─────────────────────────  Helper utilities  ─────────────────────────
 
+def _get_client_host_from_headers(headers) -> str | None:
+    if not headers:
+        return None
+    xfwd = headers.get("x-forwarded-for") or headers.get("X-Forwarded-For")
+    if xfwd:
+        return xfwd.split(",")[0].strip()
+    xreal = headers.get("x-real-ip") or headers.get("X-Real-IP")
+    if xreal:
+        return xreal.strip()
+    host = headers.get("host") or headers.get("Host")
+    return host
+
+
 def _client_info_from_request() -> str:
-    """Best-effort extraction of client host for logging."""
-    client_host = None
-    try:
-        from fastapi import Request as _Req
-        request = _Req.scope.get("request")  # type: ignore[attr-defined]
-        if request and getattr(request, "client", None):
-            client_host = request.client.host
-    except Exception:
-        pass
-    return f" from {client_host}" if client_host else ""
+    # Not reliably accessible without explicit Request dependency; avoid crashes
+    return ""
 
 
 def _sanitize_token(token: str | None) -> str:
@@ -318,7 +323,7 @@ async def websocket_endpoint(ws: WebSocket):
     Args:
         ws: The WebSocket connection
     """
-    client = ws.client.host
+    client = (getattr(ws.client, 'host', None) or _get_client_host_from_headers(ws.headers) or "unknown")
     current_time = time.time()
 
     logger.info(f"WebSocket connection attempt from {client}")

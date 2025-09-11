@@ -34,47 +34,125 @@ def derive_encryption_key(password: str, salt: bytes) -> bytes:
     )
     return base64.urlsafe_b64encode(kdf.derive(password.encode()))
 
-SECRET_KEY_FILE = Path("artifacts/jwt_secret.txt")
+# Environment and secret configuration
+ENV = (os.getenv("ETERNIA_ENV") or os.getenv("APP_ENV") or "development").lower()
+IS_PROD = ENV in ("prod", "production")
+
+# Support both names for backward compatibility
+SECRET_KEY_ENV = os.getenv("JWT_SECRET_KEY") or os.getenv("JWT_SECRET")
+
+# Files for secrets
+SECRET_KEY_FILE = Path("artifacts/jwt_secret.txt")            # Encrypted (prod)
+SECRET_KEY_SALT_FILE = Path("artifacts/jwt_secret_salt.bin")  # Salt for encryption (prod)
+DEV_SECRET_KEY_FILE = Path("artifacts/dev.jwt_secret.txt")    # Plaintext (dev)
+
+# Optional encryption password (required in prod when not using env secret)
 SECRET_KEY_ENCRYPTION_PASSWORD = os.getenv("SECRET_KEY_ENCRYPTION_PASSWORD")
-SECRET_KEY_SALT_FILE = Path("artifacts/jwt_secret_salt.bin")
 
-SECRET_KEY = os.getenv("JWT_SECRET_KEY")
-if not SECRET_KEY:
-    # Check if encryption password is set
-    if not SECRET_KEY_ENCRYPTION_PASSWORD:
-        logger.error("Missing SECRET_KEY_ENCRYPTION_PASSWORD environment variable for encrypting JWT secret key.")
-        raise RuntimeError("Missing SECRET_KEY_ENCRYPTION_PASSWORD environment variable for JWT secret key encryption.")
-    # Load salt or create/save one
-    if SECRET_KEY_SALT_FILE.exists():
-        with open(SECRET_KEY_SALT_FILE, "rb") as f:
-            salt = f.read()
+SECRET_KEY = None
+
+if SECRET_KEY_ENV:
+    # Highest priority: explicit env var
+    SECRET_KEY = SECRET_KEY_ENV
+    logger.info("Using JWT secret from environment variable.")
+else:
+    if not IS_PROD:
+        # Development mode: prefer local file. If an encryption password is supplied, allow testing the encrypted flow.
+        if SECRET_KEY_ENCRYPTION_PASSWORD:
+            # Use encrypted storage even in dev if password provided
+            if SECRET_KEY_SALT_FILE.exists():
+                with open(SECRET_KEY_SALT_FILE, "rb") as f:
+                    salt = f.read()
+            else:
+                salt = os.urandom(16)
+                SECRET_KEY_SALT_FILE.parent.mkdir(parents=True, exist_ok=True)
+                with open(SECRET_KEY_SALT_FILE, "wb") as f:
+                    f.write(salt)
+            fernet_key = derive_encryption_key(SECRET_KEY_ENCRYPTION_PASSWORD, salt)
+            fernet = Fernet(fernet_key)
+
+            if SECRET_KEY_FILE.exists():
+                try:
+                    with open(SECRET_KEY_FILE, 'rb') as f:
+                        encrypted = f.read()
+                        SECRET_KEY = fernet.decrypt(encrypted).decode()
+                    logger.info("Using encrypted JWT secret from artifacts/jwt_secret.txt (dev mode).")
+                except Exception as e:
+                    logger.error(f"Error decrypting JWT secret (dev mode). Generating new. Details: {e}")
+                    SECRET_KEY = os.urandom(32).hex()
+                    try:
+                        SECRET_KEY_FILE.parent.mkdir(parents=True, exist_ok=True)
+                        encrypted = fernet.encrypt(SECRET_KEY.encode())
+                        with open(SECRET_KEY_FILE, 'wb') as f:
+                            f.write(encrypted)
+                    except Exception as save_e:
+                        logger.error(f"Error saving encrypted JWT secret (dev mode): {save_e}")
+            else:
+                SECRET_KEY = os.urandom(32).hex()
+                try:
+                    SECRET_KEY_FILE.parent.mkdir(parents=True, exist_ok=True)
+                    encrypted = fernet.encrypt(SECRET_KEY.encode())
+                    with open(SECRET_KEY_FILE, 'wb') as f:
+                        f.write(encrypted)
+                    logger.info("Created encrypted JWT secret at artifacts/jwt_secret.txt (dev mode).")
+                except Exception as e:
+                    logger.error(f"Error saving encrypted JWT secret (dev mode): {e}")
+        else:
+            # Default dev behavior: use a local plaintext file to persist the secret
+            try:
+                if DEV_SECRET_KEY_FILE.exists():
+                    SECRET_KEY = DEV_SECRET_KEY_FILE.read_text(encoding='utf-8').strip()
+                    if not SECRET_KEY:
+                        raise ValueError("Empty dev secret file")
+                    logger.info("Using JWT secret from artifacts/dev.jwt_secret.txt (development).")
+                else:
+                    SECRET_KEY = os.urandom(32).hex()
+                    DEV_SECRET_KEY_FILE.parent.mkdir(parents=True, exist_ok=True)
+                    DEV_SECRET_KEY_FILE.write_text(SECRET_KEY, encoding='utf-8')
+                    logger.info("Created development JWT secret at artifacts/dev.jwt_secret.txt.")
+            except Exception as e:
+                logger.error(f"Error handling development JWT secret file: {e}")
+                # Fallback (dev only): still generate ephemeral in-memory key to avoid blocking
+                SECRET_KEY = os.urandom(32).hex()
+                logger.warning("Falling back to ephemeral in-memory JWT secret (development).")
     else:
-        salt = os.urandom(16)
-        SECRET_KEY_SALT_FILE.parent.mkdir(parents=True, exist_ok=True)
-        with open(SECRET_KEY_SALT_FILE, "wb") as f:
-            f.write(salt)
-    fernet_key = derive_encryption_key(SECRET_KEY_ENCRYPTION_PASSWORD, salt)
-    fernet = Fernet(fernet_key)
+        # Production mode: no ephemeral fallback. Require env secret or encrypted storage with password.
+        if not SECRET_KEY_ENCRYPTION_PASSWORD:
+            raise RuntimeError(
+                "Production requires a JWT secret via JWT_SECRET/JWT_SECRET_KEY env var or set "
+                "SECRET_KEY_ENCRYPTION_PASSWORD to manage an encrypted secret file in artifacts/."
+            )
+        # Load or create salt
+        if SECRET_KEY_SALT_FILE.exists():
+            with open(SECRET_KEY_SALT_FILE, "rb") as f:
+                salt = f.read()
+        else:
+            salt = os.urandom(16)
+            SECRET_KEY_SALT_FILE.parent.mkdir(parents=True, exist_ok=True)
+            with open(SECRET_KEY_SALT_FILE, "wb") as f:
+                f.write(salt)
+        fernet_key = derive_encryption_key(SECRET_KEY_ENCRYPTION_PASSWORD, salt)
+        fernet = Fernet(fernet_key)
 
-    if SECRET_KEY_FILE.exists():
-        try:
-            with open(SECRET_KEY_FILE, 'rb') as f:
-                encrypted = f.read()
-                SECRET_KEY = fernet.decrypt(encrypted).decode()
-        except Exception as e:
-            logger.error(f"Error reading or decrypting JWT secret key file: {e}")
+        if SECRET_KEY_FILE.exists():
+            try:
+                with open(SECRET_KEY_FILE, 'rb') as f:
+                    encrypted = f.read()
+                    SECRET_KEY = fernet.decrypt(encrypted).decode()
+                logger.info("Using encrypted JWT secret from artifacts/jwt_secret.txt (production).")
+            except Exception as e:
+                raise RuntimeError(f"Failed to decrypt production JWT secret. Ensure the correct SECRET_KEY_ENCRYPTION_PASSWORD is set. Details: {e}")
+        else:
+            # Create a new secure secret and save it encrypted
             SECRET_KEY = os.urandom(32).hex()
-    else:
-        # Generate a secure secret key
-        SECRET_KEY = os.urandom(32).hex()
-        # Encrypt and save the secret key to a file for persistence
-        try:
-            SECRET_KEY_FILE.parent.mkdir(parents=True, exist_ok=True)
-            encrypted = fernet.encrypt(SECRET_KEY.encode())
-            with open(SECRET_KEY_FILE, 'wb') as f:
-                f.write(encrypted)
-        except Exception as e:
-            logger.error(f"Error saving JWT secret key file: {e}")
+            try:
+                SECRET_KEY_FILE.parent.mkdir(parents=True, exist_ok=True)
+                encrypted = fernet.encrypt(SECRET_KEY.encode())
+                with open(SECRET_KEY_FILE, 'wb') as f:
+                    f.write(encrypted)
+                logger.info("Created encrypted JWT secret at artifacts/jwt_secret.txt (production). Keep your password safe.")
+            except Exception as e:
+                raise RuntimeError(f"Error saving encrypted production JWT secret: {e}")
 
 # OAuth2 password bearer for token authentication
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")

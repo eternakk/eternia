@@ -1,0 +1,86 @@
+name: "CodeQL Advanced"
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    - cron: '35 12 * * 6'
+
+# avoid overlapping runs per branch
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            build-mode: none
+          - language: javascript-typescript
+            build-mode: none   # flip to "manual" if you want a real build
+          - language: python
+            build-mode: none   # flip to "manual" if you need venv deps installed
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Only needed if you switch JS/TS to manual builds
+      - name: Setup Node (JS/TS manual builds)
+        if: matrix.language == 'javascript-typescript' && matrix.build-mode == 'manual'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '>=20'
+
+      # Only needed if you switch Python to manual builds
+      - name: Setup Python (Python manual builds)
+        if: matrix.language == 'python' && matrix.build-mode == 'manual'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '>=3.11'
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          queries: +security-extended,security-and-quality
+          config-file: ./.github/codeql/codeql-config.yml
+
+      # Optional: real builds when you set build-mode: manual in the matrix
+      - name: Manual build
+        if: matrix.build-mode == 'manual'
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Building ${{ matrix.language }}…"
+          # --- JS/TS example (monorepo) ---
+          # npm ci
+          # npm run build --workspaces --if-present
+          #
+          # --- Python example ---
+          # python -m venv .venv
+          # source .venv/bin/activate
+          # pip install -U pip
+          # pip install -r requirements.txt
+          # python -m compileall -q .
+          echo "Build complete."
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"

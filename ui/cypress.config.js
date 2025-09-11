@@ -88,6 +88,10 @@ function stopDevServer() {
   }
 }
 
+const BASE_URL = process.env.CYPRESS_BASE_URL || 'http://localhost:5173';
+// Ensure dev server is running before Cypress validates baseUrl
+await ensureDevServer(BASE_URL);
+
 export default defineConfig({
   e2e: {
     baseUrl: 'http://localhost:5173',

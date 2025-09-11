@@ -35,6 +35,10 @@ The Eternia project follows a specific directory structure for organizing differ
   - Governor events: `logs/governor_events.log`
   - Debug logs: `logs/debug.log`
 
+- `migrations/`: Contains database migration files.
+  - Migration files define schema changes and data migrations
+  - Managed by the yoyo-migrations system
+
 ### Code
 - `modules/`: Core modules of the application.
 - `services/`: Service components.

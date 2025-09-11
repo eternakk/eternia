@@ -18,12 +18,12 @@ export const useLoadingApi = () => {
    * @returns A new function that manages loading state and handles errors
    */
   const withLoading = useCallback(
-    <T extends (...args: any[]) => Promise<any>>(
-      fn: T,
+    <A extends unknown[], R>(
+      fn: (...args: A) => Promise<R>,
       operationKey: string,
       errorMessage?: string
-    ): ((...args: Parameters<T>) => Promise<Awaited<ReturnType<T>> | undefined>) => {
-      return async (...args: Parameters<T>) => {
+    ): ((...args: A) => Promise<R | undefined>) => {
+      return async (...args: A) => {
         const loadingId = startLoading(operationKey);
         try {
           const result = await fn(...args);

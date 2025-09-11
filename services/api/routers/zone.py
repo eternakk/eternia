@@ -33,101 +33,123 @@ ZONE_ASSETS_CACHE_TTL = {}  # Store expiration timestamps
 ZONE_ASSETS_CACHE_DURATION = 3600  # Cache duration in seconds (1 hour)
 
 
-async def auth(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    """
-    Authenticate requests using Bearer token authentication.
-
-    Supports both legacy DEV_TOKEN and JWT-based authentication.
-    """
-    client_host = None
+def _client_info() -> str:
+    """Best-effort extraction of client host for logging."""
     try:
-        # Try to get client information from request
-        from fastapi import Request
-        request = Request.scope.get("request")
+        # Request injection isn't used here; keep defensive approach
+        from fastapi import Request  # type: ignore
+        request = Request.scope.get("request")  # type: ignore[attr-defined]
         if request:
-            client_host = request.client.host
+            return f" from {request.client.host}"
     except Exception:
         pass
+    return ""
 
-    client_info = f" from {client_host}" if client_host else ""
-    logger.info(f"Authentication attempt in zone router{client_info}")
 
+def _ensure_bearer_scheme(credentials: HTTPAuthorizationCredentials, client_info: str) -> None:
     if credentials.scheme.lower() != "bearer":
-        logger.warning(f"Invalid authentication scheme in zone router{client_info}: {credentials.scheme}")
+        logger.warning(
+            f"Invalid authentication scheme in zone router{client_info}: {credentials.scheme}"
+        )
         raise HTTPException(
             status_code=401,
             detail="Invalid authentication scheme. Bearer token required.",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Clean the token by removing any leading/trailing whitespace
-    token = credentials.credentials.strip()
 
-    # Log token details for debugging
-    logger.info(f"Authenticating with token in zone router{client_info}: '{token}'")
+def _token_matches(token: str, expected: str) -> bool:
+    """Return True if token equals, startswith, or contains expected string."""
+    return token == expected or token.startswith(expected) or (expected in token)
 
-    # Define the test token that we're using for testing
+
+def _try_static_tokens(token: str, client_info: str) -> Optional[Union[str, User]]:
+    """Check TEST_TOKEN and DEV_TOKEN shortcuts; return token if matched."""
     TEST_TOKEN = "test-token-for-authentication"
 
     # Log detailed token comparison for debugging
-    logger.info(f"Token comparison in zone router - Token: '{token}', TEST_TOKEN: '{TEST_TOKEN}'")
-    logger.info(f"Token length: {len(token)}, TEST_TOKEN length: {len(TEST_TOKEN)}")
-    logger.info(f"Token == TEST_TOKEN: {token == TEST_TOKEN}")
-    logger.info(f"Token startswith TEST_TOKEN: {token.startswith(TEST_TOKEN)}")
-    logger.info(f"TEST_TOKEN in Token: {TEST_TOKEN in token}")
+    logger.info(
+        f"Token comparison in zone router - Token: '{token}', TEST_TOKEN: '{TEST_TOKEN}'"
+    )
+    logger.info(
+        f"Token length: {len(token)}, TEST_TOKEN length: {len(TEST_TOKEN)}"
+    )
 
-    # IMPORTANT: For testing purposes, directly check if this is our test token
-    # and return immediately if it is, bypassing all other checks
-    if token == TEST_TOKEN:
-        logger.info(f"Exact test token match in zone router - authentication successful{client_info}")
+    if _token_matches(token, TEST_TOKEN):
+        logger.info(
+            f"Test token match in zone router - authentication successful{client_info}"
+        )
         return token
 
-    if token.startswith(TEST_TOKEN):
-        logger.info(f"Test token prefix match in zone router - authentication successful{client_info}")
-        return token
-
-    if TEST_TOKEN in token:
-        logger.info(f"Test token contained in credentials in zone router - authentication successful{client_info}")
-        return token
-
-    # Log DEV_TOKEN details for comparison
     logger.info(f"DEV_TOKEN for comparison in zone router: '{DEV_TOKEN}'")
-
-    # Also check against DEV_TOKEN for backward compatibility
-    if token == DEV_TOKEN:
-        logger.info(f"Exact legacy token match in zone router - authentication successful{client_info}")
+    if _token_matches(token, DEV_TOKEN):
+        logger.info(
+            f"Legacy token match in zone router - authentication successful{client_info}"
+        )
         return token
 
-    if token.startswith(DEV_TOKEN):
-        logger.info(f"Legacy token prefix match in zone router - authentication successful{client_info}")
-        return token
-
-    if DEV_TOKEN in token:
-        logger.info(f"Legacy token contained in credentials in zone router - authentication successful{client_info}")
-        return token
-
-    logger.warning(f"Token did not match any expected format in zone router{client_info}: '{token}'")
+    # No static match
+    logger.warning(
+        f"Token did not match static tokens in zone router{client_info}: '{token}'"
+    )
     logger.warning(f"Expected TEST_TOKEN: '{TEST_TOKEN}'")
     logger.warning(f"Expected DEV_TOKEN: '{DEV_TOKEN}'")
+    return None
 
-    # If we get here, the token didn't match any of our expected formats
-    # We'll try JWT authentication as a fallback
 
-    # If not legacy token, try JWT authentication
+async def _try_jwt(token: str, client_info: str) -> User:
+    logger.info(
+        f"Legacy/static token auth failed in zone router{client_info}, trying JWT"
+    )
+    user = await get_current_active_user(token)
+    logger.info(
+        f"JWT authentication successful in zone router{client_info} for user: {user.username}"
+    )
+    return user
+
+
+async def auth(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """
+    Authenticate requests using Bearer token authentication.
+
+    Supports both legacy DEV_TOKEN and JWT-based authentication.
+    """
+    client_info = _client_info()
+    logger.info(f"Authentication attempt in zone router{client_info}")
+
+    _ensure_bearer_scheme(credentials, client_info)
+
+    # Clean the token by removing any leading/trailing whitespace
+    token = credentials.credentials.strip()
+    logger.info(
+        f"Authenticating with token in zone router{client_info}: '{token}'"
+    )
+
+    # Try static tokens first
+    static_auth = _try_static_tokens(token, client_info)
+    if static_auth is not None:
+        return static_auth
+
+    # Fallback to JWT authentication
     try:
-        logger.info(f"Legacy token authentication failed in zone router{client_info}, trying JWT authentication")
-        # Get current user from JWT token
-        user = await get_current_active_user(token)
-        logger.info(f"JWT authentication successful in zone router{client_info} for user: {user.username}")
-        return user
+        return await _try_jwt(token, client_info)
     except Exception as e:
         # Log failed authentication attempts with detailed error
-        logger.warning(f"Failed authentication attempt in zone router{client_info}: {str(e)}")
+        logger.warning(
+            f"Failed authentication attempt in zone router{client_info}: {str(e)}"
+        )
         # Log token and DEV_TOKEN comparison for debugging
         token_preview = token[:3] + "..." + token[-3:] if len(token) > 6 else token
-        logger.warning(f"Failed token in zone router{client_info}: {token_preview}")
-        logger.warning(f"Token comparison - Token: {token[:3]}...{token[-3:] if len(token) > 6 else ''}, DEV_TOKEN: {DEV_TOKEN[:3]}...{DEV_TOKEN[-3:] if len(DEV_TOKEN) > 6 else ''}")
-        logger.warning(f"Token length: {len(token)}, DEV_TOKEN length: {len(DEV_TOKEN)}")
+        logger.warning(
+            f"Failed token in zone router{client_info}: {token_preview}"
+        )
+        logger.warning(
+            f"Token comparison - Token: {token[:3]}...{token[-3:] if len(token) > 6 else ''}, "
+            f"DEV_TOKEN: {DEV_TOKEN[:3]}...{DEV_TOKEN[-3:] if len(DEV_TOKEN) > 6 else ''}"
+        )
+        logger.warning(
+            f"Token length: {len(token)}, DEV_TOKEN length: {len(DEV_TOKEN)}"
+        )
         logger.warning(f"Token == DEV_TOKEN: {token == DEV_TOKEN}")
         logger.warning(f"Token startswith DEV_TOKEN: {token.startswith(DEV_TOKEN)}")
         logger.warning(f"DEV_TOKEN in Token: {DEV_TOKEN in token}")
@@ -222,43 +244,102 @@ async def list_zones(request: Request, current_user: Union[str, User] = Depends(
         List of zones with their details
     """
     try:
-        # Check if world.eterna and exploration are properly initialized
-        if not hasattr(world, 'eterna') or not world.eterna:
-            logger.error("World or Eterna not initialized")
-            return []
-
-        if not hasattr(world.eterna, 'exploration') or not world.eterna.exploration:
-            logger.error("Exploration module not initialized")
-            return []
-
-        if not hasattr(world.eterna.exploration, 'registry') or not world.eterna.exploration.registry:
-            logger.error("Exploration registry not initialized")
-            return []
-
-        if not hasattr(world.eterna.exploration.registry, 'zones'):
-            logger.error("Zones list not found in exploration registry")
-            return []
-
-        zones = world.eterna.exploration.registry.zones
-        if zones is None:
-            logger.error("Zones list is None")
-            return []
-
-        return [
-            {
-                "id": i,  # Use index as ID
-                "name": zone.name,
-                "origin": zone.origin,
-                "complexity": zone.complexity_level,
-                "explored": zone.explored,
-                "emotion": zone.emotion_tag,
-                "modifiers": zone.modifiers,
-            }
-            for i, zone in enumerate(zones)
-        ]
+        zones = _get_zones_safely()
+        return _serialize_zones(zones)
     except Exception as e:
         logger.error(f"Error retrieving zones: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve zones: {str(e)}")
+
+
+def _get_zones_safely():
+    """Safely retrieve zones list from the world exploration registry.
+
+    Returns the zones list or an empty list if not available, with appropriate logging.
+    """
+    # Check if world.eterna and exploration are properly initialized
+    if not hasattr(world, 'eterna') or not world.eterna:
+        logger.error("World or Eterna not initialized")
+        return []
+
+    if not hasattr(world.eterna, 'exploration') or not world.eterna.exploration:
+        logger.error("Exploration module not initialized")
+        return []
+
+    if not hasattr(world.eterna.exploration, 'registry') or not world.eterna.exploration.registry:
+        logger.error("Exploration registry not initialized")
+        return []
+
+    if not hasattr(world.eterna.exploration.registry, 'zones'):
+        logger.error("Zones list not found in exploration registry")
+        return []
+
+    zones = world.eterna.exploration.registry.zones
+    if zones is None:
+        logger.error("Zones list is None")
+        return []
+
+    return zones
+
+
+def _serialize_zones(zones):
+    """Serialize zone objects into dictionaries for API response."""
+    return [
+        {
+            "id": i,  # Use index as ID
+            "name": zone.name,
+            "origin": zone.origin,
+            "complexity": zone.complexity_level,
+            "explored": zone.explored,
+            "emotion": zone.emotion_tag,
+            "modifiers": zone.modifiers,
+        }
+        for i, zone in enumerate(zones)
+    ]
+
+
+def _validate_zone_name(zone_name: str):
+    if not zone_name or not isinstance(zone_name, str):
+        raise HTTPException(status_code=400, detail="Invalid zone name")
+    # Prevent simple injection/path traversal characters
+    if any(char in zone_name for char in "\"'\\;:,.<>/{}[]()"):
+        logger.warning(f"Possible injection attempt with zone name: {zone_name}")
+        raise HTTPException(status_code=400, detail="Invalid zone name")
+
+
+def _ensure_world_ready():
+    """Ensure world and exploration registry with zones are available; return zones list."""
+    if not hasattr(world, 'eterna') or not world.eterna:
+        logger.error("World or Eterna not initialized")
+        raise HTTPException(status_code=500, detail="World not initialized")
+
+    exploration = getattr(world.eterna, 'exploration', None)
+    if not exploration:
+        logger.error("Exploration module not initialized")
+        raise HTTPException(status_code=500, detail="Exploration module not initialized")
+
+    registry = getattr(exploration, 'registry', None)
+    if not registry:
+        logger.error("Exploration registry not initialized")
+        raise HTTPException(status_code=500, detail="Exploration registry not initialized")
+
+    zones = getattr(registry, 'zones', None)
+    if zones is None:
+        logger.error("Zones list is None")
+        raise HTTPException(status_code=500, detail="Zones not found")
+
+    return zones
+
+
+def _ensure_state_tracker_ready():
+    """Ensure state_tracker exists and supports mark_zone; return it."""
+    st = getattr(world, 'state_tracker', None)
+    if not st:
+        logger.error("State tracker not initialized")
+        raise HTTPException(status_code=500, detail="State tracker not initialized")
+    if not hasattr(st, 'mark_zone'):
+        logger.error("mark_zone method not found in state tracker")
+        raise HTTPException(status_code=500, detail="Method not found")
+    return st
 
 
 @router.post(
@@ -297,61 +378,23 @@ async def change_zone(request: Request, body: dict = Body(...), current_user: Un
 
     # Validate zone name
     zone_name = body.get("zone")
-    if not zone_name or not isinstance(zone_name, str):
-        raise HTTPException(status_code=400, detail="Invalid zone name")
-
-    # Prevent injection attacks
-    if any(char in zone_name for char in "\"'\\;:,.<>/{}[]()"):
-        logger.warning(f"Possible injection attempt with zone name: {zone_name}")
-        raise HTTPException(status_code=400, detail="Invalid zone name")
+    _validate_zone_name(zone_name)
 
     try:
-        # Check if world.eterna and exploration are properly initialized
-        if not hasattr(world, 'eterna') or not world.eterna:
-            logger.error("World or Eterna not initialized")
-            raise HTTPException(status_code=500, detail="World not initialized")
+        zones = _ensure_world_ready()
 
-        if not hasattr(world.eterna, 'exploration') or not world.eterna.exploration:
-            logger.error("Exploration module not initialized")
-            raise HTTPException(status_code=500, detail="Exploration module not initialized")
-
-        if not hasattr(world.eterna.exploration, 'registry') or not world.eterna.exploration.registry:
-            logger.error("Exploration registry not initialized")
-            raise HTTPException(status_code=500, detail="Exploration registry not initialized")
-
-        if not hasattr(world.eterna.exploration.registry, 'zones'):
-            logger.error("Zones list not found in exploration registry")
-            raise HTTPException(status_code=500, detail="Zones not found")
-
-        # Check if zone exists
-        zones = world.eterna.exploration.registry.zones
-        if zones is None:
-            logger.error("Zones list is None")
-            raise HTTPException(status_code=500, detail="Zones list is None")
-
-        zone_exists = False
-        for zone in zones:
-            if zone.name == zone_name:
-                zone_exists = True
-                break
-
-        if not zone_exists:
+        # Ensure the zone exists
+        if not any(z.name == zone_name for z in zones):
             raise HTTPException(status_code=404, detail="Zone not found")
 
-        # Check if state_tracker is properly initialized
-        if not hasattr(world, 'state_tracker') or not world.state_tracker:
-            logger.error("State tracker not initialized")
-            raise HTTPException(status_code=500, detail="State tracker not initialized")
-
-        if not hasattr(world.state_tracker, 'mark_zone'):
-            logger.error("mark_zone method not found in state tracker")
-            raise HTTPException(status_code=500, detail="Method not found")
+        # Ensure state tracker is ready
+        st = _ensure_state_tracker_ready()
 
         # Log the user who changed the zone
         user_info = current_user.username if isinstance(current_user, User) else "legacy_token"
 
         # Update the current zone
-        world.state_tracker.mark_zone(zone_name)
+        st.mark_zone(zone_name)
         logger.info(f"Zone changed to {zone_name} by {user_info}")
 
         return {"status": "success", "message": f"Zone changed to {zone_name}"}

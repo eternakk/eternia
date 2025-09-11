@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+
+# Cypress local env (do not commit secrets)
+cypress.env.json

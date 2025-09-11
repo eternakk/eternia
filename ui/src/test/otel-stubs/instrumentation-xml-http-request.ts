@@ -1,0 +1,1 @@
+export class XMLHttpRequestInstrumentation { constructor(...args: unknown[]) { void args; } }

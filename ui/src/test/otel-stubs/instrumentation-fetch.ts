@@ -1,0 +1,1 @@
+export class FetchInstrumentation { constructor(...args: unknown[]) { void args; } }

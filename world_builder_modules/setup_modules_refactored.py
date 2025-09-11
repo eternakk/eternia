@@ -249,10 +249,12 @@ def setup_eterna_world(eterna: EternaInterface) -> None:
                 intensity = 0.5  # Default value
 
             try:
-                emotional_state = EmotionalState(emotion, intensity)
-                eterna.update_emotional_state(emotional_state)
-                log_operation("Update emotional state", True, logger, 
-                             {"emotion": emotion, "intensity": intensity})
+                # Convert normalized intensity [0,1] to stress scale [0,10]
+                stress_level = int(round(float(intensity) * 10))
+                trauma_triggered = False
+                eterna.update_emotional_state(emotion, stress_level, trauma_triggered)
+                log_operation("Update emotional state", True, logger,
+                             {"emotion": emotion, "intensity": intensity, "stress_level": stress_level})
             except Exception as e:
                 log_operation("Update emotional state", False, logger, error=e)
                 # Continue with next steps

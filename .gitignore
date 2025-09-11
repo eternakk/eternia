@@ -26,3 +26,33 @@ docs/config/
 *.swp
 .idea/
 .vscode/
+
+# Python virtualenv & local Python version
+.venv/
+.python-version
+
+# Node.js
+node_modules/
+
+# Test artifacts (Hypothesis)
+.hypothesis/
+tests/.hypothesis/
+tests/performance/.hypothesis/
+
+# Local outputs
+.Run mypy modules services
+  mypy modules services
+  shell: /usr/bin/bash -e {0}
+  env:
+    pythonLocation: /opt/hostedtoolcache/Python/3.10.18/x64
+    PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.10.18/x64/lib/pkgconfig
+    Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.18/x64
+    Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.18/x64
+    Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.18/x64
+    LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.10.18/x64/lib
+There are no .py[i] files in directory 'modules'
+Error: Process completed with exit code 2.output.txt
+
+# Databases and data
+data/
+*.db

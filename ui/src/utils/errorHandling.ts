@@ -25,7 +25,7 @@ export const useErrorHandler = () => {
                 // The request was made and the server responded with a status code
                 // that falls out of the range of 2xx
                 const status = axiosError.response.status;
-                const data = axiosError.response.data as any;
+                const data = axiosError.response.data as unknown;
 
                 if (status === 401 || status === 403) {
                     message = 'Authentication error. Please log in again.';
@@ -33,9 +33,10 @@ export const useErrorHandler = () => {
                     message = 'The requested resource was not found.';
                 } else if (status === 500) {
                     message = 'Server error. Please try again later.';
-                } else if (data?.message) {
+                } else if (data && typeof data === 'object' && 'message' in (data as Record<string, unknown>)) {
                     // Use the error message from the server if available
-                    message = data.message;
+                    const d = data as { message?: unknown };
+                    message = typeof d.message === 'string' ? d.message : String(d.message);
                 }
             } else if (axiosError.request) {
                 // The request was made but no response was received
@@ -56,11 +57,11 @@ export const useErrorHandler = () => {
      * @param errorMessage - Optional custom error message
      * @returns A new function that handles errors
      */
-    const withErrorHandling = <T extends (...args: any[]) => Promise<any>>(
-        fn: T,
+    const withErrorHandling = <A extends unknown[], R>(
+        fn: (...args: A) => Promise<R>,
         errorMessage?: string
-    ): ((...args: Parameters<T>) => Promise<Awaited<ReturnType<T>> | undefined>) => {
-        return async (...args: Parameters<T>) => {
+    ): ((...args: A) => Promise<R | undefined>) => {
+        return async (...args: A) => {
             try {
                 return await fn(...args);
             } catch (error) {
@@ -76,26 +77,25 @@ export const useErrorHandler = () => {
     };
 };
 
-// @ts-ignore
 /**
  * Creates a wrapped version of an API function with error handling
  * @param apiFn - The API function to wrap
  * @param errorMessage - Optional custom error message
  * @returns A new function that handles errors
  */
-export const createSafeApiCall = <T extends (...args: any[]) => Promise<any>>(
-    apiFn: T,
+export const createSafeApiCall = <A extends unknown[], R>(
+    apiFn: (...args: A) => Promise<R>,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     _errorMessage?: string
 ) => {
-    return async (...args: Parameters<T>): Promise<Awaited<ReturnType<T>> | undefined> => {
+    return async (...args: A): Promise<R | undefined> => {
         try {
             return await apiFn(...args);
         } catch (error) {
             console.error('API Error:', error);
             // Note: This function doesn't show notifications because it's not inside a component
             // Use useErrorHandler().withErrorHandling inside components instead
-            return Promise.resolve(undefined);
+            return undefined;
         }
     };
 };

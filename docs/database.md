@@ -242,42 +242,104 @@ else:
 
 ## Migration and Versioning
 
-The database system includes schema versioning and migration support. The current schema version is stored in the `schema_version` table, and migrations are performed automatically when the database is opened with a newer schema version.
+The database system includes a comprehensive migration system using the [yoyo-migrations](https://ollycope.com/software/yoyo/latest/) package. Migrations are stored as Python files in the `migrations` directory and are applied automatically when the database is initialized.
 
-To update the schema version:
+### Migration Files
 
-1. Increment the `SCHEMA_VERSION` constant in the `EternaDatabase` class
-2. Add a migration function for the new version
-3. Update the `_migrate_schema` method to call the new migration function
+Migration files are Python scripts that define a series of steps to apply and roll back changes to the database schema. Each migration file has a unique ID (based on the timestamp) and a descriptive name.
 
-Example of adding a new migration:
+Example migration file (`migrations/20250625_123456_add_user_table.py`):
 
 ```python
-# In EternaDatabase class
-SCHEMA_VERSION = 2  # Increment from 1 to 2
+"""
+Add User Table.
 
-def _migrate_to_v2(self):
-    """Migrate from version 1 to version 2."""
-    try:
-        self.cursor.execute("ALTER TABLE state ADD COLUMN new_column TEXT")
-        print("✅ Added new_column to state table")
-    except sqlite3.Error as e:
-        print(f"❌ Failed to add new_column to state table: {e}")
+This migration adds a new table for storing user information.
+"""
 
-def _migrate_schema(self, from_version):
-    """Perform database schema migrations."""
-    # Migration steps for each version
-    if from_version < 1:
-        # Migration to version 1 (initial schema)
-        pass  # No migration needed for initial schema
+from yoyo import step
 
-    # Add migration to version 2
-    if from_version < 2:
-        self._migrate_to_v2()
+__depends__ = {}  # Dependencies on other migrations
 
-    # Commit the changes
-    self.conn.commit()
+steps = [
+    step(
+        """
+        CREATE TABLE users (
+            id INTEGER PRIMARY KEY,
+            username TEXT NOT NULL UNIQUE,
+            email TEXT NOT NULL,
+            created_at REAL NOT NULL
+        )
+        """,
+        """
+        DROP TABLE users
+        """
+    )
+]
 ```
+
+### Managing Migrations
+
+The Eternia project provides a command-line script for managing migrations:
+
+```bash
+# Show migration status
+./scripts/manage_migrations.py status
+
+# Create a new migration
+./scripts/manage_migrations.py create add_user_table
+
+# Apply all pending migrations
+./scripts/manage_migrations.py apply
+
+# Apply migrations up to a specific target
+./scripts/manage_migrations.py apply --target 20250625_123456
+
+# Roll back the most recent migration
+./scripts/manage_migrations.py rollback
+
+# Roll back multiple migrations
+./scripts/manage_migrations.py rollback --steps 3
+
+# Roll back to a specific target
+./scripts/manage_migrations.py rollback --target 20250625_123456
+```
+
+### Using Migrations in Code
+
+The `EternaDatabase` class provides methods for managing migrations programmatically:
+
+```python
+from modules.database import EternaDatabase
+
+# Initialize the database (applies pending migrations automatically)
+db = EternaDatabase()
+
+# Get the current schema version
+version = db.get_schema_version()
+print(f"Current schema version: {version}")
+
+# Get the status of all migrations
+status = db.get_migration_status()
+for migration_id, is_applied, description in status:
+    print(f"{migration_id}: {'Applied' if is_applied else 'Pending'}")
+
+# Apply pending migrations
+count = db.apply_migrations()
+print(f"Applied {count} migrations")
+
+# Roll back the most recent migration
+count = db.rollback_migrations()
+print(f"Rolled back {count} migrations")
+
+# Create a new migration file
+migration_path = db.create_migration("add_user_table")
+print(f"Created migration file: {migration_path}")
+```
+
+### Migration Manager
+
+Under the hood, the `EternaDatabase` class uses the `MigrationManager` class from `modules/migration_manager.py` to handle migrations. This class provides a clean interface to the yoyo-migrations package and handles all the details of applying, rolling back, and tracking migrations.
 
 ## Backup and Restore
 

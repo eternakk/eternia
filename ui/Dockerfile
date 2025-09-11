@@ -2,7 +2,7 @@
 # This Dockerfile builds a Docker image for the Eternia frontend.
 
 # Build stage
-FROM node:18-alpine as build
+FROM node:18-alpine AS build
 
 # Set the working directory
 WORKDIR /app
@@ -11,7 +11,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci
+RUN npm ci || npm install --no-audit --no-fund
 
 # Copy the project files
 COPY . .

@@ -27,7 +27,8 @@ a checkbox that can be checked off when completed.
 
 ## Dynamic Zone and Emotion System Tasks
 
-[x] 101. Fix duplicate emotion processing in runtime cycle by consolidating the process_emotion calls in run_cycle and check_emotional_safety methods
+[x] 101. Fix duplicate emotion processing in runtime cycle by consolidating the process_emotion calls in run_cycle and
+check_emotional_safety methods
 [x] 102. Standardize modifier tracking in state_tracker.py by consolidating track_modifier and add_modifier methods
 [x] 103. Implement proper event propagation for zone changes to ensure frontend is updated when zones are modified
 [x] 104. Add WebSocket notifications for zone and emotion changes to provide real-time updates to the frontend
@@ -41,6 +42,7 @@ a checkbox that can be checked off when completed.
 ## Prioritized Tasks (Most Important to Least Important)
 
 ### Security (Critical)
+
 [x] 51. Audit and fix potential security vulnerabilities
 [x] 50. Implement proper authentication and authorization
 [x] 52. Implement input validation and sanitization
@@ -49,12 +51,14 @@ a checkbox that can be checked off when completed.
 [x] 55. Add rate limiting for API endpoints
 
 ### Architecture Foundation (High Priority)
+
 [x] 3. Standardize interfaces between major system components
 [x] 2. Implement a dependency injection system to reduce tight coupling between modules
 [x] 6. Create a clear separation between core simulation logic and UI/visualization components
 [x] 1. Create comprehensive architecture documentation with diagrams showing component relationships
 
 ### Performance Optimization (High Priority)
+
 [x] 36. Profile the simulation loop and optimize bottlenecks
 [x] 38. Optimize memory usage for large simulations
 [x] 40. Optimize the state tracking system for large-scale simulations
@@ -62,11 +66,13 @@ a checkbox that can be checked off when completed.
 [x] 39. Implement parallel processing for independent simulation components
 
 ### Critical Documentation (Medium-High Priority)
+
 [x] 26. Create API documentation for backend-frontend communication
 [x] 25. Add inline comments for complex algorithms and logic
 [x] 27. Document the state management approach and data flow
 
 ### Data Management (Medium Priority)
+
 [x] 58. Implement data validation and integrity checks
 [x] 56. Implement proper database schema for persistent storage
 [x] 59. Add backup and restore functionality for simulation states
@@ -74,6 +80,7 @@ a checkbox that can be checked off when completed.
 [x] 60. Optimize data structures for memory efficiency
 
 ### Frontend Core Functionality (Medium Priority)
+
 [x] 30. Add proper error handling and user feedback in the UI
 [x] 31. Optimize rendering performance for the ZoneCanvas component
 [x] 33. Add comprehensive state management (Redux or Context API)
@@ -81,6 +88,7 @@ a checkbox that can be checked off when completed.
 [x] 17. Implement UI component tests for the React frontend
 
 ### DevOps and Infrastructure (Medium Priority)
+
 [x] 43. Set up proper development, staging, and production environments
 [x] 44. Implement containerization with Docker for consistent deployment
 [x] 45. Create comprehensive CI/CD pipelines
@@ -89,6 +97,7 @@ a checkbox that can be checked off when completed.
 [x] 49. Create a proper release management process
 
 ### Frontend Enhancements (Lower Priority)
+
 [x] 29. Implement responsive design for all UI components
 [x] 32. Implement accessibility features (ARIA attributes, keyboard navigation)
 [x] 34. Create reusable UI component library with storybook documentation
@@ -99,35 +108,45 @@ a checkbox that can be checked off when completed.
 
 ## UI Improvement Tasks
 
-[x] 201. Refactor App.tsx and context providers for clarity (combine redundant contexts, document state). Ensure feature flags in FeatureFlagContext are well-typed.
-[x] 202. Update StatePanel.tsx: replace numeric continuity and cycle count with labeled charts (using Recharts or similar). Add tooltips explaining each field.
-[x] 203. Update AgentDashboard.tsx: list agent names, moods (with colored icons), and stress levels (bars). Add columns headers and an auto-refresh of data from AppStateContext.
-[x] 204. Update ControlPanel.tsx: group control buttons (Run, Pause, Step, Reset) with clear labels/icons. Add an "Emergency Stop" button that calls AlignmentGovernor.shutdown().
-[x] 205. Enhance CheckPointPanel.tsx: display checkpoints with formatted timestamps and continuity scores. Implement a "Restore" button that calls the rollback API with the checkpoint ID.
-[x] 206. Enhance ZoneCanvas.tsx: overlay a legend for zone modifiers (icons/labels). Enable click-to-view zone details (name, modifiers) via ZoneProvider. Use SVG for scalable graphics.
-[x] 207. Enhance ZoneViewer.tsx: present a list of zones with status indicators (explored/new). Allow filtering or searching zones by name.
-[x] 208. Improve NotificationContainer: ensure all notifications (errors, warnings, success) are user-friendly (no raw JSON).
-[x] 209. Ensure responsiveness: test on mobile. Add ARIA attributes (e.g. role="button") and keyboard shortcuts for key actions (pause = spacebar).
+[x] 201. Refactor App.tsx and context providers for clarity (combine redundant contexts, document state). Ensure feature
+flags in FeatureFlagContext are well-typed.
+[x] 202. Update StatePanel.tsx: replace numeric continuity and cycle count with labeled charts (using Recharts or
+similar). Add tooltips explaining each field.
+[x] 203. Update AgentDashboard.tsx: list agent names, moods (with colored icons), and stress levels (bars). Add columns
+headers and an auto-refresh of data from AppStateContext.
+[x] 204. Update ControlPanel.tsx: group control buttons (Run, Pause, Step, Reset) with clear labels/icons. Add an "
+Emergency Stop" button that calls AlignmentGovernor.shutdown().
+[x] 205. Enhance CheckPointPanel.tsx: display checkpoints with formatted timestamps and continuity scores. Implement a "
+Restore" button that calls the rollback API with the checkpoint ID.
+[x] 206. Enhance ZoneCanvas.tsx: overlay a legend for zone modifiers (icons/labels). Enable click-to-view zone details (
+name, modifiers) via ZoneProvider. Use SVG for scalable graphics.
+[x] 207. Enhance ZoneViewer.tsx: present a list of zones with status indicators (explored/new). Allow filtering or
+searching zones by name.
+[x] 208. Improve NotificationContainer: ensure all notifications (errors, warnings, success) are user-friendly (no raw
+JSON).
+[x] 209. Ensure responsiveness: test on mobile. Add ARIA attributes (e.g. role="button") and keyboard shortcuts for key
+actions (pause = spacebar).
 
 ## Code Quality and Modernization Tasks
 
 [x] 301. Implement static type checking with mypy across the entire Python codebase with strict mode enabled
-[x] 302. Refactor server.py into smaller, domain-specific modules to improve maintainability (e.g., separate agent, zone, and ritual endpoints)
+[x] 302. Refactor server.py into smaller, domain-specific modules to improve maintainability (e.g., separate agent,
+zone, and ritual endpoints)
 [x] 303. Add comprehensive API documentation using OpenAPI/Swagger annotations for all endpoints
-[ ] 304. Implement structured logging with contextual information throughout the application
-[ ] 305. Upgrade to the latest versions of all dependencies and address any deprecation warnings
-[ ] 306. Implement code quality gates in CI pipeline (coverage thresholds, complexity limits)
-[ ] 307. Add end-to-end tests that simulate real user workflows from UI to backend
-[ ] 308. Implement database migrations system for schema changes
-[ ] 309. Add performance profiling for critical paths with visualization in monitoring dashboards
-[ ] 310. Implement circuit breakers for external service calls to improve resilience
+[x] 304. Implement structured logging with contextual information throughout the application
+[x] 305. Upgrade to the latest versions of all dependencies and address any deprecation warnings
+[x] 306. Implement code quality gates in CI pipeline (coverage thresholds, complexity limits)
+[x] 307. Add end-to-end tests that simulate real user workflows from UI to backend
+[x] 308. Implement database migrations system for schema changes
+[x] 309. Add performance profiling for critical paths with visualization in monitoring dashboards
+[x] 310. Implement circuit breakers for external service calls to improve resilience
 
 ## Infrastructure and DevOps Tasks
 
-[ ] 401. Implement infrastructure as code using Terraform or similar tool
-[ ] 402. Set up blue/green deployment strategy to minimize downtime during updates
-[ ] 403. Implement automated database backup and verification procedures
-[ ] 404. Set up distributed tracing across all services using OpenTelemetry
+[x] 401. Implement infrastructure as code using Terraform or similar tool
+[x] 402. Set up blue/green deployment strategy to minimize downtime during updates
+[x] 403. Implement automated database backup and verification procedures
+[x] 404. Set up distributed tracing across all services using OpenTelemetry
 [ ] 405. Implement chaos engineering tests to verify system resilience
 [ ] 406. Create runbooks for common operational tasks and incident response
 [ ] 407. Implement cost optimization for cloud resources with automated reporting
@@ -173,3 +192,42 @@ a checkbox that can be checked off when completed.
 [ ] 708. Add real-time analytics dashboard for key business metrics
 [ ] 709. Implement data lineage tracking for compliance
 [ ] 710. Add machine learning pipeline for predictive analytics
+
+
+## Next Sprint Candidates (Planning)
+
+Last updated: 2025-08-30
+
+- Infrastructure and DevOps:
+  - [ ] 405. Implement chaos engineering tests to verify system resilience
+  - [ ] 406. Create runbooks for common operational tasks and incident response
+  - [ ] 409. Implement automatic scaling based on load metrics
+  - [ ] 410. Set up disaster recovery procedures and regular testing
+
+- Frontend:
+  - [ ] 501. Implement comprehensive error boundary system with fallback UI components
+  - [ ] 503. Implement performance monitoring for frontend with Core Web Vitals tracking
+  - [ ] 506. Add skeleton loading states for all async data fetching components
+  - [ ] 507. Implement client-side caching strategy for API responses
+  - [ ] 509. Implement dark mode and theme customization
+
+- Security:
+  - [ ] 601. Implement Content Security Policy (CSP) headers
+  - [ ] 603. Implement JWT token rotation and revocation capabilities
+  - [ ] 608. Add secure coding guidelines and training for developers
+
+- Data & Analytics:
+  - [ ] 701. Implement data retention policies and automated cleanup
+  - [ ] 706. Add data validation layer between frontend and backend
+  - [ ] 708. Add real-time analytics dashboard for key business metrics
+
+- Quantum Integration:
+  - See docs/quantum_tasks.md for detailed Sprint 2–3 roadmap.
+  - Near-term focus:
+    - Implement quantum_walk(params) producing adjacency/weights (quantum_tasks.md → Sprint 2)
+    - Add endpoints /api/quantum/quantum-walk and /api/quantum/qaoa-optimize (quantum_tasks.md → Sprint 2)
+    - Add metrics for quantum_requests_total, entropy avg, and timeouts (quantum_tasks.md → Sprint 3)
+
+- Cross-references:
+  - UI implementation detail plans: docs/ui_pending_tasks.md
+  - Quantum overview: docs/quantum_overview.md

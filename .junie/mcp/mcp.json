@@ -1,0 +1,65 @@
+{
+  "mcpServers": {
+    "github": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "ghcr.io/github/github-mcp-server"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "env://GITHUB_TOKEN_RO"
+      }
+    },
+    "sqlite": {
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "-i",
+        "-v",
+        "/Users/klajdikolaj/PycharmProjects/Eternia/data:/mcp",
+        "mcp/sqlite",
+        "--db-path",
+        "/mcp/eternia.db"
+      ]
+    },
+    "postgres-readonly": {
+      "command": "/usr/local/bin/server-postgres",
+      "env": {
+        "PGHOST": "env://PGHOST",
+        "PGPORT": "env://PGPORT",
+        "PGDATABASE": "env://PGDATABASE",
+        "PGUSER": "env://PGUSER_RO",
+        "PGPASSWORD": "env://PGPASSWORD_RO",
+        "PGSSLMODE": "require"
+      },
+      "capabilities": [
+        "read"
+      ]
+    },
+    "e2b-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "e2b-mcp-server"
+      ],
+      "env": {
+        "E2B_API_KEY": "${e2bApiKey}"
+      }
+    },
+    "aws-s3-read": {
+      "command": "/usr/local/bin/s3-mcp-server",
+      "env": {
+        "AWS_REGION": "env://AWS_REGION",
+        "AWS_ACCESS_KEY_ID": "env://AWS_ACCESS_KEY_ID_RO",
+        "AWS_SECRET_ACCESS_KEY": "env://AWS_SECRET_ACCESS_KEY_RO"
+      },
+      "capabilities": [
+        "read"
+      ]
+    }
+  }
+}

@@ -148,9 +148,9 @@ zone, and ritual endpoints)
 [x] 403. Implement automated database backup and verification procedures
 [x] 404. Set up distributed tracing across all services using OpenTelemetry
 [ ] 405. Implement chaos engineering tests to verify system resilience
-[ ] 406. Create runbooks for common operational tasks and incident response
+[x] 406. Create runbooks for common operational tasks and incident response
 [ ] 407. Implement cost optimization for cloud resources with automated reporting
-[ ] 408. Set up security scanning for dependencies and container images
+[x] 408. Set up security scanning for dependencies and container images
 [ ] 409. Implement automatic scaling based on load metrics
 [ ] 410. Set up disaster recovery procedures and regular testing
 
@@ -169,7 +169,7 @@ zone, and ritual endpoints)
 
 ## Security Enhancement Tasks
 
-[ ] 601. Implement Content Security Policy (CSP) headers
+[x] 601. Implement Content Security Policy (CSP) headers
 [ ] 602. Add regular security penetration testing to CI/CD pipeline
 [ ] 603. Implement JWT token rotation and revocation capabilities
 [ ] 604. Add two-factor authentication option for user accounts
@@ -196,11 +196,11 @@ zone, and ritual endpoints)
 
 ## Next Sprint Candidates (Planning)
 
-Last updated: 2025-08-30
+Last updated: 2025-09-17
 
 - Infrastructure and DevOps:
   - [ ] 405. Implement chaos engineering tests to verify system resilience
-  - [ ] 406. Create runbooks for common operational tasks and incident response
+  - [x] 406. Create runbooks for common operational tasks and incident response (Completed 2025-09-17)
   - [ ] 409. Implement automatic scaling based on load metrics
   - [ ] 410. Set up disaster recovery procedures and regular testing
 
@@ -212,7 +212,7 @@ Last updated: 2025-08-30
   - [ ] 509. Implement dark mode and theme customization
 
 - Security:
-  - [ ] 601. Implement Content Security Policy (CSP) headers
+  - [x] 601. Implement Content Security Policy (CSP) headers (Completed 2025-09-17)
   - [ ] 603. Implement JWT token rotation and revocation capabilities
   - [ ] 608. Add secure coding guidelines and training for developers
 
@@ -223,10 +223,10 @@ Last updated: 2025-08-30
 
 - Quantum Integration:
   - See docs/quantum_tasks.md for detailed Sprint 2–3 roadmap.
-  - Near-term focus:
-    - Implement quantum_walk(params) producing adjacency/weights (quantum_tasks.md → Sprint 2)
-    - Add endpoints /api/quantum/quantum-walk and /api/quantum/qaoa-optimize (quantum_tasks.md → Sprint 2)
-    - Add metrics for quantum_requests_total, entropy avg, and timeouts (quantum_tasks.md → Sprint 3)
+  - Near-term focus (Completed 2025-09-17):
+    - [x] Implement quantum_walk(params) producing adjacency/weights (see modules/quantum_service.py)
+    - [x] Add endpoints /api/quantum/quantum-walk and /api/quantum/qaoa-optimize (see services/api/routers/quantum.py)
+    - [x] Add metrics for quantum_requests_total, entropy avg, and timeouts (see modules/monitoring.py)
 
 - Cross-references:
   - UI implementation detail plans: docs/ui_pending_tasks.md

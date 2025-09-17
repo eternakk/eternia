@@ -102,6 +102,28 @@ class EterniaMetrics:
             ['method', 'endpoint']
         )
         
+        # Quantum metrics (Sprint 3)
+        self.quantum_requests_total = Counter(
+            'quantum_requests_total',
+            'Total number of quantum API requests',
+            ['type', 'status']
+        )
+        self.quantum_timeouts_total = Counter(
+            'quantum_timeouts_total',
+            'Total number of timed out quantum API requests',
+            ['type']
+        )
+        # Using a gauge for average entropy; we set it to the latest observed value.
+        # Prometheus can compute averages over time via recording rules.
+        self.quantum_entropy_avg = Gauge(
+            'quantum_entropy_avg',
+            'Average entropy of QRNG results (last observed value)'
+        )
+        self.quantum_entropy = Summary(
+            'quantum_entropy',
+            'Observed entropy from QRNG draws'
+        )
+        
         logger.info("Eternia metrics initialized")
     
     @validate_params(method=lambda v, p: validate_type(v, str, p))
@@ -230,6 +252,28 @@ class EterniaMetrics:
         except Exception as e:
             logger.error(f"Error setting memory usage: {e}")
     
+    def observe_qrng_entropy(self, entropy: float) -> None:
+        """Observe entropy for QRNG results and update averages."""
+        try:
+            self.quantum_entropy.observe(float(entropy))
+            self.quantum_entropy_avg.set(float(entropy))
+        except Exception as e:
+            logger.error(f"Error observing quantum entropy: {e}")
+
+    def inc_quantum_request(self, kind: str, status: str) -> None:
+        """Increment quantum request counter for a given kind and status."""
+        try:
+            self.quantum_requests_total.labels(type=str(kind), status=str(status)).inc()
+        except Exception as e:
+            logger.error(f"Error incrementing quantum request counter: {e}")
+
+    def inc_quantum_timeout(self, kind: str) -> None:
+        """Increment quantum timeouts counter for a given kind."""
+        try:
+            self.quantum_timeouts_total.labels(type=str(kind)).inc()
+        except Exception as e:
+            logger.error(f"Error incrementing quantum timeout counter: {e}")
+
     def generate_latest_metrics(self) -> bytes:
         """
         Generate the latest metrics in Prometheus format.

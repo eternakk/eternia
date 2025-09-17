@@ -52,9 +52,9 @@ Acceptance criteria (Sprint 1):
 ## Sprint 2: Mechanics and Entanglement
 
 1. Quantum walks and layout optimization
-    - [ ] Implement quantum_walk(params) producing adjacency/weights
-    - [ ] Implement qaoa_optimize(qubo) for small problems (with simulator)
-    - [ ] Add endpoints /api/quantum/quantum-walk and /api/quantum/qaoa-optimize
+    - [x] Implement quantum_walk(params) producing adjacency/weights
+    - [x] Implement qaoa_optimize(qubo) for small problems (with simulator)
+    - [x] Add endpoints /api/quantum/quantum-walk and /api/quantum/qaoa-optimize
 2. Entanglement mechanics
     - [ ] Add shared quantum_seed to Agent and Zone models
     - [ ] Bias zone modifiers with entangled variational fields
@@ -75,8 +75,8 @@ Acceptance criteria (Sprint 2):
     - [ ] Cache qrng pools and variational fields by seed/zone; invalidate on rituals
     - [ ] Batch prefetch on world load
 2. Observability
-    - [ ] Metrics: quantum_requests_total, quantum_entropy_avg, quantum_timeouts_total
-    - [ ] Tracing spans annotated with backend and circuit types
+    - [x] Metrics: quantum_requests_total, quantum_entropy_avg, quantum_timeouts_total
+    - [x] Tracing spans annotated with backend and circuit types
 3. UI polish
     - [ ] Shader-driven textures for quantum fields in ZoneCanvas
     - [ ] Toggle to reveal interference patterns in path graphs

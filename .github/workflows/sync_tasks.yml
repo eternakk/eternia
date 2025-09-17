@@ -1,0 +1,44 @@
+name: Sync docs tasks to GitHub Project
+
+on:
+  push:
+    paths:
+      - 'docs/tasks.md'
+      - 'docs/quantum_tasks.md'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  # Required for Projects v2 GraphQL mutations with a PAT in GH_TOKEN
+  projects: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies (httpx)
+        run: |
+          python -m pip install --upgrade pip
+          # httpx already in requirements.txt, but keep it lean to avoid heavy deps
+          pip install -r requirements.txt
+
+      - name: Run sync script (dry-run by default if token missing)
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_OWNER: ${{ vars.GH_OWNER || secrets.GH_OWNER }}
+          GH_OWNER_TYPE: ${{ vars.GH_OWNER_TYPE || secrets.GH_OWNER_TYPE }}
+          GH_PROJECT_TITLE: ${{ vars.GH_PROJECT_TITLE || 'eterniakk' }}
+          GH_STATUS_TODO: ${{ vars.GH_STATUS_TODO || 'To do' }}
+          GH_STATUS_DONE: ${{ vars.GH_STATUS_DONE || 'Done' }}
+          FILES: docs/tasks.md,docs/quantum_tasks.md
+          DRY_RUN: ${{ secrets.GH_TOKEN == '' && '1' || '0' }}
+        run: |
+          python scripts/sync_tasks_to_github_project.py

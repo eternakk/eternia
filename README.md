@@ -158,3 +158,38 @@ JWT signing secrets are handled differently in development and production for bo
   - The artifacts/ directory is gitignored to prevent secrets from being committed.
   - To rotate secrets, delete the relevant secret file in artifacts/ and restart with the desired environment variables; a new secret will be generated and saved according to the mode.
   - docker-compose uses ETERNIA_ENV; ensure you set it to production for production deployments and provide either JWT_SECRET or SECRET_KEY_ENCRYPTION_PASSWORD accordingly.
+
+
+## Sync tasks in docs/*tasks.md to your GitHub Project
+
+You can automatically sync the checkbox tasks in docs/tasks.md and docs/quantum_tasks.md to a GitHub Project (Projects v2). Each checkbox becomes a Draft Issue in your project, and the Status field is set to "To do" for [ ] or "Done" for [x].
+
+Setup:
+- Create a Personal Access Token (classic) with project write access, or a fine‑grained token that grants write to Projects v2.
+- In GitHub repo settings → Secrets and variables → Actions, add a secret named GH_TOKEN with your token value.
+- Also add repository Variables or Secrets:
+  - GH_OWNER: your GitHub username or org
+  - GH_OWNER_TYPE: user or org
+  - (optional) GH_PROJECT_TITLE: defaults to eterniakk
+  - (optional) GH_STATUS_TODO: defaults to "To do"
+  - (optional) GH_STATUS_DONE: defaults to "Done"
+
+Two ways to run:
+
+1) Locally
+- Copy config/github_project_sync.env.example to .env.local and fill in values, or export the variables in your shell.
+- Run:
+
+```bash
+python scripts/sync_tasks_to_github_project.py
+```
+
+2) GitHub Actions
+- A workflow is provided at .github/workflows/sync_tasks.yml
+- It triggers on changes to docs/tasks.md or docs/quantum_tasks.md (and can be run manually via "Run workflow").
+- Ensure the GH_TOKEN secret and GH_OWNER/GH_OWNER_TYPE variables are set as above.
+
+Notes:
+- The script matches existing Draft Issues in the project by exact title (case‑insensitive) to avoid duplicates, and updates their Status.
+- Only Draft Issues are matched/created; repository issues/PRs are not modified.
+- If your project uses different names for Status options (e.g., "Todo" instead of "To do"), set GH_STATUS_TODO/GH_STATUS_DONE accordingly.

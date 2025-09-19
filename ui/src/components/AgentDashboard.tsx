@@ -441,11 +441,11 @@ export default function AgentDashboard() {
             <h2 className="text-xl font-bold mb-4" id="agents-heading">Agents</h2>
 
             {/* Show mobile view on small screens, desktop view on md+ screens */}
-            <div className="block md:hidden" aria-label="Agent cards, swipeable view">
-                {renderMobileView()}
-            </div>
             <div className="hidden md:block" aria-label="Agent cards, grid view">
                 {renderDesktopView()}
+            </div>
+            <div className="block md:hidden" aria-label="Agent cards, swipeable view">
+                {renderMobileView()}
             </div>
 
             {/* Agent Details Modal for tests */}

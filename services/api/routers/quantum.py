@@ -9,6 +9,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from modules.quantum_service import QuantumService
+from modules.monitoring import metrics
 from ..auth import get_current_active_user
 from ..deps import DEV_TOKEN
 from config.config_manager import config
@@ -83,6 +84,31 @@ class VariationalFieldResponse(BaseModel):
     backend: str
 
 
+class QuantumWalkRequest(BaseModel):
+    seed: int
+    nodes: conint(gt=1, le=64) = 8
+    steps: conint(gt=0, le=16) = 3
+    p_edge: float = Field(0.3, ge=0.0, le=1.0)
+
+
+class QuantumWalkResponse(BaseModel):
+    adjacency: List[List[int]]
+    weights: List[List[float]]
+    backend: str
+
+
+class QAOARequest(BaseModel):
+    qubo: List[List[float]]
+    seed: Optional[int] = None
+    max_iter: conint(gt=0, le=2000) = 100
+
+
+class QAOAResponse(BaseModel):
+    bitstring: str
+    energy: float
+    backend: str
+
+
 @router.post("/qrng", response_model=QRNGResponse)
 @limiter.limit("10/second")
 async def qrng(request: Request, req: QRNGRequest, _=Depends(auth)) -> QRNGResponse:
@@ -95,17 +121,25 @@ async def qrng(request: Request, req: QRNGRequest, _=Depends(auth)) -> QRNGRespo
                 span.set_attribute("quantum.type", "qrng")
                 span.set_attribute("quantum.n", req.n)
                 span.set_attribute("quantum.entropy", result.entropy)
+                metrics.observe_qrng_entropy(result.entropy)
+                metrics.inc_quantum_request("qrng", "success")
                 return QRNGResponse(bits=result.bits, entropy=result.entropy, backend=result.backend)
         else:
             result = await _run_with_timeout(qs.qrng, req.n)
+            metrics.observe_qrng_entropy(result.entropy)
+            metrics.inc_quantum_request("qrng", "success")
             return QRNGResponse(bits=result.bits, entropy=result.entropy, backend=result.backend)
     except asyncio.TimeoutError:
         logger.warning("Quantum qrng timed out")
+        metrics.inc_quantum_timeout("qrng")
+        metrics.inc_quantum_request("qrng", "timeout")
         raise HTTPException(status_code=504, detail="Quantum operation timed out")
     except ValueError as e:
+        metrics.inc_quantum_request("qrng", "bad_request")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.exception(f"Quantum qrng failed: {e}")
+        metrics.inc_quantum_request("qrng", "error")
         raise HTTPException(status_code=500, detail="Quantum operation failed")
 
 
@@ -121,15 +155,85 @@ async def variational_field(request: Request, req: VariationalFieldRequest, _=De
                 span.set_attribute("quantum.type", "variational_field")
                 span.set_attribute("quantum.size", req.size)
                 span.set_attribute("quantum.seed", req.seed)
+                metrics.inc_quantum_request("variational_field", "success")
                 return VariationalFieldResponse(field=field, seed=req.seed, backend=backend)
         else:
             field, backend = await _run_with_timeout(qs.variational_field, req.seed, req.size)
+            metrics.inc_quantum_request("variational_field", "success")
             return VariationalFieldResponse(field=field, seed=req.seed, backend=backend)
     except asyncio.TimeoutError:
         logger.warning("Quantum variational_field timed out")
+        metrics.inc_quantum_timeout("variational_field")
+        metrics.inc_quantum_request("variational_field", "timeout")
         raise HTTPException(status_code=504, detail="Quantum operation timed out")
     except ValueError as e:
+        metrics.inc_quantum_request("variational_field", "bad_request")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.exception(f"Quantum variational_field failed: {e}")
+        metrics.inc_quantum_request("variational_field", "error")
+        raise HTTPException(status_code=500, detail="Quantum operation failed")
+
+
+@router.post("/quantum-walk", response_model=QuantumWalkResponse)
+@limiter.limit("3/second")
+async def quantum_walk(request: Request, req: QuantumWalkRequest, _=Depends(auth)) -> QuantumWalkResponse:
+    qs = QuantumService()
+    try:
+        if _tracer:
+            with _tracer.start_as_current_span("quantum.quantum_walk") as span:
+                result = await _run_with_timeout(qs.quantum_walk, req.seed, req.nodes, req.steps, req.p_edge)
+                span.set_attribute("quantum.backend", result.get("backend", ""))
+                span.set_attribute("quantum.type", "quantum_walk")
+                span.set_attribute("quantum.nodes", req.nodes)
+                span.set_attribute("quantum.steps", req.steps)
+                span.set_attribute("quantum.p_edge", req.p_edge)
+                metrics.inc_quantum_request("quantum_walk", "success")
+                return QuantumWalkResponse(**result)
+        else:
+            result = await _run_with_timeout(qs.quantum_walk, req.seed, req.nodes, req.steps, req.p_edge)
+            metrics.inc_quantum_request("quantum_walk", "success")
+            return QuantumWalkResponse(**result)
+    except asyncio.TimeoutError:
+        logger.warning("Quantum quantum_walk timed out")
+        metrics.inc_quantum_timeout("quantum_walk")
+        metrics.inc_quantum_request("quantum_walk", "timeout")
+        raise HTTPException(status_code=504, detail="Quantum operation timed out")
+    except ValueError as e:
+        metrics.inc_quantum_request("quantum_walk", "bad_request")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception(f"Quantum quantum_walk failed: {e}")
+        metrics.inc_quantum_request("quantum_walk", "error")
+        raise HTTPException(status_code=500, detail="Quantum operation failed")
+
+
+@router.post("/qaoa-optimize", response_model=QAOAResponse)
+@limiter.limit("3/second")
+async def qaoa_optimize(request: Request, req: QAOARequest, _=Depends(auth)) -> QAOAResponse:
+    qs = QuantumService()
+    try:
+        if _tracer:
+            with _tracer.start_as_current_span("quantum.qaoa_optimize") as span:
+                result = await _run_with_timeout(qs.qaoa_optimize, req.qubo, req.seed, req.max_iter)
+                span.set_attribute("quantum.backend", result.get("backend", ""))
+                span.set_attribute("quantum.type", "qaoa_optimize")
+                span.set_attribute("quantum.n", len(req.qubo))
+                metrics.inc_quantum_request("qaoa_optimize", "success")
+                return QAOAResponse(**result)
+        else:
+            result = await _run_with_timeout(qs.qaoa_optimize, req.qubo, req.seed, req.max_iter)
+            metrics.inc_quantum_request("qaoa_optimize", "success")
+            return QAOAResponse(**result)
+    except asyncio.TimeoutError:
+        logger.warning("Quantum qaoa_optimize timed out")
+        metrics.inc_quantum_timeout("qaoa_optimize")
+        metrics.inc_quantum_request("qaoa_optimize", "timeout")
+        raise HTTPException(status_code=504, detail="Quantum operation timed out")
+    except ValueError as e:
+        metrics.inc_quantum_request("qaoa_optimize", "bad_request")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception(f"Quantum qaoa_optimize failed: {e}")
+        metrics.inc_quantum_request("qaoa_optimize", "error")
         raise HTTPException(status_code=500, detail="Quantum operation failed")

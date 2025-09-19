@@ -157,6 +157,111 @@ class QuantumService:
         field_list: List[List[float]] = norm.astype(np.float32).tolist()
         return field_list, self.backend
 
+    def quantum_walk(self, seed: int, nodes: int = 8, steps: int = 3, p_edge: float = 0.3):
+        """Produce a simple symmetric adjacency matrix and weights via a random-walk-inspired process.
+
+        Args:
+            seed: RNG seed for determinism.
+            nodes: Number of nodes (capped to 64).
+            steps: Number of walk steps influencing weights (capped to 16).
+            p_edge: Edge probability in Erdos-Renyi generation (0..1).
+        Returns:
+            dict with keys: adjacency (int NxN), weights (float NxN [0,1]), backend (str)
+        """
+        nodes = int(max(2, min(nodes, 64)))
+        steps = int(max(1, min(steps, 16)))
+        try:
+            p_edge = float(p_edge)
+        except Exception:
+            p_edge = 0.3
+        p_edge = max(0.0, min(p_edge, 1.0))
+
+        rng = np.random.default_rng(int(seed))
+        # Generate symmetric adjacency without self-loops
+        upper = rng.random((nodes, nodes)) < p_edge
+        adj = np.triu(upper, 1).astype(np.int8)
+        adj = adj + adj.T
+        # Prevent isolates by ensuring at least one edge per node when possible
+        for i in range(nodes):
+            if adj[i].sum() == 0:
+                j = int(rng.integers(0, nodes-1))
+                if j >= i:
+                    j += 1
+                adj[i, j] = 1
+                adj[j, i] = 1
+
+        # Transition matrix for random walks
+        deg = adj.sum(axis=1)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            P = np.where(deg[:, None] > 0, adj / deg[:, None], 0.0).astype(float)
+        # k-step influence via power of P
+        M = np.eye(nodes)
+        for _ in range(steps):
+            M = M @ P
+        # Symmetrize and normalize to [0,1]
+        W = (M + M.T) / 2.0
+        if W.max() > W.min():
+            Wn = (W - W.min()) / (W.max() - W.min())
+        else:
+            Wn = np.zeros_like(W)
+
+        return {
+            'adjacency': adj.astype(int).tolist(),
+            'weights': Wn.astype(float).tolist(),
+            'backend': self.backend,
+        }
+
+    def qaoa_optimize(self, qubo: List[List[float]], seed: int | None = None, max_iter: int = 100):
+        """Minimize a small QUBO using a simple deterministic hill-climbing heuristic.
+
+        Falls back to classical heuristic; if Qiskit is available, future enhancement can try parameterized circuits.
+
+        Args:
+            qubo: Square matrix (list of lists) defining the QUBO.
+            seed: RNG seed for initial state and tie-breaking.
+            max_iter: Iteration cap (capped to 2000).
+        Returns:
+            dict with keys: bitstring, energy, backend
+        """
+        # Validate QUBO
+        if not isinstance(qubo, list) or len(qubo) == 0:
+            raise ValueError("qubo must be a non-empty square matrix (list of lists)")
+        n = len(qubo)
+        if any(not isinstance(row, list) or len(row) != n for row in qubo):
+            raise ValueError("qubo must be square")
+        Q = np.array(qubo, dtype=float)
+        max_iter = int(max(1, min(max_iter, 2000)))
+        rng = np.random.default_rng(0 if seed is None else int(seed))
+
+        # Initial bitstring
+        x = rng.integers(0, 2, size=n, dtype=np.int8)
+
+        def energy(xv: np.ndarray) -> float:
+            # x^T Q x with x in {0,1}^n
+            xv_f = xv.astype(float)
+            return float(xv_f @ Q @ xv_f)
+
+        best_x = x.copy()
+        best_e = energy(best_x)
+        # Single-bit flip hill-climb
+        for _ in range(max_iter):
+            i = int(rng.integers(0, n))
+            x[i] = 1 - x[i]
+            e = energy(x)
+            if e <= best_e:
+                best_e = e
+                best_x = x.copy()
+            else:
+                # revert
+                x[i] = 1 - x[i]
+
+        bitstring = ''.join('1' if int(b) == 1 else '0' for b in best_x.tolist())
+        return {
+            'bitstring': bitstring,
+            'energy': best_e,
+            'backend': self.backend,
+        }
+
     @staticmethod
     def _entropy(bitstring: str) -> float:
         if not bitstring:

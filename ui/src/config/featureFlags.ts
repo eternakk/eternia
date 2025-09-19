@@ -15,6 +15,23 @@ import { FeatureFlag, FeatureFlagName } from '../contexts/FeatureFlagContext';
  * - Add user groups to enabledForGroups array
  */
 const featureFlags: Record<FeatureFlagName, FeatureFlag> = {
+  // UI quality-of-life flags (repo defaults)
+  'ui_skeletons': {
+    name: 'ui_skeletons',
+    enabled: true,
+    description: 'Show skeleton placeholders during async loads',
+  },
+  'ui_cache': {
+    name: 'ui_cache',
+    enabled: false,
+    description: 'Enable client-side caching layer for GET responses',
+  },
+  'web_vitals': {
+    name: 'web_vitals',
+    enabled: false,
+    description: 'Collect and report Core Web Vitals metrics',
+  },
+
   // Example of a fully enabled feature
   'advanced-search': {
     name: 'advanced-search',

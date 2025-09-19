@@ -4,6 +4,7 @@ export * from './Card';
 export * from './Input';
 export * from './Pagination';
 export * from './VirtualList';
+export * from './Skeleton';
 
 // Also export the default exports
 export { default as Button } from './Button';
@@ -11,3 +12,4 @@ export { default as Card } from './Card';
 export { default as Input } from './Input';
 export { default as Pagination } from './Pagination';
 export { default as VirtualList } from './VirtualList';
+export { default as Skeleton } from './Skeleton';

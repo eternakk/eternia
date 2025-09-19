@@ -15,6 +15,7 @@ from starlette_exporter import PrometheusMiddleware
 
 from modules.backup_manager import backup_manager
 from modules.monitoring import http_metrics_middleware
+from config.config_manager import config
 from .auth import auth_router, get_current_active_user
 from .deps import run_world, world, event_queue, DEV_TOKEN
 from .routers import (
@@ -185,6 +186,30 @@ app.add_middleware(
 
 # Add custom HTTP metrics middleware
 http_metrics_middleware(app)
+
+# Add security headers (CSP and related) middleware
+@app.middleware("http")
+async def add_security_headers(request, call_next):
+    response = await call_next(request)
+    try:
+        csp = config.get(
+            'security.headers.csp',
+            "default-src 'self'; img-src 'self' data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://* http://localhost:*; frame-ancestors 'none'; base-uri 'self'"
+        )
+        xcto = config.get('security.headers.x_content_type_options', 'nosniff')
+        xfo = config.get('security.headers.x_frame_options', 'DENY')
+        refpol = config.get('security.headers.referrer_policy', 'no-referrer')
+        ppol = config.get('security.headers.permissions_policy', "geolocation=(), microphone=(), camera=()")
+
+        response.headers['Content-Security-Policy'] = str(csp)
+        response.headers['X-Content-Type-Options'] = str(xcto)
+        response.headers['X-Frame-Options'] = str(xfo)
+        response.headers['Referrer-Policy'] = str(refpol)
+        response.headers['Permissions-Policy'] = str(ppol)
+    except Exception:
+        # Do not fail the request if header injection fails
+        pass
+    return response
 
 # Use absolute path for static files
 base_dir = Path(__file__).parent.parent.parent  # Go up to the project root

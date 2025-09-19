@@ -72,6 +72,9 @@ const renderZoneLabel = (z: string | Zone | null): string => {
   return 'Unknown';
 };
 
+import { PanelSkeleton } from './ui/Skeleton';
+import { useIsFeatureEnabled } from '../contexts/FeatureFlagContext';
+
 export default function AgentDashboard() {
     const [agents, setAgents] = useState<Agent[]>(() => {
         try {
@@ -94,6 +97,7 @@ export default function AgentDashboard() {
     });
     const [error, setError] = useState<Error | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(true);
+    const enableSkeletons = useIsFeatureEnabled('ui_skeletons');
     const [currentAgentIndex, setCurrentAgentIndex] = useState<number>(0);
     const { refreshState } = useWorldState(); // Use WorldStateContext for auto-refresh
     const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
@@ -247,7 +251,12 @@ export default function AgentDashboard() {
     }, []);
 
     if (error) return <div className="p-4 border rounded-xl shadow bg-white" data-testid="agent-dashboard">Error loading agents.</div>;
-    if (isLoading && !agents.length) return <div className="p-4 border rounded-xl shadow bg-white" data-testid="agent-dashboard">Loading agents...</div>;
+    if (isLoading && !agents.length) {
+        if (enableSkeletons) {
+            return <PanelSkeleton title="Agents" data-testid="agent-dashboard-skeleton" />;
+        }
+        return <div className="p-4 border rounded-xl shadow bg-white" data-testid="agent-dashboard">Loading agents...</div>;
+    }
 
     // Render a single agent card for mobile view
     const renderMobileView = () => {
@@ -378,6 +387,7 @@ export default function AgentDashboard() {
                                     </div>
                                     <div className="col-span-3 text-sm text-gray-600">Role: {agent.role}</div>
                                     <div className="col-span-2 text-sm" data-testid="agent-zone">
+                                        <span className="font-medium">Zone: </span>
                                         {(() => {
                                             try {
                                                 const pending = localStorage.getItem('pending_move_to_zone');
@@ -431,11 +441,11 @@ export default function AgentDashboard() {
             <h2 className="text-xl font-bold mb-4" id="agents-heading">Agents</h2>
 
             {/* Show mobile view on small screens, desktop view on md+ screens */}
-            <div className="block md:hidden" aria-label="Agent cards, swipeable view">
-                {renderMobileView()}
-            </div>
             <div className="hidden md:block" aria-label="Agent cards, grid view">
                 {renderDesktopView()}
+            </div>
+            <div className="block md:hidden" aria-label="Agent cards, swipeable view">
+                {renderMobileView()}
             </div>
 
             {/* Agent Details Modal for tests */}

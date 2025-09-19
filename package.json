@@ -4,5 +4,8 @@
     "test": "npm --prefix ui run test --",
     "cypress:run": "npm --prefix ui run cypress:run",
     "e2e": "npm --prefix ui run e2e"
+  },
+  "overrides": {
+    "axios": "^1.12.0"
   }
 }

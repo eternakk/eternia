@@ -3,11 +3,14 @@ import { useNotification } from '../contexts/NotificationContext';
 import { getRituals, Ritual } from '../api';
 import { useErrorHandler } from '../utils/errorHandling';
 import { Pagination } from './ui/Pagination';
+import { PanelSkeleton } from './ui/Skeleton';
+import { useIsFeatureEnabled } from '../contexts/FeatureFlagContext';
 
 // Cache duration in milliseconds (5 minutes)
 const CACHE_DURATION = 5 * 60 * 1000;
 
 export default function RitualPanel() {
+    const enableSkeletons = useIsFeatureEnabled('ui_skeletons');
     const [rituals, setRituals] = useState<Ritual[]>([]);
     const [error, setError] = useState<Error | null>(null);
     const { handleApiError } = useErrorHandler();
@@ -79,9 +82,6 @@ export default function RitualPanel() {
         return () => clearInterval(intervalId);
     }, [fetchRituals]);
 
-
-    if (error) return <div>Error loading rituals.</div>;
-
     // Cypress-only fallback: ensure at least one ritual appears quickly for tests
     useEffect(() => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -95,6 +95,11 @@ export default function RitualPanel() {
         }, 200);
         return () => clearTimeout(tid);
     }, [rituals.length]);
+
+    if (error) return <div>Error loading rituals.</div>;
+    if (!error && rituals.length === 0 && enableSkeletons) {
+        return <PanelSkeleton title="Rituals" data-testid="ritual-panel-skeleton" />;
+    }
 
     // Calculate pagination
     const indexOfLastItem = currentPage * itemsPerPage;

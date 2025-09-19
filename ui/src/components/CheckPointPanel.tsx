@@ -1,6 +1,8 @@
 import useSWR from "swr";
 import { getCheckpoints, rollbackTo } from "../api";
 import { useState, useEffect, useRef } from "react";
+import { PanelSkeleton } from './ui/Skeleton';
+import { useIsFeatureEnabled } from '../contexts/FeatureFlagContext';
 
 // Cache duration in milliseconds (5 minutes)
 const CACHE_DURATION = 5 * 60 * 1000;
@@ -55,6 +57,7 @@ const parseCheckpointInfo = (filename: string) => {
 };
 
 export default function CheckpointPanel() {
+  const enableSkeletons = useIsFeatureEnabled('ui_skeletons');
   const [isPageVisible, setIsPageVisible] = useState(true);
   const [selectedCheckpoint, setSelectedCheckpoint] = useState<string | undefined>();
   const [isRestoring, setIsRestoring] = useState(false);
@@ -140,7 +143,12 @@ export default function CheckpointPanel() {
     }
   };
 
-  if (!files) return null;
+  if (!files) {
+    if (enableSkeletons) {
+      return <PanelSkeleton title="Checkpoints" data-testid="checkpoint-panel-skeleton" />;
+    }
+    return <div className="p-4 border rounded-xl shadow bg-white">Loading checkpoints...</div>;
+  }
 
   // Define the type for checkpoint info
   type CheckpointInfo = ReturnType<typeof parseCheckpointInfo>;

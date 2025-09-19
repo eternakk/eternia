@@ -3,6 +3,8 @@ import {getZones, Zone} from '../api';
 import {useErrorHandler} from '../utils/errorHandling';
 import {useCurrentZone} from '../contexts/WorldStateContext';
 import {Pagination} from './ui/Pagination';
+import { PanelSkeleton } from './ui/Skeleton';
+import { useIsFeatureEnabled } from '../contexts/FeatureFlagContext';
 
 // Cache duration in milliseconds (5 minutes)
 const CACHE_DURATION = 5 * 60 * 1000;
@@ -51,6 +53,8 @@ export default function ZoneViewer() {
     // Last request time reference for debouncing
     const lastRequestTimeRef = useRef<number>(0);
     const minRequestInterval = 2000; // Minimum 2 seconds between requests
+
+    const enableSkeletons = useIsFeatureEnabled('ui_skeletons');
 
     useEffect(() => {
         const fetchZones = async () => {
@@ -123,6 +127,10 @@ export default function ZoneViewer() {
             return matchesSearch && matchesStatus;
         });
     }, [zones, searchTerm, filterStatus]);
+
+    if (isLoading && enableSkeletons) {
+        return <PanelSkeleton title="Zones" data-testid="zone-viewer-skeleton" />;
+    }
 
     // Calculate pagination
     const indexOfLastItem = currentPage * itemsPerPage;

@@ -13,6 +13,7 @@ import {createLazyComponent} from "./components/LazyLoad";
 import featureFlags from "./config/featureFlags";
 import './index.css';
 import RitualPanel from "./components/RitualPanel";
+import WebVitalsReporter from './components/WebVitalsReporter';
 
 // Lazy load components that are not immediately visible or are large
 const LazyLogConsole = createLazyComponent(() => import("./components/LogConsole"));
@@ -52,6 +53,8 @@ export default function App() {
                             {/* Global loading indicator */}
                             <GlobalLoadingIndicator/>
                         </div>
+                        {/* Feature-flagged Core Web Vitals reporter (no UI) */}
+                        <WebVitalsReporter />
                     </WorldStateProvider>
                 </LoadingProvider>
             </NotificationProvider>

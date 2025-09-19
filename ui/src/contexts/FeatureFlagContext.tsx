@@ -11,7 +11,10 @@ export type FeatureFlagName =
     | 'real-time-collaboration'
     | 'experimental-ai-suggestions'
     | 'beta-features'
-    | 'enhanced-visualization';
+    | 'enhanced-visualization'
+    | 'ui_skeletons'
+    | 'ui_cache'
+    | 'web_vitals';
 
 // Define the shape of a feature flag
 export interface FeatureFlag {
@@ -43,6 +46,9 @@ const defaultFlags: Record<FeatureFlagName, FeatureFlag> = {
     'experimental-ai-suggestions': { name: 'experimental-ai-suggestions', enabled: false },
     'beta-features': { name: 'beta-features', enabled: false },
     'enhanced-visualization': { name: 'enhanced-visualization', enabled: false },
+    'ui_skeletons': { name: 'ui_skeletons', enabled: false },
+    'ui_cache': { name: 'ui_cache', enabled: false },
+    'web_vitals': { name: 'web_vitals', enabled: false },
 };
 
 const FeatureFlagContext = createContext<FeatureFlagContextType>({

@@ -2,6 +2,8 @@ import { useWorldState } from "../contexts/WorldStateContext";
 import { memo, useState } from "react";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, TooltipProps } from 'recharts';
 import { NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent';
+import { PanelSkeleton } from './ui/Skeleton';
+import { useIsFeatureEnabled } from '../contexts/FeatureFlagContext';
 
 // Custom tooltip component for charts
 const CustomTooltip = ({ active, payload, label, tooltipText }: TooltipProps<ValueType, NameType> & { tooltipText: string }) => {
@@ -81,6 +83,10 @@ const StatePanel = () => {
   }
 
   if (isLoading || !worldState) {
+    const enableSkeletons = useIsFeatureEnabled('ui_skeletons');
+    if (enableSkeletons) {
+      return <PanelSkeleton title="World State" data-testid="state-panel-skeleton" />;
+    }
     return (
       <div className="p-4 border rounded-xl shadow bg-white" data-testid="state-panel">
         <h2 className="font-semibold mb-2">World State</h2>

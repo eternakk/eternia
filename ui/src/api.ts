@@ -1,5 +1,6 @@
 import axios, {AxiosRequestConfig} from "axios";
 import {createSafeApiCall} from "./utils/errorHandling";
+import featureFlags from './config/featureFlags';
 
 // We'll fetch the token from the server
 let TOKEN = '';
@@ -555,6 +556,44 @@ const handleTimeoutSideEffects = (error: unknown) => {
     }
 };
 
+// Simple feature-flagged in-memory GET cache (Task 507)
+// Opt-in via feature flag ui_cache or localStorage key ff_ui_cache=true/1
+const __uiCache: Map<string, { data: unknown; expiry: number }> = new Map();
+let __uiCacheDefaultTTL = 60_000; // 60s default TTL
+
+const isTruthy = (v: string | null) => v === '1' || v === 'true' || v === 'yes' || v === 'on';
+const isUiCacheEnabled = (): boolean => {
+    try {
+        const override = (typeof localStorage !== 'undefined') ? localStorage.getItem('ff_ui_cache') : null;
+        if (override !== null) return isTruthy(override);
+    } catch {}
+    try {
+        return !!featureFlags['ui_cache']?.enabled;
+    } catch {
+        return false;
+    }
+};
+
+export const __clearUiCacheForTests = () => __uiCache.clear();
+export const __setUiCacheTTLForTests = (ms: number) => { __uiCacheDefaultTTL = Math.max(0, ms | 0); };
+export const __getUiCacheSize = () => __uiCache.size;
+
+async function cachedGet<T>(url: string, config?: AxiosRequestConfig, ttlMs?: number): Promise<T> {
+    if (!isUiCacheEnabled()) {
+        return api.get<T>(url, config).then(r => r.data as T);
+    }
+    const key = JSON.stringify({ url, params: config?.params || null });
+    const now = Date.now();
+    const ttl = typeof ttlMs === 'number' ? ttlMs : __uiCacheDefaultTTL;
+    const hit = __uiCache.get(key);
+    if (hit && hit.expiry > now) {
+        return hit.data as T;
+    }
+    const data = await api.get<T>(url, config).then(r => r.data as T);
+    __uiCache.set(key, { data, expiry: now + ttl });
+    return data;
+}
+
 // Add response interceptor for global error handling and token refresh
 api.interceptors.response.use(
     (response) => response,
@@ -673,7 +712,7 @@ const ensureToken = async () => {
 // Base API functions
 const baseGetState = async () => {
     await ensureToken();
-    return api.get<State>("/state").then(r => r.data);
+    return cachedGet<State>("/state");
 };
 
 const baseSendCommand = async (a: string) => {
@@ -683,7 +722,7 @@ const baseSendCommand = async (a: string) => {
 
 const baseGetCheckpoints = async () => {
     await ensureToken();
-    return api.get<string[]>("/checkpoints").then(r => r.data);
+    return cachedGet<string[]>("/checkpoints");
 };
 
 const baseRollbackTo = async (file?: string) => {
@@ -748,7 +787,7 @@ export interface Zone {
 // Add function to fetch zones
 const baseGetZones = async () => {
     await ensureToken();
-    return api.get<Zone[]>("/api/zones").then(r => r.data);
+    return cachedGet<Zone[]>("/api/zones");
 };
 
 export const getZones = createSafeApiCall(
@@ -764,9 +803,7 @@ export interface ZoneAssets {
 
 const baseGetZoneAssets = async (zoneName: string) => {
     await ensureToken();
-    return api.get<ZoneAssets>("/zone/assets", {
-        params: {name: zoneName}
-    }).then(r => r.data);
+    return cachedGet<ZoneAssets>("/zone/assets", { params: { name: zoneName } });
 };
 
 export const getZoneAssets = createSafeApiCall(
@@ -797,7 +834,7 @@ export interface Ritual {
 // Add function to fetch rituals
 const baseGetRituals = async () => {
     await ensureToken();
-    return api.get<Ritual[]>("/api/rituals").then(r => r.data);
+    return cachedGet<Ritual[]>("/api/rituals");
 };
 
 export const getRituals = createSafeApiCall(
@@ -818,7 +855,7 @@ export interface Agent {
 // Add function to fetch agents
 const baseGetAgents = async () => {
     await ensureToken();
-    return api.get<Agent[]>("/api/agents").then(r => r.data);
+    return cachedGet<Agent[]>("/api/agents");
 };
 
 export const getAgents = createSafeApiCall(

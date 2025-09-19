@@ -387,6 +387,7 @@ export default function AgentDashboard() {
                                     </div>
                                     <div className="col-span-3 text-sm text-gray-600">Role: {agent.role}</div>
                                     <div className="col-span-2 text-sm" data-testid="agent-zone">
+                                        <span className="font-medium">Zone: </span>
                                         {(() => {
                                             try {
                                                 const pending = localStorage.getItem('pending_move_to_zone');

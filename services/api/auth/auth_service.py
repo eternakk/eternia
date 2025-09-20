@@ -3,9 +3,10 @@ import json
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import base64
+import uuid
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
@@ -157,6 +158,67 @@ else:
 # OAuth2 password bearer for token authentication
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
+# Optional multi-key rotation support
+JWT_KEYSET_RAW = os.getenv("JWT_KEYSET")  # JSON mapping of {kid: secret}
+ACTIVE_KID_ENV = os.getenv("JWT_ACTIVE_KID")
+KEYSET: Optional[Dict[str, str]] = None
+if JWT_KEYSET_RAW:
+    try:
+        parsed = json.loads(JWT_KEYSET_RAW)
+        if isinstance(parsed, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in parsed.items()):
+            KEYSET = parsed
+            logger.info(f"JWT keyset loaded with {len(KEYSET)} keys. Active kid: {ACTIVE_KID_ENV or 'auto'}")
+        else:
+            logger.error("JWT_KEYSET must be a JSON object mapping kid->secret strings. Ignoring.")
+    except Exception as e:
+        logger.error(f"Failed to parse JWT_KEYSET: {e}")
+
+REVOCATIONS_FILE = Path("artifacts/jwt_revocations.json")
+
+class RevocationStore:
+    def __init__(self, path: Path):
+        self.path = path
+        self.revoked: Dict[str, int] = {}
+        self._load()
+
+    def _load(self) -> None:
+        try:
+            if self.path.exists():
+                data = json.loads(self.path.read_text(encoding='utf-8'))
+                if isinstance(data, dict):
+                    # expect {jti: exp_ts}
+                    self.revoked = {str(k): int(v) for k, v in data.items()}
+        except Exception as e:
+            logger.error(f"Failed to load revocations: {e}")
+
+    def _save(self) -> None:
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self.path.write_text(json.dumps(self.revoked), encoding='utf-8')
+        except Exception as e:
+            logger.error(f"Failed to save revocations: {e}")
+
+    def prune(self, now_ts: Optional[int] = None) -> None:
+        now = now_ts or int(datetime.utcnow().timestamp())
+        removed = [jti for jti, exp in self.revoked.items() if exp <= now]
+        if removed:
+            for j in removed:
+                self.revoked.pop(j, None)
+            self._save()
+
+    def revoke(self, jti: str, exp_ts: int) -> None:
+        self.prune()
+        self.revoked[jti] = exp_ts
+        self._save()
+
+    def is_revoked(self, jti: Optional[str]) -> bool:
+        if not jti:
+            return False
+        self.prune()
+        return jti in self.revoked
+
+revocations = RevocationStore(REVOCATIONS_FILE)
+
 # In-memory user store (will be loaded from file)
 users: Dict[str, User] = {}
 
@@ -212,6 +274,34 @@ def save_users():
     except Exception as e:
         logger.error(f"Error saving users: {e}")
 
+
+def _get_signing_key_and_headers() -> Tuple[str, Dict[str, str]]:
+    """Return the signing key and headers for JWT creation, supporting key rotation."""
+    if KEYSET:
+        # choose active kid
+        kid = ACTIVE_KID_ENV or (sorted(KEYSET.keys())[0])
+        key = KEYSET.get(kid)
+        if not key:
+            # fallback to first key in keyset
+            kid, key = next(iter(KEYSET.items()))
+        return key, {"kid": kid}
+    return SECRET_KEY, {}
+
+
+def _iter_verification_keys(preferred_kid: Optional[str]) -> List[Tuple[Optional[str], str]]:
+    """Yield (kid, key) pairs to attempt verification with, preferring the provided kid."""
+    tried = set()
+    if KEYSET:
+        if preferred_kid and preferred_kid in KEYSET:
+            yield preferred_kid, KEYSET[preferred_kid]
+            tried.add(preferred_kid)
+        for k, v in KEYSET.items():
+            if k not in tried:
+                yield k, v
+    # Always include legacy single SECRET_KEY as fallback
+    if SECRET_KEY and (not KEYSET or SECRET_KEY not in KEYSET.values()):
+        yield None, SECRET_KEY
+
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     """
     Create a JWT access token.
@@ -224,15 +314,35 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
         The encoded JWT token
     """
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    now = datetime.utcnow()
+    expire = now + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    # Ensure standard claims
+    to_encode.update({
+        "exp": expire,
+        "iat": int(now.timestamp()),
+        "jti": to_encode.get("jti") or uuid.uuid4().hex,
+    })
+    key, headers = _get_signing_key_and_headers()
+    encoded_jwt = jwt.encode(to_encode, key, algorithm=ALGORITHM, headers=headers)
     return encoded_jwt
 
 def _decode_jwt(token: str) -> Dict:
     try:
         logger.info("Attempting to decode JWT token")
-        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        try:
+            header = jwt.get_unverified_header(token)
+            preferred_kid = header.get("kid")
+        except Exception:
+            preferred_kid = None
+        last_err: Optional[Exception] = None
+        for kid, key in _iter_verification_keys(preferred_kid):
+            try:
+                return jwt.decode(token, key, algorithms=[ALGORITHM])
+            except InvalidTokenError as e:
+                last_err = e
+                continue
+        # If we reach here, all attempts failed
+        raise last_err or InvalidTokenError("Invalid token")
     except InvalidTokenError as e:
         logger.warning(f"JWT token validation failed: {str(e)}")
         raise HTTPException(
@@ -290,9 +400,54 @@ def verify_token(token: str) -> TokenData:
     logger.info(f"Verifying JWT token: {token_preview}")
 
     payload = _decode_jwt(token)
+    # Revocation check (if jti present)
+    jti = payload.get("jti")
+    if revocations.is_revoked(jti):
+        logger.warning(f"JWT token revoked (jti={jti})")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token revoked",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     username, role, exp = _extract_claims(payload)
     exp_datetime = _ensure_not_expired(exp)
     return TokenData(username=username, role=UserRole(role), exp=exp_datetime)
+
+# ---- Revocation helper functions ----
+
+def revoke_token(token: str) -> None:
+    """Revoke a JWT by parsing its jti and exp and storing it in the revocation list."""
+    payload = _decode_jwt(token)
+    jti = payload.get("jti")
+    exp = payload.get("exp")
+    if not jti:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Token has no jti to revoke")
+    if exp is None:
+        # Default to 24h if no exp found (should not happen for our tokens)
+        exp_ts = int(datetime.utcnow().timestamp()) + 86400
+    else:
+        # exp might be numeric timestamp or datetime; normalize to int timestamp
+        if isinstance(exp, (int, float)):
+            exp_ts = int(exp)
+        else:
+            try:
+                exp_ts = int(datetime.fromtimestamp(exp).timestamp())
+            except Exception:
+                exp_ts = int(datetime.utcnow().timestamp()) + 86400
+    revocations.revoke(jti, exp_ts)
+
+
+def revoke_jti(jti: str, exp_ts: Optional[int] = None) -> None:
+    """Revoke a token by JTI until its expiration timestamp (or 24h by default)."""
+    if not exp_ts:
+        exp_ts = int(datetime.utcnow().timestamp()) + 86400
+    revocations.revoke(jti, exp_ts)
+
+
+def is_token_revoked(token: str) -> bool:
+    payload = _decode_jwt(token)
+    return revocations.is_revoked(payload.get("jti"))
 
 async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
     """

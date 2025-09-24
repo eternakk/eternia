@@ -252,6 +252,7 @@ def main() -> int:
             print("error: GH_TOKEN, GH_OWNER, GH_OWNER_TYPE are required in env.")
             return 2
 
+
     tasks = parse_markdown_tasks(files)
     # De-duplicate by title (keep last occurrence)
     task_map: Dict[str, bool] = {}
@@ -311,6 +312,7 @@ def main() -> int:
                 print(f"[create] {title} -> {'Done' if done else 'To do'}")
                 item_id = add_draft_item(client, project_id, title)
                 set_status(client, project_id, item_id, status_field_id, desired_option)
+
                 created += 1
 
         print(f"Sync complete. Created: {created}, Updated: {updated}")

@@ -62,3 +62,6 @@ watchfiles
 
 # Rate limiting dependency
 limits
+
+# DevSecOps tooling (for local IaC scans)
+checkov>=3.0.0,<4.0.0

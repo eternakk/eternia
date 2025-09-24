@@ -57,9 +57,9 @@ from typing import Dict, Iterable, List, Optional, Tuple
 from urllib.parse import urlencode
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-TASKS_MD = PROJECT_ROOT / 'docs' / 'tasks.md'
-MCP_ENV_PATH = PROJECT_ROOT / '.junie' / 'mcp' / '.env'
-GITHUB_API = 'https://api.github.com'
+TASKS_MD = PROJECT_ROOT / "docs" / "tasks.md"
+MCP_ENV_PATH = PROJECT_ROOT / ".junie" / "mcp" / ".env"
+GITHUB_API = "https://api.github.com"
 
 TASK_RE = re.compile(r"^\[(?P<mark>[ xX])\]\s*(?P<id>\d+)\.\s*(?P<title>.+?)\s*$")
 
@@ -77,60 +77,62 @@ class Task:
 
 
 def load_token() -> Optional[str]:
-    token = os.environ.get('GITHUB_TOKEN') or os.environ.get('GITHUB_TOKEN_RO')
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GITHUB_TOKEN_RO")
     if token:
         return token.strip()
     try:
         if MCP_ENV_PATH.exists():
             for line in MCP_ENV_PATH.read_text().splitlines():
                 line = line.strip()
-                if not line or line.startswith('#'):
+                if not line or line.startswith("#"):
                     continue
-                key, _, value = line.partition('=')
-                if key in {'GITHUB_TOKEN', 'GITHUB_TOKEN_RO'} and value:
+                key, _, value = line.partition("=")
+                if key in {"GITHUB_TOKEN", "GITHUB_TOKEN_RO"} and value:
                     return value.strip()
     except Exception:
         pass
     return None
 
 
-def gh_request(method: str, url: str, token: str, body: Optional[dict] = None) -> Tuple[int, dict, Dict[str, str]]:
+def gh_request(
+        method: str, url: str, token: str, body: Optional[dict] = None
+) -> Tuple[int, dict, Dict[str, str]]:
     req = urllib.request.Request(url, method=method)
-    req.add_header('Authorization', f'Bearer {token}')
-    req.add_header('Accept', 'application/vnd.github+json')
-    req.add_header('X-GitHub-Api-Version', '2022-11-28')
-    req.add_header('User-Agent', 'eternia-sync-tasks/1.0')
+    req.add_header("Authorization", f"Bearer {token}")
+    req.add_header("Accept", "application/vnd.github+json")
+    req.add_header("X-GitHub-Api-Version", "2022-11-28")
+    req.add_header("User-Agent", "eternia-sync-tasks/1.0")
     data = None
     if body is not None:
-        data = json.dumps(body).encode('utf-8')
-        req.add_header('Content-Type', 'application/json')
+        data = json.dumps(body).encode("utf-8")
+        req.add_header("Content-Type", "application/json")
     try:
         with urllib.request.urlopen(req, data=data, timeout=30) as resp:
             status = resp.getcode()
-            raw = resp.read().decode('utf-8')
+            raw = resp.read().decode("utf-8")
             parsed = json.loads(raw) if raw else {}
             headers = {k.lower(): v for k, v in resp.getheaders()}
             return status, parsed, headers
     except urllib.error.HTTPError as e:
-        detail = e.read().decode('utf-8', errors='ignore') if hasattr(e, 'read') else ''
+        detail = e.read().decode("utf-8", errors="ignore") if hasattr(e, "read") else ""
         msg = f"HTTP {e.code} {method} {url}: {detail}"
         print(f"[sync_tasks] {msg}", file=sys.stderr)
-        return e.code, {'error': detail}, {}
+        return e.code, {"error": detail}, {}
     except urllib.error.URLError as e:
         print(f"[sync_tasks] Network error for {method} {url}: {e}", file=sys.stderr)
-        return 0, {'error': str(e)}, {}
+        return 0, {"error": str(e)}, {}
 
 
 def gh_get(url: str, token: str) -> Tuple[int, dict, Dict[str, str]]:
-    return gh_request('GET', url, token)
+    return gh_request("GET", url, token)
 
 
 def gh_post(url: str, token: str, body: dict) -> Tuple[int, dict, Dict[str, str]]:
-    return gh_request('POST', url, token, body)
+    return gh_request("POST", url, token, body)
 
 
 def gh_patch(url: str, token: str, body: dict) -> Tuple[int, dict, Dict[str, str]]:
-    return gh_request('PATCH', url, token, body)
+    return gh_request("PATCH", url, token, body)
 
 
 def parse_tasks_md(path: Path) -> List[Task]:
@@ -138,21 +140,23 @@ def parse_tasks_md(path: Path) -> List[Task]:
         print(f"[sync_tasks] Missing tasks file: {path}", file=sys.stderr)
         sys.exit(4)
     tasks: List[Task] = []
-    for i, line in enumerate(path.read_text(encoding='utf-8').splitlines(), start=1):
+    for i, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         m = TASK_RE.match(line.strip())
         if not m:
             continue
-        checked = m.group('mark').lower() == 'x'
+        checked = m.group("mark").lower() == "x"
         try:
-            task_id = int(m.group('id'))
+            task_id = int(m.group("id"))
         except ValueError:
             continue
-        title = m.group('title').strip()
+        title = m.group("title").strip()
         tasks.append(Task(id=task_id, title=title, checked=checked, line_no=i))
     return tasks
 
 
-def list_repo_issues_all(owner: str, repo: str, token: str, limit_scan: int = 300) -> List[dict]:
+def list_repo_issues_all(
+        owner: str, repo: str, token: str, limit_scan: int = 300
+) -> List[dict]:
     results: List[dict] = []
     page = 1
     per_page = 100
@@ -160,7 +164,9 @@ def list_repo_issues_all(owner: str, repo: str, token: str, limit_scan: int = 30
         url = f"{GITHUB_API}/repos/{owner}/{repo}/issues?{urlencode({'state': 'all', 'per_page': per_page, 'page': page, 'direction': 'desc', 'sort': 'created'})}"
         status, data, _ = gh_get(url, token)
         if status != 200:
-            raise RuntimeError(f"GitHub API error listing issues: status={status} data={data}")
+            raise RuntimeError(
+                f"GitHub API error listing issues: status={status} data={data}"
+            )
         batch = data if isinstance(data, list) else []
         if not batch:
             break
@@ -191,16 +197,22 @@ class Action:
     kind: str  # 'create' | 'reopen' | 'close' | 'update-labels' | 'noop'
     task: Task
     issue_number: Optional[int] = None
-    details: str = ''
+    details: str = ""
     new_labels: Optional[List[str]] = None
 
 
-def plan_actions(tasks: List[Task], issues: List[dict], label_todo: str, label_done: str, label_extra: Optional[str],
-                 only_ids: Optional[set[int]]) -> List[Action]:
+def plan_actions(
+        tasks: List[Task],
+        issues: List[dict],
+        label_todo: str,
+        label_done: str,
+        label_extra: Optional[str],
+        only_ids: Optional[set[int]],
+) -> List[Action]:
     # Build index by task id from issues by matching title prefix
     by_id: Dict[int, dict] = {}
     for it in issues:
-        title = (it.get('title') or '')
+        title = it.get("title") or ""
         m = re.match(r"\[Task\s+(\d+)\]\s+", title)
         if not m:
             continue
@@ -214,11 +226,13 @@ def plan_actions(tasks: List[Task], issues: List[dict], label_todo: str, label_d
             by_id[tid] = it
         else:
             # Prefer open over closed; if both open, smaller number
-            open_prev = prev.get('state') == 'open'
-            open_new = it.get('state') == 'open'
+            open_prev = prev.get("state") == "open"
+            open_new = it.get("state") == "open"
             if open_new and not open_prev:
                 by_id[tid] = it
-            elif open_new == open_prev and (it.get('number', 0) < prev.get('number', 0)):
+            elif open_new == open_prev and (
+                    it.get("number", 0) < prev.get("number", 0)
+            ):
                 by_id[tid] = it
 
     actions: List[Action] = []
@@ -233,57 +247,119 @@ def plan_actions(tasks: List[Task], issues: List[dict], label_todo: str, label_d
                 desired_labels.append(label_extra)
             if issue is None:
                 actions.append(
-                    Action('create', t, details='create new open issue with Todo label', new_labels=desired_labels))
+                    Action(
+                        "create",
+                        t,
+                        details="create new open issue with Todo label",
+                        new_labels=desired_labels,
+                    )
+                )
                 continue
             # Issue exists
-            is_open = issue.get('state') == 'open'
-            current_labels = sorted([lbl.get('name') for lbl in issue.get('labels', []) if isinstance(lbl, dict)])
-            target_labels = ensure_labels(remove_labels(current_labels, [label_done]), desired_labels)
+            is_open = issue.get("state") == "open"
+            current_labels = sorted(
+                [
+                    lbl.get("name")
+                    for lbl in issue.get("labels", [])
+                    if isinstance(lbl, dict)
+                ]
+            )
+            target_labels = ensure_labels(
+                remove_labels(current_labels, [label_done]), desired_labels
+            )
             if not is_open:
                 actions.append(
-                    Action('reopen', t, issue_number=issue.get('number'), details='reopen and set Todo label',
-                           new_labels=target_labels))
+                    Action(
+                        "reopen",
+                        t,
+                        issue_number=issue.get("number"),
+                        details="reopen and set Todo label",
+                        new_labels=target_labels,
+                    )
+                )
             elif current_labels != target_labels:
                 actions.append(
-                    Action('update-labels', t, issue_number=issue.get('number'), details='set Todo (+extra) labels',
-                           new_labels=target_labels))
+                    Action(
+                        "update-labels",
+                        t,
+                        issue_number=issue.get("number"),
+                        details="set Todo (+extra) labels",
+                        new_labels=target_labels,
+                    )
+                )
             else:
                 actions.append(
-                    Action('noop', t, issue_number=issue.get('number'), details='already open with desired labels'))
+                    Action(
+                        "noop",
+                        t,
+                        issue_number=issue.get("number"),
+                        details="already open with desired labels",
+                    )
+                )
         else:
             # Checked: desired closed with Done (+ extra) labels
             desired_labels = [label_done]
             if label_extra:
                 desired_labels.append(label_extra)
             if issue is None:
-                actions.append(Action('noop', t, details='no issue found; nothing to close'))
+                actions.append(
+                    Action("noop", t, details="no issue found; nothing to close")
+                )
                 continue
-            is_open = issue.get('state') == 'open'
-            current_labels = sorted([lbl.get('name') for lbl in issue.get('labels', []) if isinstance(lbl, dict)])
-            target_labels = ensure_labels(remove_labels(current_labels, [label_todo]), desired_labels)
+            is_open = issue.get("state") == "open"
+            current_labels = sorted(
+                [
+                    lbl.get("name")
+                    for lbl in issue.get("labels", [])
+                    if isinstance(lbl, dict)
+                ]
+            )
+            target_labels = ensure_labels(
+                remove_labels(current_labels, [label_todo]), desired_labels
+            )
             if is_open:
-                actions.append(Action('close', t, issue_number=issue.get('number'), details='close and set Done label',
-                                      new_labels=target_labels))
+                actions.append(
+                    Action(
+                        "close",
+                        t,
+                        issue_number=issue.get("number"),
+                        details="close and set Done label",
+                        new_labels=target_labels,
+                    )
+                )
             elif current_labels != target_labels:
-                actions.append(Action('update-labels', t, issue_number=issue.get('number'),
-                                      details='adjust labels on closed issue', new_labels=target_labels))
+                actions.append(
+                    Action(
+                        "update-labels",
+                        t,
+                        issue_number=issue.get("number"),
+                        details="adjust labels on closed issue",
+                        new_labels=target_labels,
+                    )
+                )
             else:
                 actions.append(
-                    Action('noop', t, issue_number=issue.get('number'), details='already closed with desired labels'))
+                    Action(
+                        "noop",
+                        t,
+                        issue_number=issue.get("number"),
+                        details="already closed with desired labels",
+                    )
+                )
     return actions
 
 
 def execute_actions(owner: str, repo: str, token: str, actions: List[Action]) -> None:
-    now = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     for a in actions:
-        if a.kind == 'noop':
+        if a.kind == "noop":
             print(f"- NOOP Task {a.task.id}: {a.details}")
             continue
-        if a.kind == 'create':
+        if a.kind == "create":
             body = {
-                'title': a.task.issue_title,
-                'body': f"Source: docs/tasks.md (line {a.task.line_no})\n\nState: TODO\n\nThis issue is tracked from the project task list.",
-                'labels': a.new_labels or [],
+                "title": a.task.issue_title,
+                "body": f"Source: docs/tasks.md (line {a.task.line_no})\n\nState: TODO\n\nThis issue is tracked from the project task list.",
+                "labels": a.new_labels or [],
             }
             url = f"{GITHUB_API}/repos/{owner}/{repo}/issues"
             status, data, _ = gh_post(url, token, body)
@@ -292,92 +368,137 @@ def execute_actions(owner: str, repo: str, token: str, actions: List[Action]) ->
             else:
                 print(f"! CREATE Task {a.task.id} FAILED: status={status} body={data}")
             continue
-        if a.kind in ('reopen', 'close', 'update-labels'):
+        if a.kind in ("reopen", "close", "update-labels"):
             patch: Dict[str, object] = {}
-            if a.kind == 'reopen':
-                patch['state'] = 'open'
-            if a.kind == 'close':
-                patch['state'] = 'closed'
+            if a.kind == "reopen":
+                patch["state"] = "open"
+            if a.kind == "close":
+                patch["state"] = "closed"
             if a.new_labels is not None:
-                patch['labels'] = a.new_labels
+                patch["labels"] = a.new_labels
             url = f"{GITHUB_API}/repos/{owner}/{repo}/issues/{a.issue_number}"
             status, data, _ = gh_patch(url, token, patch)
             if status == 200:
-                print(f"- {a.kind.upper()} Task {a.task.id}: issue #{a.issue_number} {a.details}")
+                print(
+                    f"- {a.kind.upper()} Task {a.task.id}: issue #{a.issue_number} {a.details}"
+                )
                 # If closing, add a comment noting completion time
-                if a.kind == 'close':
+                if a.kind == "close":
                     comment = {
-                        'body': f"Closed via tasks.md (line {a.task.line_no}) at {now}."
+                        "body": f"Closed via tasks.md (line {a.task.line_no}) at {now}."
                     }
                     c_url = f"{GITHUB_API}/repos/{owner}/{repo}/issues/{a.issue_number}/comments"
                     c_status, c_data, _ = gh_post(c_url, token, comment)
                     if c_status not in (200, 201):
                         print(
-                            f"! COMMENT Task {a.task.id} on issue #{a.issue_number} FAILED: status={c_status} body={c_data}")
+                            f"! COMMENT Task {a.task.id} on issue #{a.issue_number} FAILED: status={c_status} body={c_data}"
+                        )
             else:
                 print(
-                    f"! {a.kind.upper()} Task {a.task.id} FAILED on issue #{a.issue_number}: status={status} body={data}")
+                    f"! {a.kind.upper()} Task {a.task.id} FAILED on issue #{a.issue_number}: status={status} body={data}"
+                )
             continue
         print(f"! Unknown action kind {a.kind} for Task {a.task.id}")
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    p = argparse.ArgumentParser(description='Sync docs/tasks.md checkboxes to GitHub issues (dry-run by default)')
-    p.add_argument('--repo', required=True, help='Repository in owner/name format, e.g., eternakk/eternia')
-    p.add_argument('--apply', action='store_true', help='Apply the planned changes (create/reopen/close/update labels)')
-    p.add_argument('--limit-scan', type=int, default=300, help='Max number of issues to scan from GitHub (state=all)')
-    p.add_argument('--label-todo', default='Todo', help='Label to apply for unchecked tasks')
-    p.add_argument('--label-done', default='Done', help='Label to apply for checked tasks')
-    p.add_argument('--label-extra', default='tasks-md',
-                   help='Extra label to tag tasks synced from tasks.md (blank to disable)')
-    p.add_argument('--only-ids', default='', help='Comma-separated list of task IDs to restrict sync to')
+    p = argparse.ArgumentParser(
+        description="Sync docs/tasks.md checkboxes to GitHub issues (dry-run by default)"
+    )
+    p.add_argument(
+        "--repo",
+        required=True,
+        help="Repository in owner/name format, e.g., eternakk/eternia",
+    )
+    p.add_argument(
+        "--apply",
+        action="store_true",
+        help="Apply the planned changes (create/reopen/close/update labels)",
+    )
+    p.add_argument(
+        "--limit-scan",
+        type=int,
+        default=300,
+        help="Max number of issues to scan from GitHub (state=all)",
+    )
+    p.add_argument(
+        "--label-todo", default="Todo", help="Label to apply for unchecked tasks"
+    )
+    p.add_argument(
+        "--label-done", default="Done", help="Label to apply for checked tasks"
+    )
+    p.add_argument(
+        "--label-extra",
+        default="tasks-md",
+        help="Extra label to tag tasks synced from tasks.md (blank to disable)",
+    )
+    p.add_argument(
+        "--only-ids",
+        default="",
+        help="Comma-separated list of task IDs to restrict sync to",
+    )
 
     args = p.parse_args(argv)
 
-    if '/' not in args.repo:
-        print('[sync_tasks] --repo must be in owner/name format', file=sys.stderr)
+    if "/" not in args.repo:
+        print("[sync_tasks] --repo must be in owner/name format", file=sys.stderr)
         return 1
-    owner, repo = args.repo.split('/', 1)
+    owner, repo = args.repo.split("/", 1)
 
     token = load_token()
     if not token:
-        print('[sync_tasks] Missing GitHub token. Set GITHUB_TOKEN or GITHUB_TOKEN_RO, or add it to .junie/mcp/.env',
-              file=sys.stderr)
+        print(
+            "[sync_tasks] Missing GitHub token. Set GITHUB_TOKEN or GITHUB_TOKEN_RO, or add it to .junie/mcp/.env",
+            file=sys.stderr,
+        )
         return 2
     if len(token) < 20:
-        print('[sync_tasks] Warning: token looks short; you may get 401 Unauthorized.', file=sys.stderr)
+        print(
+            "[sync_tasks] Warning: token looks short; you may get 401 Unauthorized.",
+            file=sys.stderr,
+        )
 
     tasks = parse_tasks_md(TASKS_MD)
     if not tasks:
-        print('[sync_tasks] No tasks parsed from docs/tasks.md. Ensure lines follow the pattern: [ ] 405. Title here',
-              file=sys.stderr)
+        print(
+            "[sync_tasks] No tasks parsed from docs/tasks.md. Ensure lines follow the pattern: [ ] 405. Title here",
+            file=sys.stderr,
+        )
         return 4
 
     only_ids: Optional[set[int]] = None
     if args.only_ids.strip():
         try:
-            only_ids = {int(x.strip()) for x in args.only_ids.split(',') if x.strip()}
+            only_ids = {int(x.strip()) for x in args.only_ids.split(",") if x.strip()}
         except ValueError:
-            print('[sync_tasks] --only-ids must be a comma-separated list of integers', file=sys.stderr)
+            print(
+                "[sync_tasks] --only-ids must be a comma-separated list of integers",
+                file=sys.stderr,
+            )
             return 1
 
     try:
-        issues = list_repo_issues_all(owner, repo, token, limit_scan=max(1, args.limit_scan))
+        issues = list_repo_issues_all(
+            owner, repo, token, limit_scan=max(1, args.limit_scan)
+        )
     except Exception as e:
         print(f"[sync_tasks] Failed to list issues: {e}", file=sys.stderr)
         return 3
 
     label_extra = args.label_extra.strip() or None
-    actions = plan_actions(tasks, issues, args.label_todo, args.label_done, label_extra, only_ids)
+    actions = plan_actions(
+        tasks, issues, args.label_todo, args.label_done, label_extra, only_ids
+    )
 
     # Print plan summary
-    create_n = sum(1 for a in actions if a.kind == 'create')
-    reopen_n = sum(1 for a in actions if a.kind == 'reopen')
-    close_n = sum(1 for a in actions if a.kind == 'close')
-    update_n = sum(1 for a in actions if a.kind == 'update-labels')
-    noop_n = sum(1 for a in actions if a.kind == 'noop')
+    create_n = sum(1 for a in actions if a.kind == "create")
+    reopen_n = sum(1 for a in actions if a.kind == "reopen")
+    close_n = sum(1 for a in actions if a.kind == "close")
+    update_n = sum(1 for a in actions if a.kind == "update-labels")
+    noop_n = sum(1 for a in actions if a.kind == "noop")
     print(
-        f"[sync_tasks] Plan: create={create_n}, reopen={reopen_n}, close={close_n}, update-labels={update_n}, noop={noop_n}")
+        f"[sync_tasks] Plan: create={create_n}, reopen={reopen_n}, close={close_n}, update-labels={update_n}, noop={noop_n}"
+    )
 
     for a in actions:
         id_s = f"Task {a.task.id}"
@@ -394,5 +515,5 @@ def main(argv: Optional[List[str]] = None) -> int:
     return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

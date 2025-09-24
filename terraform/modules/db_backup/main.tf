@@ -457,9 +457,42 @@ resource "aws_cloudwatch_log_group" "db_backup_verification_lambda_logs" {
 }
 
 # KMS key for encrypting CloudWatch Log Groups for DB backup Lambdas
+data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
+
 resource "aws_kms_key" "cloudwatch_logs" {
   description         = "KMS key for encrypting CloudWatch Log Groups for DB backup Lambdas"
   enable_key_rotation = true
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "AllowRootAccountAdministrators"
+        Effect    = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action   = "kms:*"
+        Resource = "*"
+      },
+      {
+        Sid    = "AllowCloudWatchLogs"
+        Effect = "Allow"
+        Principal = {
+          Service = "logs.${data.aws_region.current.name}.amazonaws.com"
+        }
+        Action = [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*",
+          "kms:DescribeKey"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
 
   tags = {
     Name        = "${var.app_name}-cloudwatch-logs-kms-${var.environment}"

@@ -367,6 +367,28 @@ resource "aws_wafv2_web_acl" "lb_web_acl" {
   }
 
   rule {
+    name     = "AWS-AWSManagedRulesLog4JRCRuleSet"
+    priority = 0
+
+    statement {
+      managed_rule_group_statement {
+        name        = "AWSManagedRulesLog4JRCRuleSet"
+        vendor_name = "AWS"
+      }
+    }
+
+    override_action {
+      none {}
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${var.app_name}-alb-log4j"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  rule {
     name     = "AWS-AWSManagedRulesKnownBadInputsRuleSet"
     priority = 1
 
@@ -480,6 +502,7 @@ resource "aws_kinesis_firehose_delivery_stream" "waf_logs" {
 
   server_side_encryption {
     enabled = true
+    key_type = "CUSTOMER_MANAGED_CMK"
     key_arn = aws_kms_key.firehose.arn
   }
 
@@ -510,9 +533,46 @@ resource "aws_wafv2_web_acl_logging_configuration" "lb_waf_logging" {
 }
 
 # KMS key for encrypting Kinesis Firehose delivery stream for WAF logs
+data "aws_caller_identity" "current" {}
+
 resource "aws_kms_key" "firehose" {
   description         = "KMS key for encrypting Kinesis Firehose WAF logs stream"
   enable_key_rotation = true
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "AllowRootAccountAdministrators"
+        Effect    = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action   = "kms:*"
+        Resource = "*"
+      },
+      {
+        Sid    = "AllowFirehoseUsage"
+        Effect = "Allow"
+        Principal = {
+          Service = "firehose.amazonaws.com"
+        }
+        Action = [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*",
+          "kms:DescribeKey"
+        ]
+        Resource  = "*"
+        Condition = {
+          StringEquals = {
+            "kms:EncryptionContext:aws:kinesis:arn" = aws_kinesis_firehose_delivery_stream.waf_logs.arn
+          }
+        }
+      }
+    ]
+  })
 
   tags = {
     Name        = "${var.app_name}-firehose-kms-${var.environment}"

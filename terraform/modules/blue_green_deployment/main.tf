@@ -74,6 +74,7 @@ variable "lb_logs_bucket" {
 variable "web_acl_arn" {
   description = "ARN of the WAFv2 Web ACL to associate with the public ALB"
   type        = string
+  default     = ""
 }
 
 variable "vpc_cidr" {
@@ -344,5 +345,49 @@ output "codedeploy_deployment_group_name" {
 # Associate public ALB with WAFv2 Web ACL for protection
 resource "aws_wafv2_web_acl_association" "lb_waf_assoc" {
   resource_arn = aws_lb.app_lb.arn
-  web_acl_arn  = var.web_acl_arn
+  web_acl_arn  = var.web_acl_arn != "" ? var.web_acl_arn : aws_wafv2_web_acl.lb_web_acl.arn
+}
+
+# WAFv2 Web ACL with AWS Managed Rules including Log4j mitigation (used if no external ACL ARN provided)
+resource "aws_wafv2_web_acl" "lb_web_acl" {
+  name        = "${var.app_name}-alb-web-acl-${var.environment}"
+  description = "WAFv2 Web ACL with AWS Managed Rules for Log4j mitigation"
+  scope       = "REGIONAL"
+
+  default_action {
+    allow {}
+  }
+
+  rule {
+    name     = "AWS-AWSManagedRulesKnownBadInputsRuleSet"
+    priority = 1
+
+    statement {
+      managed_rule_group_statement {
+        name        = "AWSManagedRulesKnownBadInputsRuleSet"
+        vendor_name = "AWS"
+      }
+    }
+
+    override_action {
+      none {}
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${var.app_name}-alb-known-bad-inputs"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  visibility_config {
+    cloudwatch_metrics_enabled = true
+    metric_name                = "${var.app_name}-alb-web-acl"
+    sampled_requests_enabled   = true
+  }
+
+  tags = {
+    Name        = "${var.app_name}-alb-web-acl-${var.environment}"
+    Environment = var.environment
+  }
 }

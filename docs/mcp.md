@@ -2,10 +2,6 @@ MCP configuration for Eternia (Junie)
 
 This project ships a ready-to-use MCP configuration for Junie.
 
-Defaults update (no Docker required)
-- The default .junie/mcp/mcp.json now uses native MCP CLIs (github-mcp, mcp-sqlite, etc.) instead of docker run wrappers.
-- Benefit: avoids errors like "Cannot connect to the Docker daemon" and StandaloneCoroutine cancellations when Docker is not running.
-- If you prefer Docker, use the provided wrapper scripts below or symlink them to the expected CLI names.
 
 Where the files are
 - MCP servers config: .junie/mcp/mcp.json
@@ -91,6 +87,7 @@ Option B: Inline docker run (no script)
 Important
 - The GitHub token must have scopes that match your configured capabilities (read, write:issues, write:pull_requests).
 - When using Docker, the config now forwards both GITHUB_PERSONAL_ACCESS_TOKEN and GITHUB_TOKEN into the container. Either one can be set in .junie/mcp/.env via env://GITHUB_TOKEN_RO.
+
 - If you keep .junie/mcp/mcp.json as-is (command: "github-mcp"), ensure that command resolves either to the native binary or a symlink to the wrapper script.
 
 Using Docker for the other MCP servers
@@ -190,3 +187,4 @@ Using the GitHub MCP GraphQL tool
   - Ensure .junie/mcp/.env contains GITHUB_TOKEN_RO with access to the eternakk org and repos (fine‑grained or classic PAT).
   - If your org enforces SSO, authorize the token for the organization.
 - If a 401/403 appears, re-run: python3 scripts/verify_mcp_config.py and check token scopes per the section above.
+

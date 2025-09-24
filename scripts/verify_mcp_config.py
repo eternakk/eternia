@@ -20,6 +20,7 @@ Exit codes:
 - 3: Command not found on PATH
 - 4: Missing required token variables
 - 5: Docker config likely missing env forwarding
+
 """
 from __future__ import annotations
 import json
@@ -66,6 +67,7 @@ def main() -> int:
             "Command not found on PATH: '{}'.\n"
             "- If you intend to run natively, install 'github-mcp' so it is available on PATH.\n"
             "- If you intend to run via Docker, create a symlink to scripts/mcp/github-mcp-docker.sh (see docs/mcp.md).\n"
+
             "  Example: ln -s \"$(pwd)/scripts/mcp/github-mcp-docker.sh\" /usr/local/bin/github-mcp"
         ).format(command)
         fail(3, hint)
@@ -74,6 +76,7 @@ def main() -> int:
     env_has_token = bool(os.environ.get("GITHUB_TOKEN") or os.environ.get("GITHUB_TOKEN_RO"))
     file_has_token = False
     file_token_value = None
+
     if ENV_FILE.exists():
         try:
             for line in ENV_FILE.read_text().splitlines():
@@ -85,6 +88,7 @@ def main() -> int:
                     if value:
                         file_has_token = True
                         file_token_value = value
+
                         break
         except Exception:
             # Non-fatal; just ignore parsing issues and rely on env
@@ -132,6 +136,7 @@ def main() -> int:
 
     print("[verify-mcp] OK: mcp.json valid, github server configured, command found, token present.")
     print("[verify-mcp] Note: If you still get 401 Unauthorized, ensure the token has scopes: repo (read), issues:write, pull_requests:write as needed.")
+
     return 0
 
 

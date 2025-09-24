@@ -446,10 +446,23 @@ resource "aws_s3_bucket_replication_configuration" "db_backup_replication" {
 # CloudWatch Log Groups for Lambda functions
 resource "aws_cloudwatch_log_group" "db_backup_lambda_logs" {
   name              = "/aws/lambda/${aws_lambda_function.db_backup_lambda.function_name}"
-  retention_in_days = 90
+  retention_in_days = 365
+  kms_key_id        = aws_kms_key.cloudwatch_logs.arn
 }
 
 resource "aws_cloudwatch_log_group" "db_backup_verification_lambda_logs" {
   name              = "/aws/lambda/${aws_lambda_function.db_backup_verification_lambda.function_name}"
-  retention_in_days = 90
+  retention_in_days = 365
+  kms_key_id        = aws_kms_key.cloudwatch_logs.arn
+}
+
+# KMS key for encrypting CloudWatch Log Groups for DB backup Lambdas
+resource "aws_kms_key" "cloudwatch_logs" {
+  description         = "KMS key for encrypting CloudWatch Log Groups for DB backup Lambdas"
+  enable_key_rotation = true
+
+  tags = {
+    Name        = "${var.app_name}-cloudwatch-logs-kms-${var.environment}"
+    Environment = var.environment
+  }
 }

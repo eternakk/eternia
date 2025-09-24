@@ -468,13 +468,6 @@ resource "aws_iam_role_policy" "waf_firehose_s3_policy" {
           "arn:aws:s3:::${var.lb_logs_bucket}",
           "arn:aws:s3:::${var.lb_logs_bucket}/*"
         ]
-      },
-      {
-        Effect = "Allow",
-        Action = [
-          "logs:PutLogEvents"
-        ],
-        Resource = "*"
       }
     ]
   })
@@ -485,6 +478,11 @@ resource "aws_kinesis_firehose_delivery_stream" "waf_logs" {
   name        = "${var.app_name}-waf-logs-${var.environment}"
   destination = "s3"
 
+  server_side_encryption {
+    enabled = true
+    key_arn = aws_kms_key.firehose.arn
+  }
+
   s3_configuration {
     role_arn           = aws_iam_role.waf_firehose_role.arn
     bucket_arn         = "arn:aws:s3:::${var.lb_logs_bucket}"
@@ -492,6 +490,7 @@ resource "aws_kinesis_firehose_delivery_stream" "waf_logs" {
     buffering_size     = 5
     buffering_interval = 300
     compression_format = "GZIP"
+    kms_key_arn        = aws_kms_key.firehose.arn
   }
 
   tags = {
@@ -507,5 +506,16 @@ resource "aws_wafv2_web_acl_logging_configuration" "lb_waf_logging" {
 
   redacted_fields {
     single_header { name = "authorization" }
+  }
+}
+
+# KMS key for encrypting Kinesis Firehose delivery stream for WAF logs
+resource "aws_kms_key" "firehose" {
+  description         = "KMS key for encrypting Kinesis Firehose WAF logs stream"
+  enable_key_rotation = true
+
+  tags = {
+    Name        = "${var.app_name}-firehose-kms-${var.environment}"
+    Environment = var.environment
   }
 }

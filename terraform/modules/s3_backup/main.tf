@@ -18,9 +18,35 @@ variable "retention_days" {
   default     = 7
 }
 
+# Additional security/compliance variables
+variable "s3_log_bucket" {
+  description = "S3 bucket for access logs"
+  type        = string
+}
+
+variable "kms_key_id" {
+  description = "KMS key ID/ARN for S3 default encryption"
+  type        = string
+}
+
+variable "replication_role_arn" {
+  description = "IAM role ARN for S3 replication"
+  type        = string
+}
+
+variable "replication_destination_bucket_arn" {
+  description = "Destination bucket ARN for cross-region replication"
+  type        = string
+}
+
 # S3 bucket for backups
 resource "aws_s3_bucket" "backup_bucket" {
   bucket = "${var.bucket_name}-${var.environment}"
+
+  logging {
+    target_bucket = var.s3_log_bucket
+    target_prefix = "${var.app_name}/s3-backups/"
+  }
 
   tags = {
     Name        = "Eternia Backups"
@@ -48,16 +74,21 @@ resource "aws_s3_bucket_lifecycle_configuration" "backup_lifecycle" {
     expiration {
       days = var.retention_days
     }
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
   }
 }
 
-# S3 bucket server-side encryption
+# S3 bucket server-side encryption (KMS)
 resource "aws_s3_bucket_server_side_encryption_configuration" "backup_encryption" {
   bucket = aws_s3_bucket.backup_bucket.id
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = var.kms_key_id
     }
   }
 }
@@ -101,4 +132,35 @@ output "backup_bucket_arn" {
 output "backup_policy_arn" {
   description = "The ARN of the backup IAM policy"
   value       = aws_iam_policy.backup_policy.arn
+}
+# S3 public access block for the backup bucket
+resource "aws_s3_bucket_public_access_block" "backup_bucket_pab" {
+  bucket = aws_s3_bucket.backup_bucket.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# Enable S3 bucket notifications via EventBridge
+resource "aws_s3_bucket_notification" "backup_notifications" {
+  bucket      = aws_s3_bucket.backup_bucket.id
+  eventbridge = true
+}
+
+# S3 bucket cross-region replication configuration
+resource "aws_s3_bucket_replication_configuration" "backup_replication" {
+  bucket = aws_s3_bucket.backup_bucket.id
+  role   = var.replication_role_arn
+
+  rule {
+    id     = "crr"
+    status = "Enabled"
+
+    destination {
+      bucket        = var.replication_destination_bucket_arn
+      storage_class = "STANDARD"
+    }
+  }
 }

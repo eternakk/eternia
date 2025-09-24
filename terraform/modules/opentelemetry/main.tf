@@ -53,6 +53,16 @@ variable "retention_days" {
   default     = 7
 }
 
+variable "vpc_cidr" {
+  description = "CIDR block of the VPC to restrict egress rules"
+  type        = string
+}
+
+variable "cloudwatch_kms_key_id" {
+  description = "KMS key ID/ARN for encrypting CloudWatch log group"
+  type        = string
+}
+
 # Security group for the OpenTelemetry services
 resource "aws_security_group" "otel_sg" {
   name        = "${var.app_name}-otel-sg-${var.environment}"
@@ -61,6 +71,7 @@ resource "aws_security_group" "otel_sg" {
 
   # OpenTelemetry Collector
   ingress {
+    description = "Allow OpenTelemetry Collector"
     from_port   = var.otel_collector_port
     to_port     = var.otel_collector_port
     protocol    = "tcp"
@@ -69,6 +80,7 @@ resource "aws_security_group" "otel_sg" {
 
   # Jaeger UI
   ingress {
+    description = "Allow Jaeger UI"
     from_port   = var.jaeger_port
     to_port     = var.jaeger_port
     protocol    = "tcp"
@@ -77,6 +89,7 @@ resource "aws_security_group" "otel_sg" {
 
   # Jaeger Collector
   ingress {
+    description = "Allow Jaeger Collector"
     from_port   = var.jaeger_collector_port
     to_port     = var.jaeger_collector_port
     protocol    = "tcp"
@@ -85,6 +98,7 @@ resource "aws_security_group" "otel_sg" {
 
   # Jaeger Agent (UDP)
   ingress {
+    description = "Allow Jaeger Agent (UDP)"
     from_port   = var.jaeger_agent_port
     to_port     = var.jaeger_agent_port
     protocol    = "udp"
@@ -92,10 +106,11 @@ resource "aws_security_group" "otel_sg" {
   }
 
   egress {
+    description = "Allow all egress within VPC"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = [var.vpc_cidr]
   }
 
   tags = {
@@ -122,7 +137,8 @@ resource "aws_ecs_cluster" "otel_cluster" {
 # CloudWatch Log Group for OpenTelemetry services
 resource "aws_cloudwatch_log_group" "otel_logs" {
   name              = "/ecs/${var.app_name}-otel-${var.environment}"
-  retention_in_days = var.retention_days
+  retention_in_days = 365
+  kms_key_id        = var.cloudwatch_kms_key_id
 
   tags = {
     Name        = "${var.app_name}-otel-logs-${var.environment}"
@@ -279,7 +295,7 @@ resource "aws_ecs_service" "otel_collector_service" {
   network_configuration {
     subnets          = var.subnet_ids
     security_groups  = [aws_security_group.otel_sg.id]
-    assign_public_ip = true
+    assign_public_ip = false
   }
 
   tags = {
@@ -299,7 +315,7 @@ resource "aws_ecs_service" "jaeger_service" {
   network_configuration {
     subnets          = var.subnet_ids
     security_groups  = [aws_security_group.otel_sg.id]
-    assign_public_ip = true
+    assign_public_ip = false
   }
 
   tags = {

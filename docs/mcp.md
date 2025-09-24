@@ -2,6 +2,11 @@ MCP configuration for Eternia (Junie)
 
 This project ships a ready-to-use MCP configuration for Junie.
 
+Defaults update (no Docker required)
+- The default .junie/mcp/mcp.json now uses native MCP CLIs (github-mcp, mcp-sqlite, etc.) instead of docker run wrappers.
+- Benefit: avoids errors like "Cannot connect to the Docker daemon" and StandaloneCoroutine cancellations when Docker is not running.
+- If you prefer Docker, use the provided wrapper scripts below or symlink them to the expected CLI names.
+
 Where the files are
 - MCP servers config: .junie/mcp/mcp.json
 - Environment file: .junie/mcp/.env (not committed; copy from config/mcp/.env.example)
@@ -37,6 +42,23 @@ Troubleshooting tips
 - If your setup requires absolute paths to binaries, you may replace the `command` fields with absolute paths.
 - Logs: Junie’s logs or your project logs/logs/eternia.log may show helpful errors.
 
+Diagnosing GitHub MCP authentication (401 Unauthorized)
+- Common causes:
+  - Token missing inside the container (Docker env not forwarded) → ensure github.args includes: -e GITHUB_TOKEN and -e GITHUB_PERSONAL_ACCESS_TOKEN, and github.env maps them to env://GITHUB_TOKEN_RO.
+  - Token lacks scopes → minimum recommended: repo (read), issues:write, pull_requests:write (match your configured capabilities).
+  - Wrong env var name expected by the image → we forward both GITHUB_TOKEN and GITHUB_PERSONAL_ACCESS_TOKEN to be safe.
+- Quick checks:
+  1) Verify your .junie/mcp/.env has GITHUB_TOKEN_RO set (not empty) and Junie is launched from a shell that can read that file.
+  2) Run the verifier:
+     python3 scripts/verify_mcp_config.py
+     It will validate mcp.json, PATH resolution, presence of token, and (for Docker) env forwarding flags.
+  3) Inspect env inside the container:
+     docker run --rm -i -e GITHUB_TOKEN -e GITHUB_PERSONAL_ACCESS_TOKEN ghcr.io/github/github-mcp-server env | grep GITHUB_
+     You should see both variables populated when Junie launches the container.
+- Notes:
+  - 401 from GitHub API is unrelated to GHCR image pull auth. If you get denied pulling the image from ghcr.io, see the section below about read:packages and docker login.
+  - Fine-grained tokens must have access to the eternakk/eternia repository and the scopes listed above.
+
 Security notes
 - Never commit real secrets to the repo. Use .junie/mcp/.env (ignored) and keep tokens scoped minimally.
 
@@ -68,6 +90,7 @@ Option B: Inline docker run (no script)
 
 Important
 - The GitHub token must have scopes that match your configured capabilities (read, write:issues, write:pull_requests).
+- When using Docker, the config now forwards both GITHUB_PERSONAL_ACCESS_TOKEN and GITHUB_TOKEN into the container. Either one can be set in .junie/mcp/.env via env://GITHUB_TOKEN_RO.
 - If you keep .junie/mcp/mcp.json as-is (command: "github-mcp"), ensure that command resolves either to the native binary or a symlink to the wrapper script.
 
 Using Docker for the other MCP servers
@@ -145,3 +168,25 @@ Manual fallback
 Notes
 - The same approach applies to other MCP images hosted on ghcr.io (sqlite, postgres, s3). If you hit a denied error there, run docker login ghcr.io once or set GHCR_USERNAME/GHCR_TOKEN similarly.
 - Never commit secrets. Keep them in .junie/mcp/.env or your OS keychain.
+
+
+
+Using the GitHub MCP GraphQL tool
+- The configured GitHub MCP server (github-mcp) exposes a graphql tool that accepts a GraphQL query and variables.
+- Ask Junie to call it, for example:
+  Prompt: Use the GitHub MCP to run this GraphQL and show the first org project’s title and URL for org "eternakk".
+  Query:
+    query($org:String!){
+      organization(login:$org){
+        projectsV2(first:1){
+          nodes { id number title closed url }
+        }
+      }
+    }
+  Variables:
+    {"org":"eternakk"}
+- Junie will call the github.graphql tool and return fields like title and url from data.organization.projectsV2.nodes[0].
+- Requirements:
+  - Ensure .junie/mcp/.env contains GITHUB_TOKEN_RO with access to the eternakk org and repos (fine‑grained or classic PAT).
+  - If your org enforces SSO, authorize the token for the organization.
+- If a 401/403 appears, re-run: python3 scripts/verify_mcp_config.py and check token scopes per the section above.

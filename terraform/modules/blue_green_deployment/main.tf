@@ -342,24 +342,16 @@ output "codedeploy_deployment_group_name" {
   description = "The name of the CodeDeploy deployment group"
   value       = aws_codedeploy_deployment_group.deployment_group.deployment_group_name
 }
-# Associate public ALB with WAFv2 Web ACL for protection
-# If an external Web ACL ARN is provided, associate it; otherwise, associate the local one
-resource "aws_wafv2_web_acl_association" "lb_waf_assoc_local" {
-  count         = var.web_acl_arn == "" ? 1 : 0
-  resource_arn  = aws_lb.app_lb.arn
-  web_acl_arn   = aws_wafv2_web_acl.lb_web_acl.arn
-}
-
-resource "aws_wafv2_web_acl_association" "lb_waf_assoc_external" {
-  count         = var.web_acl_arn != "" ? 1 : 0
-  resource_arn  = aws_lb.app_lb.arn
-  web_acl_arn   = var.web_acl_arn
+# Associate public ALB with WAFv2 Web ACL for protection.
+resource "aws_wafv2_web_acl_association" "lb_waf" {
+  resource_arn = aws_lb.app_lb.arn
+  web_acl_arn  = var.web_acl_arn != "" ? var.web_acl_arn : aws_wafv2_web_acl.lb_web_acl.arn
 }
 
 # WAFv2 Web ACL with AWS Managed Rules including Log4j mitigation (used if no external ACL ARN provided)
 resource "aws_wafv2_web_acl" "lb_web_acl" {
   name        = "${var.app_name}-alb-web-acl-${var.environment}"
-  description = "WAFv2 Web ACL with AWS Managed Rules for Log4j mitigation"
+  description = "WAFv2 Web ACL with AWS Managed Rules for external ALB protection"
   scope       = "REGIONAL"
 
   default_action {
@@ -367,40 +359,18 @@ resource "aws_wafv2_web_acl" "lb_web_acl" {
   }
 
   rule {
-    name     = "AWS-AWSManagedRulesLog4JRCRuleSet"
+    name     = "AWS-AWSManagedRulesKnownBadInputsRuleSet"
     priority = 0
-
-    statement {
-      managed_rule_group_statement {
-        name        = "AWSManagedRulesLog4JRCRuleSet"
-        vendor_name = "AWS"
-      }
-    }
 
     override_action {
       none {}
     }
-
-    visibility_config {
-      cloudwatch_metrics_enabled = true
-      metric_name                = "${var.app_name}-alb-log4j"
-      sampled_requests_enabled   = true
-    }
-  }
-
-  rule {
-    name     = "AWS-AWSManagedRulesKnownBadInputsRuleSet"
-    priority = 1
 
     statement {
       managed_rule_group_statement {
         name        = "AWSManagedRulesKnownBadInputsRuleSet"
         vendor_name = "AWS"
       }
-    }
-
-    override_action {
-      none {}
     }
 
     visibility_config {
@@ -410,20 +380,64 @@ resource "aws_wafv2_web_acl" "lb_web_acl" {
     }
   }
 
+  rule {
+    name     = "AWS-AWSManagedRulesAnonymousIpList"
+    priority = 1
+
+    override_action {
+      none {}
+    }
+
+    statement {
+      managed_rule_group_statement {
+        name        = "AWSManagedRulesAnonymousIpList"
+        vendor_name = "AWS"
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${var.app_name}-alb-anonymous-ip"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  rule {
+    name     = "AWS-AWSManagedRulesLog4JRCRuleSet"
+    priority = 2
+
+    override_action {
+      none {}
+    }
+
+    statement {
+      managed_rule_group_statement {
+        name        = "AWSManagedRulesLog4JRCRuleSet"
+        vendor_name = "AWS"
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${var.app_name}-alb-log4j"
+      sampled_requests_enabled   = true
+    }
+  }
+
   # Optionally include the Core rule set for broader coverage
   rule {
     name     = "AWS-AWSManagedRulesCommonRuleSet"
-    priority = 2
+    priority = 3
+
+    override_action {
+      none {}
+    }
 
     statement {
       managed_rule_group_statement {
         name        = "AWSManagedRulesCommonRuleSet"
         vendor_name = "AWS"
       }
-    }
-
-    override_action {
-      none {}
     }
 
     visibility_config {

@@ -73,12 +73,20 @@ The API listens on `http://localhost:8000`. World boot can take a few seconds on
 - Operations: `docs/monitoring_and_alerting.md`, `docs/backup_and_recovery.md`, `docs/runbooks/`.
 - Simulation deep dives: `docs/runtime_cycle.md`, `docs/companion_ecology.md`, `docs/quantum_overview.md`.
 - Getting started: `docs/developer_onboarding.md`, `docs/environment_setup.md`, `docs/ui_development_guidelines.md`.
+- Planning aids: `docs/pending_implementation_design.md`, `docs/implementation_stories.md`.
 
 ## Maintenance Notes
 - Align Docker base image with the preferred Python 3.12 toolchain.
 - Clarify production database strategy (SQLite artifacts vs. Postgres in compose) and document migration flow.
 - Audit remaining scripts in `scripts/` (backups, migrations) and surface usage examples.
 - Capture additional required environment variables (e.g., tracing/OTEL) once stabilized.
+
+## Outstanding Work
+- Consolidated design for pending features lives in `docs/pending_implementation_design.md`; MCP agents should read it before tackling unchecked tasks in `docs/tasks.md`.
+- Frontend roadmap now also spans the immersive world-builder UI, spatial rendering, and movement visualizations alongside i18n, Redux Toolkit, accessibility upgrades, theming, and offline cache safety.
+- Security backlog covers TOTP-based 2FA, HMAC request signing, structured audit logging, file-scanning uploads, and privacy-aware exports.
+- Data and analytics initiatives span export APIs, validation schemas, observability dashboards, anomaly detection, predictive companions, and conversation-derived training datasets aligned with the personal-universe goals.
+- Multi-agent orchestration scripts need to operationalize Planner/Test/Implementer/Reviewer/Security/Docs roles and plug into the shared communication hub so the development loop can self-close as described in the orchestration and feasibility plans.
 
 ## License
 CC0 1.0 (see `LICENSE`).

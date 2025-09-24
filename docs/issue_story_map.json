@@ -1,0 +1,50 @@
+{
+  "13": {
+    "code": "A1",
+    "title": "Story A1 – Render and edit Eternia in 3D"
+  },
+  "14": {
+    "code": "A2",
+    "title": "Story A2 – Choreograph narrative events visually"
+  },
+  "15": {
+    "code": "B1",
+    "title": "Story B1 – Enable believable companion traversal"
+  },
+  "16": {
+    "code": "B2",
+    "title": "Story B2 – Governor veto for unsafe movement"
+  },
+  "17": {
+    "code": "C1",
+    "title": "Story C1 – Unified conversation console"
+  },
+  "18": {
+    "code": "C2",
+    "title": "Story C2 – Control AI training data from conversations"
+  },
+  "19": {
+    "code": "D1",
+    "title": "Story D1 – Secure realms with two-factor auth"
+  },
+  "20": {
+    "code": "D2",
+    "title": "Story D2 – Trace sensitive actions end-to-end"
+  },
+  "21": {
+    "code": "E1",
+    "title": "Story E1 – Export and analyze Eternia journeys"
+  },
+  "22": {
+    "code": "E2",
+    "title": "Story E2 – Detect anomalies in real time"
+  },
+  "23": {
+    "code": "F1",
+    "title": "Story F1 – Orchestrate MCP agents safely"
+  },
+  "24": {
+    "code": "F2",
+    "title": "Story F2 – Demo production readiness"
+  }
+}

@@ -74,6 +74,7 @@ The API listens on `http://localhost:8000`. World boot can take a few seconds on
 - Simulation deep dives: `docs/runtime_cycle.md`, `docs/companion_ecology.md`, `docs/quantum_overview.md`.
 - Getting started: `docs/developer_onboarding.md`, `docs/environment_setup.md`, `docs/ui_development_guidelines.md`.
 - Planning aids: `docs/pending_implementation_design.md`, `docs/implementation_stories.md`.
+- Agent automation: `agents.md` details the multi-agent workflow, guardrails, and tooling expectations.
 
 ## Maintenance Notes
 - Align Docker base image with the preferred Python 3.12 toolchain.

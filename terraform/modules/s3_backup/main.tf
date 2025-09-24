@@ -45,7 +45,7 @@ resource "aws_s3_bucket" "backup_bucket" {
 
   logging {
     target_bucket = var.s3_log_bucket
-    target_prefix = "${var.app_name}/s3-backups/"
+    target_prefix = "s3-backups/"
   }
 
   tags = {
@@ -86,6 +86,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "backup_encryption
   bucket = aws_s3_bucket.backup_bucket.id
 
   rule {
+    bucket_key_enabled = true
     apply_server_side_encryption_by_default {
       sse_algorithm     = "aws:kms"
       kms_master_key_id = var.kms_key_id
@@ -141,6 +142,39 @@ resource "aws_s3_bucket_public_access_block" "backup_bucket_pab" {
   block_public_policy     = true
   ignore_public_acls      = true
   restrict_public_buckets = true
+}
+
+# Enforce bucket owner as object owner to disable ACLs
+resource "aws_s3_bucket_ownership_controls" "backup_bucket_ownership" {
+  bucket = aws_s3_bucket.backup_bucket.id
+
+  rule {
+    object_ownership = "BucketOwnerEnforced"
+  }
+}
+
+# Require SSL for all requests to the backup bucket
+resource "aws_s3_bucket_policy" "backup_bucket_ssl_policy" {
+  bucket = aws_s3_bucket.backup_bucket.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid    = "DenyInsecureTransport",
+        Effect = "Deny",
+        Principal = "*",
+        Action   = "s3:*",
+        Resource = [
+          aws_s3_bucket.backup_bucket.arn,
+          "${aws_s3_bucket.backup_bucket.arn}/*"
+        ],
+        Condition = {
+          Bool = { "aws:SecureTransport" = "false" }
+        }
+      }
+    ]
+  })
 }
 
 # Enable S3 bucket notifications via EventBridge

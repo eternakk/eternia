@@ -157,6 +157,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "db_backup_encrypt
   bucket = aws_s3_bucket.db_backup_bucket.id
 
   rule {
+    bucket_key_enabled = true
     apply_server_side_encryption_by_default {
       sse_algorithm     = "aws:kms"
       kms_master_key_id = var.kms_key_id
@@ -229,7 +230,12 @@ resource "aws_iam_policy" "db_backup_lambda_policy" {
           "logs:PutLogEvents"
         ]
         Effect   = "Allow"
-        Resource = "arn:aws:logs:*:*:*"
+        Resource = [
+          aws_cloudwatch_log_group.db_backup_lambda_logs.arn,
+          "${aws_cloudwatch_log_group.db_backup_lambda_logs.arn}:*",
+          aws_cloudwatch_log_group.db_backup_verification_lambda_logs.arn,
+          "${aws_cloudwatch_log_group.db_backup_verification_lambda_logs.arn}:*"
+        ]
       }
     ]
   })
@@ -246,7 +252,7 @@ resource "aws_lambda_function" "db_backup_lambda" {
   function_name    = "${var.app_name}-db-backup-${var.environment}"
   role             = aws_iam_role.db_backup_lambda_role.arn
   handler          = "backup_handler.lambda_handler"
-  runtime          = "python3.9"
+  runtime          = "python3.12"
   timeout          = 300
   memory_size      = 512
   filename         = "${path.module}/lambda/db_backup_lambda.zip"
@@ -310,7 +316,7 @@ resource "aws_lambda_function" "db_backup_verification_lambda" {
   function_name    = "${var.app_name}-db-backup-verification-${var.environment}"
   role             = aws_iam_role.db_backup_lambda_role.arn
   handler          = "verification_handler.lambda_handler"
-  runtime          = "python3.9"
+  runtime          = "python3.12"
   timeout          = 300
   memory_size      = 512
   filename         = "${path.module}/lambda/db_backup_verification_lambda.zip"
@@ -389,6 +395,39 @@ resource "aws_s3_bucket_public_access_block" "db_backup_bucket_pab" {
   restrict_public_buckets = true
 }
 
+# Enforce bucket owner as object owner to disable ACLs
+resource "aws_s3_bucket_ownership_controls" "db_backup_bucket_ownership" {
+  bucket = aws_s3_bucket.db_backup_bucket.id
+
+  rule {
+    object_ownership = "BucketOwnerEnforced"
+  }
+}
+
+# Require SSL for all requests to the backup bucket
+resource "aws_s3_bucket_policy" "db_backup_bucket_ssl_policy" {
+  bucket = aws_s3_bucket.db_backup_bucket.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid    = "DenyInsecureTransport",
+        Effect = "Deny",
+        Principal = "*",
+        Action   = "s3:*",
+        Resource = [
+          aws_s3_bucket.db_backup_bucket.arn,
+          "${aws_s3_bucket.db_backup_bucket.arn}/*"
+        ],
+        Condition = {
+          Bool = { "aws:SecureTransport" = "false" }
+        }
+      }
+    ]
+  })
+}
+
 # S3 bucket cross-region replication configuration
 resource "aws_s3_bucket_replication_configuration" "db_backup_replication" {
   bucket = aws_s3_bucket.db_backup_bucket.id
@@ -403,4 +442,14 @@ resource "aws_s3_bucket_replication_configuration" "db_backup_replication" {
       storage_class = "STANDARD"
     }
   }
+}
+# CloudWatch Log Groups for Lambda functions
+resource "aws_cloudwatch_log_group" "db_backup_lambda_logs" {
+  name              = "/aws/lambda/${aws_lambda_function.db_backup_lambda.function_name}"
+  retention_in_days = 90
+}
+
+resource "aws_cloudwatch_log_group" "db_backup_verification_lambda_logs" {
+  name              = "/aws/lambda/${aws_lambda_function.db_backup_verification_lambda.function_name}"
+  retention_in_days = 90
 }

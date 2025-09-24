@@ -343,9 +343,17 @@ output "codedeploy_deployment_group_name" {
   value       = aws_codedeploy_deployment_group.deployment_group.deployment_group_name
 }
 # Associate public ALB with WAFv2 Web ACL for protection
-resource "aws_wafv2_web_acl_association" "lb_waf_assoc" {
-  resource_arn = aws_lb.app_lb.arn
-  web_acl_arn  = var.web_acl_arn != "" ? var.web_acl_arn : aws_wafv2_web_acl.lb_web_acl.arn
+# If an external Web ACL ARN is provided, associate it; otherwise, associate the local one
+resource "aws_wafv2_web_acl_association" "lb_waf_assoc_local" {
+  count         = var.web_acl_arn == "" ? 1 : 0
+  resource_arn  = aws_lb.app_lb.arn
+  web_acl_arn   = aws_wafv2_web_acl.lb_web_acl.arn
+}
+
+resource "aws_wafv2_web_acl_association" "lb_waf_assoc_external" {
+  count         = var.web_acl_arn != "" ? 1 : 0
+  resource_arn  = aws_lb.app_lb.arn
+  web_acl_arn   = var.web_acl_arn
 }
 
 # WAFv2 Web ACL with AWS Managed Rules including Log4j mitigation (used if no external ACL ARN provided)
@@ -380,6 +388,29 @@ resource "aws_wafv2_web_acl" "lb_web_acl" {
     }
   }
 
+  # Optionally include the Core rule set for broader coverage
+  rule {
+    name     = "AWS-AWSManagedRulesCommonRuleSet"
+    priority = 2
+
+    statement {
+      managed_rule_group_statement {
+        name        = "AWSManagedRulesCommonRuleSet"
+        vendor_name = "AWS"
+      }
+    }
+
+    override_action {
+      none {}
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${var.app_name}-alb-common"
+      sampled_requests_enabled   = true
+    }
+  }
+
   visibility_config {
     cloudwatch_metrics_enabled = true
     metric_name                = "${var.app_name}-alb-web-acl"
@@ -389,5 +420,92 @@ resource "aws_wafv2_web_acl" "lb_web_acl" {
   tags = {
     Name        = "${var.app_name}-alb-web-acl-${var.environment}"
     Environment = var.environment
+  }
+}
+
+# IAM role for Kinesis Firehose to deliver WAF logs to S3
+resource "aws_iam_role" "waf_firehose_role" {
+  name = "${var.app_name}-waf-firehose-role-${var.environment}"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Principal = {
+          Service = "firehose.amazonaws.com"
+        },
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+
+  tags = {
+    Name        = "${var.app_name}-waf-firehose-role-${var.environment}"
+    Environment = var.environment
+  }
+}
+
+# Minimal S3 permissions for Firehose to write objects
+resource "aws_iam_role_policy" "waf_firehose_s3_policy" {
+  name = "${var.app_name}-waf-firehose-s3-${var.environment}"
+  role = aws_iam_role.waf_firehose_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "s3:AbortMultipartUpload",
+          "s3:GetBucketLocation",
+          "s3:GetObject",
+          "s3:ListBucket",
+          "s3:ListBucketMultipartUploads",
+          "s3:PutObject"
+        ],
+        Resource = [
+          "arn:aws:s3:::${var.lb_logs_bucket}",
+          "arn:aws:s3:::${var.lb_logs_bucket}/*"
+        ]
+      },
+      {
+        Effect = "Allow",
+        Action = [
+          "logs:PutLogEvents"
+        ],
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# Kinesis Firehose delivery stream for WAF logs
+resource "aws_kinesis_firehose_delivery_stream" "waf_logs" {
+  name        = "${var.app_name}-waf-logs-${var.environment}"
+  destination = "s3"
+
+  s3_configuration {
+    role_arn           = aws_iam_role.waf_firehose_role.arn
+    bucket_arn         = "arn:aws:s3:::${var.lb_logs_bucket}"
+    prefix             = "waf-logs/"
+    buffering_size     = 5
+    buffering_interval = 300
+    compression_format = "GZIP"
+  }
+
+  tags = {
+    Name        = "${var.app_name}-waf-logs-${var.environment}"
+    Environment = var.environment
+  }
+}
+
+# Enable WAFv2 logging to the Firehose stream
+resource "aws_wafv2_web_acl_logging_configuration" "lb_waf_logging" {
+  resource_arn          = aws_wafv2_web_acl.lb_web_acl.arn
+  log_destination_configs = [aws_kinesis_firehose_delivery_stream.waf_logs.arn]
+
+  redacted_fields {
+    single_header { name = "authorization" }
   }
 }

@@ -5,17 +5,24 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-import base64
 import uuid
 from cryptography.fernet import Fernet
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 import jwt
 from jwt.exceptions import InvalidTokenError
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 
-from .models import User, UserRole, Permission, Token, TokenData, UserCreate, UserUpdate, UserResponse
+from .models import (
+    User,
+    UserRole,
+    Permission,
+    TokenData,
+    UserCreate,
+    UserUpdate,
+    UserResponse,
+)
+from .crypto_utils import derive_encryption_key
+from .totp_vault import TotpStatus, totp_vault
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -24,16 +31,6 @@ logger = logging.getLogger(__name__)
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 USERS_FILE = Path("artifacts/users.json")
-
-# Helpers for secret key encryption
-def derive_encryption_key(password: str, salt: bytes) -> bytes:
-    kdf = PBKDF2HMAC(
-        algorithm=hashes.SHA256(),
-        length=32,
-        salt=salt,
-        iterations=390000,
-    )
-    return base64.urlsafe_b64encode(kdf.derive(password.encode()))
 
 # Environment and secret configuration
 ENV = (os.getenv("ETERNIA_ENV") or os.getenv("APP_ENV") or "development").lower()
@@ -594,6 +591,14 @@ def update_user(username: str, user_update: UserUpdate) -> User:
         user.role = user_update.role
     if user_update.is_active is not None:
         user.is_active = user_update.is_active
+    if user_update.two_factor_enabled is not None:
+        if not user_update.two_factor_enabled:
+            disable_two_factor(user)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Two-factor can only be enabled via enrollment endpoint",
+            )
 
     users[username] = user
     save_users()
@@ -620,10 +625,61 @@ def get_all_users() -> List[UserResponse]:
             role=user.role,
             is_active=user.is_active,
             created_at=user.created_at,
-            last_login=user.last_login
+            last_login=user.last_login,
+            two_factor_enabled=user.two_factor_enabled,
         )
         for user in users.values()
     ]
+
+
+# ------------------------------------------------------------------
+# Two-factor helpers
+# ------------------------------------------------------------------
+
+
+def start_two_factor_enrollment(user: User) -> Dict[str, str]:
+    return totp_vault.start_enrollment(user.username)
+
+
+def verify_two_factor_code(user: User, code: str) -> bool:
+    version = totp_vault.verify_and_activate(user.username, code)
+    if version is None:
+        return False
+
+    now = datetime.utcnow()
+    user.two_factor_enabled = True
+    user.two_factor_confirmed_at = now
+    user.two_factor_last_verified_at = now
+    user.two_factor_version = int(version)
+    users[user.username] = user
+    save_users()
+    return True
+
+
+def validate_two_factor_code(user: User, code: str) -> bool:
+    if not totp_vault.validate(user.username, code):
+        return False
+
+    user.two_factor_last_verified_at = datetime.utcnow()
+    users[user.username] = user
+    save_users()
+    return True
+
+
+def disable_two_factor(user: User) -> bool:
+    was_deleted = totp_vault.disable(user.username)
+    if was_deleted:
+        user.two_factor_enabled = False
+        user.two_factor_confirmed_at = None
+        user.two_factor_last_verified_at = None
+        user.two_factor_version = 0
+        users[user.username] = user
+        save_users()
+    return was_deleted
+
+
+def get_two_factor_status(user: User) -> TotpStatus:
+    return totp_vault.status(user.username)
 
 # Load users on module import
 load_users()

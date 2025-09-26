@@ -1,4 +1,7 @@
+import hashlib
 import logging
+import os
+import re
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
@@ -9,10 +12,70 @@ from slowapi.util import get_remote_address
 
 from ..auth import get_current_active_user, Permission, User
 from ..deps import world, governor, save_governor_state, DEV_TOKEN
+from modules.governor import CHECKPOINT_DIR
 from ..schemas import CommandOut
 
 # Configure logging
 logger = logging.getLogger(__name__)
+LOG_VALUE_MAX = 256
+SAFE_CHECKPOINT_RE = re.compile(r"^[A-Za-z0-9._-]+$")
+
+
+def _checkpoint_catalog(root: Path) -> dict[str, Path]:
+    catalog: dict[str, Path] = {}
+    if not root.exists():
+        return catalog
+    for entry in root.iterdir():
+        if entry.is_file() and entry.suffix in {".json", ".bin"}:
+            catalog[entry.name] = entry
+    return catalog
+
+
+def _fingerprint(value: str) -> str:
+    try:
+        digest = hashlib.sha256(value.encode("utf-8", "ignore")).hexdigest()
+        return digest[:16]
+    except Exception:
+        return "unknown"
+
+
+def _sanitize_for_log(value: object) -> str:
+    text = str(value)
+    sanitized = re.sub(r"[\x00-\x1f\x7f]+", " ", text)
+    if len(sanitized) > LOG_VALUE_MAX:
+        return sanitized[:LOG_VALUE_MAX] + "…"
+    return sanitized
+
+
+def _resolve_checkpoint_target(file_input: str) -> Path:
+    if not file_input:
+        raise HTTPException(status_code=400, detail="Invalid file path")
+
+    safe_name = os.path.basename(file_input)
+    if safe_name != file_input or not SAFE_CHECKPOINT_RE.fullmatch(safe_name):
+        logger.warning(
+            "Rejected checkpoint filename (fingerprint=%s)",
+            _fingerprint(file_input),
+        )
+        raise HTTPException(status_code=400, detail="Invalid file path")
+
+    checkpoint_root = CHECKPOINT_DIR.resolve()
+    catalog = _checkpoint_catalog(checkpoint_root)
+
+    candidate = catalog.get(safe_name)
+    if not candidate:
+        logger.warning(
+            "Checkpoint not present (fingerprint=%s)",
+            _fingerprint(safe_name),
+        )
+        raise HTTPException(status_code=400, detail="Checkpoint not found")
+
+    return candidate
+
+
+def _user_fingerprint(user: Union[str, User]) -> str:
+    raw = user.username if isinstance(user, User) else str(user)
+    return _fingerprint(_sanitize_for_log(raw))
 
 # Set up rate limiting
 limiter = Limiter(key_func=get_remote_address)
@@ -32,97 +95,42 @@ async def auth(credentials: HTTPAuthorizationCredentials = Depends(security)):
     """
     client_host = None
     try:
-        # Try to get client information from request
         from fastapi import Request
+
         request = Request.scope.get("request")
         if request:
             client_host = request.client.host
     except Exception:
         pass
 
-    client_info = f" from {client_host}" if client_host else ""
-    logger.info(f"Authentication attempt in command router{client_info}")
+    safe_client = _sanitize_for_log(f" from {client_host}" if client_host else "")
+    logger.info("Authentication attempt in command router%s", safe_client)
 
     if credentials.scheme.lower() != "bearer":
-        logger.warning(f"Invalid authentication scheme in command router{client_info}: {credentials.scheme}")
+        logger.warning("Invalid authentication scheme in command router%s", safe_client)
         raise HTTPException(
             status_code=401,
             detail="Invalid authentication scheme. Bearer token required.",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Clean the token by removing any leading/trailing whitespace
     token = credentials.credentials.strip()
-
-    # Log token details for debugging
-    logger.info(f"Authenticating with token in command router{client_info}: '{token}'")
-
-    # Define the test token that we're using for testing
     TEST_TOKEN = "test-token-for-authentication"
 
-    # Log detailed token comparison for debugging
-    logger.info(f"Token comparison in command router - Token: '{token}', TEST_TOKEN: '{TEST_TOKEN}'")
-    logger.info(f"Token length: {len(token)}, TEST_TOKEN length: {len(TEST_TOKEN)}")
-    logger.info(f"Token == TEST_TOKEN: {token == TEST_TOKEN}")
-    logger.info(f"Token startswith TEST_TOKEN: {token.startswith(TEST_TOKEN)}")
-    logger.info(f"TEST_TOKEN in Token: {TEST_TOKEN in token}")
-
-    # IMPORTANT: For testing purposes, directly check if this is our test token
-    # and return immediately if it is, bypassing all other checks
-    if token == TEST_TOKEN:
-        logger.info(f"Exact test token match in command router - authentication successful{client_info}")
+    if token == TEST_TOKEN or token.startswith(TEST_TOKEN):
+        logger.info("Test token authentication succeeded%s", safe_client)
         return token
 
-    if token.startswith(TEST_TOKEN):
-        logger.info(f"Test token prefix match in command router - authentication successful{client_info}")
+    if token == DEV_TOKEN or token.startswith(DEV_TOKEN):
+        logger.info("Legacy token authentication succeeded%s", safe_client)
         return token
 
-    if TEST_TOKEN in token:
-        logger.info(f"Test token contained in credentials in command router - authentication successful{client_info}")
-        return token
-
-    # Log DEV_TOKEN details for comparison
-    logger.info(f"DEV_TOKEN for comparison in command router: '{DEV_TOKEN}'")
-
-    # Also check against DEV_TOKEN for backward compatibility
-    if token == DEV_TOKEN:
-        logger.info(f"Exact legacy token match in command router - authentication successful{client_info}")
-        return token
-
-    if token.startswith(DEV_TOKEN):
-        logger.info(f"Legacy token prefix match in command router - authentication successful{client_info}")
-        return token
-
-    if DEV_TOKEN in token:
-        logger.info(f"Legacy token contained in credentials in command router - authentication successful{client_info}")
-        return token
-
-    logger.warning(f"Token did not match any expected format in command router{client_info}: '{token}'")
-    logger.warning(f"Expected TEST_TOKEN: '{TEST_TOKEN}'")
-    logger.warning(f"Expected DEV_TOKEN: '{DEV_TOKEN}'")
-
-    # If we get here, the token didn't match any of our expected formats
-    # We'll try JWT authentication as a fallback
-
-    # If not legacy token, try JWT authentication
     try:
-        logger.info(f"Legacy token authentication failed in command router{client_info}, trying JWT authentication")
-        # Get current user from JWT token
         user = await get_current_active_user(token)
-        logger.info(f"JWT authentication successful in command router{client_info} for user: {user.username}")
+        logger.info("JWT authentication successful in command router%s", safe_client)
         return user
-    except Exception as e:
-        # Log failed authentication attempts with detailed error
-        logger.warning(f"Failed authentication attempt in command router{client_info}: {str(e)}")
-        # Log token and DEV_TOKEN comparison for debugging
-        token_preview = token[:3] + "..." + token[-3:] if len(token) > 6 else token
-        logger.warning(f"Failed token in command router{client_info}: {token_preview}")
-        logger.warning(f"Token comparison - Token: {token[:3]}...{token[-3:] if len(token) > 6 else ''}, DEV_TOKEN: {DEV_TOKEN[:3]}...{DEV_TOKEN[-3:] if len(DEV_TOKEN) > 6 else ''}")
-        logger.warning(f"Token length: {len(token)}, DEV_TOKEN length: {len(DEV_TOKEN)}")
-        logger.warning(f"Token == DEV_TOKEN: {token == DEV_TOKEN}")
-        logger.warning(f"Token startswith DEV_TOKEN: {token.startswith(DEV_TOKEN)}")
-        logger.warning(f"DEV_TOKEN in Token: {DEV_TOKEN in token}")
-
+    except Exception:
+        logger.warning("Authentication failed in command router%s", safe_client)
         raise HTTPException(
             status_code=401,
             detail="Invalid token",
@@ -162,7 +170,10 @@ async def rollback(
     """
     # Check permissions if using JWT authentication
     if isinstance(current_user, User) and not current_user.has_permission(Permission.EXECUTE):
-        logger.warning(f"User {current_user.username} attempted to rollback without permission")
+        logger.warning(
+            "User %s attempted to rollback without permission",
+            _user_fingerprint(current_user),
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions. EXECUTE permission required.",
@@ -171,29 +182,28 @@ async def rollback(
     try:
         # Validate file path if provided
         if file:
-            # Prevent path traversal
-            if ".." in file or file.startswith("/") or file.startswith("\\"):
-                logger.warning(f"Possible path traversal attempt with file: {file}")
-                raise HTTPException(status_code=400, detail="Invalid file path")
-
-            # Ensure the file is in the checkpoints directory
-            file_path = Path(file)
-            if not file_path.suffix == ".json":
-                raise HTTPException(status_code=400, detail="Invalid file type")
-
-            target = file_path
+            target = _resolve_checkpoint_target(file)
         else:
             target = None
 
         # Log the user who performed the rollback
-        user_info = current_user.username if isinstance(current_user, User) else "legacy_token"
+        user_info = _user_fingerprint(current_user)
 
         # Perform the rollback
         governor.rollback(target)
-        logger.info(f"System rolled back to {str(target) if target else 'latest'} by {user_info}")
-        return {"status": "rolled_back", "detail": str(target) if target else "latest"}
+        target_label = target.name if target else "latest"
+        logger.info(
+            "System rolled back",
+            extra={
+                "target_fingerprint": _fingerprint(target_label),
+                "requested_by": user_info,
+            },
+        )
+        return {"status": "rolled_back", "detail": target_label}
+    except HTTPException as http_exc:
+        raise http_exc
     except Exception as e:
-        logger.error(f"Error during rollback: {e}")
+        logger.error("Error during rollback: %s", _sanitize_for_log(e))
         raise HTTPException(status_code=500, detail="Failed to roll back system state")
 
 
@@ -229,7 +239,10 @@ async def command(
     """
     # Check permissions if using JWT authentication
     if isinstance(current_user, User) and not current_user.has_permission(Permission.EXECUTE):
-        logger.warning(f"User {current_user.username} attempted to execute command without permission")
+        logger.warning(
+            "User %s attempted to execute command without permission",
+            _user_fingerprint(current_user),
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions. EXECUTE permission required.",
@@ -239,11 +252,14 @@ async def command(
     valid_actions = ["pause", "resume", "shutdown", "step_reset", "emergency_stop", "step", "reset", "emergency_shutdown"]
     action = action.lower()
     if action not in valid_actions:
-        logger.warning(f"Invalid action attempted: {action}")
+        logger.warning(
+            "Invalid action attempted",
+            extra={"action_fingerprint": _fingerprint(action)},
+        )
         raise HTTPException(status_code=404, detail="Unknown action")
 
     # Log the user who performed the command
-    user_info = current_user.username if isinstance(current_user, User) else "legacy_token"
+    user_info = _user_fingerprint(current_user)
 
     # Initialize command_status variable to ensure it's always defined
     command_status = "unknown"
@@ -255,7 +271,7 @@ async def command(
                 # Save pause state immediately
                 save_governor_state(shutdown=False, paused=True)
                 command_status = "paused"
-                logger.info(f"System paused by {user_info}")
+                logger.info("System paused", extra={"requested_by": user_info})
             case "resume":
                 # If the simulation was shutdown, we need to reset the shutdown flag
                 if governor.is_shutdown():
@@ -266,35 +282,41 @@ async def command(
                 # Clear both shutdown and pause states
                 save_governor_state(shutdown=False, paused=False)
                 command_status = "running"
-                logger.info(f"System resumed by {user_info}")
+                logger.info("System resumed", extra={"requested_by": user_info})
             case "shutdown":
                 governor.shutdown("user request")
                 # Save shutdown state immediately
                 save_governor_state(shutdown=True, paused=False)
                 command_status = "shutdown"
-                logger.info(f"System shutdown initiated by {user_info}")
+                logger.info("System shutdown initiated", extra={"requested_by": user_info})
                 return {"status": command_status, "detail": "server will stop world loop"}
             case "step_reset" | "step":
                 # Reset the cycle count to start from the beginning
                 world.eterna.runtime.cycle_count = 0
                 command_status = "step_reset"
-                logger.info(f"Step counter reset by {user_info}")
+                logger.info("Step counter reset", extra={"requested_by": user_info})
             case "reset":
                 # Reset the cycle count to start from the beginning
                 world.eterna.runtime.cycle_count = 0
                 command_status = "reset"
-                logger.info(f"Step counter reset by {user_info}")
+                logger.info("Step counter reset", extra={"requested_by": user_info})
             case "emergency_stop" | "emergency_shutdown":
                 governor.shutdown("emergency stop requested")
                 # Save shutdown state immediately
                 save_governor_state(shutdown=True, paused=False)
                 command_status = "emergency_stopped"
-                logger.info(f"Emergency stop initiated by {user_info}")
+                logger.info("Emergency stop initiated", extra={"requested_by": user_info})
                 return {"status": command_status, "detail": "emergency stop initiated, server will stop world loop"}
 
         return {"status": command_status, "detail": None}
     except Exception as e:
-        logger.error(f"Error executing command {action}: {e}")
+        logger.error(
+            "Error executing command",
+            extra={
+                "action_fingerprint": _fingerprint(action),
+                "error": _sanitize_for_log(e),
+            },
+        )
         raise HTTPException(
             status_code=500, detail=f"Failed to execute command {action}"
         )

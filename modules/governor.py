@@ -65,6 +65,7 @@ class AlignmentGovernor:
         self.continuity_threshold = threshold
         self._paused = False
         self._shutdown = False
+        self._rollback_active = False
         self.policy_callbacks: list[Callable[[Dict], bool]] = []
 
         # Adaptive checkpoint interval based on simulation size
@@ -123,15 +124,19 @@ class AlignmentGovernor:
             target: Optional path to a specific checkpoint to roll back to.
                 If None, the latest checkpoint is used. Defaults to None.
         """
-        ckpt = target or self._latest_checkpoint()
-        if not ckpt:
-            self.shutdown("No safe checkpoint available")
-            return
-        self.world.load_checkpoint(ckpt)
-        self.state_tracker.mark_rollback(ckpt)
-        # reset counters visible in UI
-        self.world.eterna.runtime.cycle_count = 0
-        self._log_event("rollback_complete", str(ckpt))
+        self._rollback_active = True
+        try:
+            ckpt = target or self._latest_checkpoint()
+            if not ckpt:
+                self.shutdown("No safe checkpoint available")
+                return
+            self.world.load_checkpoint(ckpt)
+            self.state_tracker.mark_rollback(ckpt)
+            # reset counters visible in UI
+            self.world.eterna.runtime.cycle_count = 0
+            self._log_event("rollback_complete", str(ckpt))
+        finally:
+            self._rollback_active = False
 
     # -------- runtime hook -------- #
     def tick(self, metrics: Dict[str, Any]) -> bool:
@@ -474,6 +479,10 @@ class AlignmentGovernor:
             bool: True if the simulation has been shut down, False otherwise.
         """
         return self._shutdown
+
+    def is_rollback_active(self) -> bool:
+        """Return True while a rollback operation is underway."""
+        return self._rollback_active
 
     def is_paused(self) -> bool:
         """

@@ -11,6 +11,7 @@ This document outlines the security improvements implemented in the Eternia proj
 - Added proper error handling with logging for authentication failures
 - Maintained compatibility with environment variable configuration
 - Enhanced the authentication mechanism to use HTTPBearer for more robust token validation
+- Added TOTP-based two-factor authentication with encrypted secret storage (protected by `TOTP_VAULT_PASSWORD` or the existing secret-key password), enrollment/verification APIs, and UI workflow
 
 ### 2. Input Validation and Sanitization
 - Added input validation for all user-provided parameters

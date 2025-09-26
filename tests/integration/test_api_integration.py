@@ -79,6 +79,25 @@ class TestAPIIntegration:
             assert response.json()["status"] == "rolled_back"
             mock_governor.rollback.assert_called_once_with(None)
 
+    def test_command_rollback_with_file(self, client, auth_headers, tmp_path):
+        """Rollback to a specific checkpoint file (sanitized and resolved)."""
+        checkpoint_dir = tmp_path / "checkpoints"
+        checkpoint_dir.mkdir()
+        checkpoint_file = checkpoint_dir / "ckpt_test.bin"
+        checkpoint_file.write_bytes(b"dummy-checkpoint")
+
+        with patch("services.api.routers.command.CHECKPOINT_DIR", checkpoint_dir):
+            with patch("services.api.routers.command.governor") as mock_governor:
+                response = client.post(
+                    "/command/rollback",
+                    headers=auth_headers,
+                    params={"file": checkpoint_file.name},
+                )
+
+                assert response.status_code == 200
+                assert response.json()["status"] == "rolled_back"
+                mock_governor.rollback.assert_called_once_with(checkpoint_file)
+
     def test_list_agents(self, client, auth_headers, patched_world):
         """Test that the /api/agents endpoint returns the correct agents."""
         response = client.get("/api/agents", headers=auth_headers)

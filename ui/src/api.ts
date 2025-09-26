@@ -896,3 +896,64 @@ export const getVariationalField = createSafeApiCall(
     baseVariationalField,
     "Failed to get quantum variational field"
 );
+
+// Two-factor authentication helpers
+export interface TwoFactorStatus {
+    enabled: boolean;
+    status: string;
+    version: number;
+    pending: boolean;
+    last_verified_at?: string | null;
+    created_at?: string | null;
+    issuer: string;
+}
+
+export interface TwoFactorSetup {
+    secret: string;
+    otpauth_url: string;
+    version: number;
+}
+
+const baseGetTwoFactorStatus = async (): Promise<TwoFactorStatus> => {
+    await ensureToken();
+    const response = await api.get<TwoFactorStatus>("/auth/2fa/status");
+    return response.data;
+};
+
+export const getTwoFactorStatus = createSafeApiCall(
+    baseGetTwoFactorStatus,
+    "Failed to fetch two-factor status",
+);
+
+const baseStartTwoFactorEnrollment = async (): Promise<TwoFactorSetup> => {
+    await ensureToken();
+    const response = await api.post<TwoFactorSetup>("/auth/2fa/setup");
+    return response.data;
+};
+
+export const startTwoFactorEnrollment = createSafeApiCall(
+    baseStartTwoFactorEnrollment,
+    "Failed to start two-factor enrollment",
+);
+
+const baseVerifyTwoFactor = async (code: string) => {
+    await ensureToken();
+    const response = await api.post<{status: string; version: number}>("/auth/2fa/verify", {code});
+    return response.data;
+};
+
+export const verifyTwoFactor = createSafeApiCall(
+    baseVerifyTwoFactor,
+    "Failed to verify two-factor code",
+);
+
+const baseDisableTwoFactor = async (code: string) => {
+    await ensureToken();
+    const response = await api.post<{status: string}>("/auth/2fa/disable", {code});
+    return response.data;
+};
+
+export const disableTwoFactor = createSafeApiCall(
+    baseDisableTwoFactor,
+    "Failed to disable two-factor authentication",
+);

@@ -9,6 +9,14 @@ The API supports two authentication methods:
 1. **Legacy Token Authentication**: Using a development token for backward compatibility
 2. **JWT-based Authentication**: Modern authentication with role-based permissions
 
+### Two-Factor Authentication (TOTP)
+
+- `POST /auth/2fa/setup`: begins enrollment and returns a base32 secret plus `otpauth://` URI.
+- `POST /auth/2fa/verify`: body `{ "code": "123456" }` to activate the secret once an authenticator code is confirmed.
+- `POST /auth/2fa/disable`: disables two-factor protection (requires a recent TOTP code when active).
+- `GET /auth/2fa/status`: returns enrollment state (`enabled`, `pending`, `version`, timestamps, issuer).
+- `POST /auth/token`: when two-factor is enabled, include an additional `totp_code` form field with the OTP value. Requests are rejected while the Alignment Governor is in shutdown or rollback mode.
+
 All authenticated endpoints require a Bearer token in the Authorization header:
 
 ```

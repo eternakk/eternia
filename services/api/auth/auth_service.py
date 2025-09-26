@@ -16,7 +16,6 @@ from .models import (
     User,
     UserRole,
     Permission,
-    Token,
     TokenData,
     UserCreate,
     UserUpdate,

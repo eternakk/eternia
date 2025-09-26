@@ -65,14 +65,20 @@ class OAuth2PasswordRequestFormTotp:
         self.totp_code = totp_code
 
 
-def _ensure_governor_permits_auth() -> None:
+def _ensure_governor_permits_auth(user: User | None = None) -> None:
+    """Ensure authentication actions are allowed for the current governor state."""
+
     governor = api_interface.governor
-    if governor.is_shutdown():
+
+    def admin_override() -> bool:
+        return bool(user and user.role == UserRole.ADMIN)
+
+    if governor.is_shutdown() and not admin_override():
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Authentication suspended while governor is in shutdown",
         )
-    if getattr(governor, "is_rollback_active", None) and governor.is_rollback_active():
+    if getattr(governor, "is_rollback_active", None) and governor.is_rollback_active() and not admin_override():
         raise HTTPException(
             status_code=status.HTTP_423_LOCKED,
             detail="Authentication paused during rollback",
@@ -87,8 +93,6 @@ async def login_for_access_token(
     """
     OAuth2 compatible token login, get an access token for future requests.
     """
-    _ensure_governor_permits_auth()
-
     user = authenticate_user(form_data.username, form_data.password)
     if not user:
         raise HTTPException(
@@ -96,6 +100,7 @@ async def login_for_access_token(
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    _ensure_governor_permits_auth(user)
     status_info = get_two_factor_status(user)
     if status_info.pending:
         raise HTTPException(
@@ -145,7 +150,7 @@ async def two_factor_status(current_user: User = Depends(get_current_active_user
 
 @router.post("/2fa/setup", response_model=TwoFactorSetupResponse)
 async def setup_two_factor(current_user: User = Depends(get_current_active_user)):
-    _ensure_governor_permits_auth()
+    _ensure_governor_permits_auth(current_user)
     payload = start_two_factor_enrollment(current_user)
     return TwoFactorSetupResponse(
         secret=payload["secret"],
@@ -156,7 +161,7 @@ async def setup_two_factor(current_user: User = Depends(get_current_active_user)
 
 @router.post("/2fa/verify")
 async def verify_two_factor(payload: TwoFactorCodeRequest, current_user: User = Depends(get_current_active_user)):
-    _ensure_governor_permits_auth()
+    _ensure_governor_permits_auth(current_user)
     if not verify_two_factor_code(current_user, payload.code):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid verification code")
     status_data = get_two_factor_status(current_user)
@@ -168,7 +173,7 @@ async def disable_two_factor_endpoint(
     payload: TwoFactorCodeRequest,
     current_user: User = Depends(get_current_active_user),
 ):
-    _ensure_governor_permits_auth()
+    _ensure_governor_permits_auth(current_user)
     status_data = get_two_factor_status(current_user)
     if status_data.enabled:
         if not validate_two_factor_code(current_user, payload.code):

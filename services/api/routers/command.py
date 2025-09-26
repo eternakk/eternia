@@ -1,4 +1,5 @@
 import logging
+import re
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
@@ -14,6 +15,45 @@ from ..schemas import CommandOut
 
 # Configure logging
 logger = logging.getLogger(__name__)
+CHECKPOINT_ROOT = CHECKPOINT_DIR.resolve()
+LOG_VALUE_MAX = 256
+
+
+def _sanitize_for_log(value: object) -> str:
+    text = str(value)
+    sanitized = re.sub(r"[\x00-\x1f\x7f]+", " ", text)
+    if len(sanitized) > LOG_VALUE_MAX:
+        return sanitized[:LOG_VALUE_MAX] + "…"
+    return sanitized
+
+
+def _resolve_checkpoint_target(file_input: str) -> Path:
+    raw_path = Path(file_input)
+
+    if ".." in raw_path.parts:
+        logger.warning("Possible path traversal attempt with file %s", _sanitize_for_log(file_input))
+        raise HTTPException(status_code=400, detail="Invalid file path")
+
+    if raw_path.is_absolute():
+        candidate = raw_path
+    else:
+        if raw_path.parent not in {Path(""), Path(".")}:
+            logger.warning("Nested checkpoint path rejected: %s", _sanitize_for_log(file_input))
+            raise HTTPException(status_code=400, detail="Invalid file path")
+        candidate = CHECKPOINT_ROOT / raw_path.name
+
+    resolved = candidate.resolve(strict=False)
+
+    if resolved.suffix not in {".json", ".bin"}:
+        raise HTTPException(status_code=400, detail="Invalid file type")
+
+    try:
+        resolved.relative_to(CHECKPOINT_ROOT)
+    except ValueError:
+        logger.warning("Checkpoint outside allowed directory: %s", _sanitize_for_log(resolved))
+        raise HTTPException(status_code=400, detail="Checkpoint outside allowed directory")
+
+    return resolved
 
 # Set up rate limiting
 limiter = Limiter(key_func=get_remote_address)
@@ -172,28 +212,10 @@ async def rollback(
     try:
         # Validate file path if provided
         if file:
-            # Prevent path traversal
-            if ".." in file or file.startswith("/") or file.startswith("\\"):
-                logger.warning(f"Possible path traversal attempt with file: {file}")
-                raise HTTPException(status_code=400, detail="Invalid file path")
-
-            # Ensure the file is in the checkpoints directory
-            file_path = Path(file)
-            if file_path.suffix not in {".json", ".bin"}:
-                raise HTTPException(status_code=400, detail="Invalid file type")
-
-            if not file_path.is_absolute():
-                target = CHECKPOINT_DIR / file_path.name
-            else:
-                try:
-                    file_path.relative_to(CHECKPOINT_DIR)
-                except ValueError:
-                    logger.warning(f"Checkpoint outside allowed directory: {file_path}")
-                    raise HTTPException(status_code=400, detail="Checkpoint outside allowed directory")
-                target = file_path
+            target = _resolve_checkpoint_target(file)
 
             if not target.exists():
-                logger.warning(f"Requested checkpoint not found: {target}")
+                logger.warning("Requested checkpoint not found: %s", _sanitize_for_log(target))
                 raise HTTPException(status_code=400, detail="Checkpoint not found")
         else:
             target = None

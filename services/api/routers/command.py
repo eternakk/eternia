@@ -1,5 +1,6 @@
 import hashlib
 import logging
+import os
 import re
 from pathlib import Path
 from typing import Dict, List, Optional, Union
@@ -18,6 +19,16 @@ from ..schemas import CommandOut
 logger = logging.getLogger(__name__)
 LOG_VALUE_MAX = 256
 SAFE_CHECKPOINT_RE = re.compile(r"^[A-Za-z0-9._-]+$")
+
+
+def _checkpoint_catalog(root: Path) -> dict[str, Path]:
+    catalog: dict[str, Path] = {}
+    if not root.exists():
+        return catalog
+    for entry in root.iterdir():
+        if entry.is_file() and entry.suffix in {".json", ".bin"}:
+            catalog[entry.name] = entry
+    return catalog
 
 
 def _fingerprint(value: str) -> str:
@@ -40,7 +51,8 @@ def _resolve_checkpoint_target(file_input: str) -> Path:
     if not file_input:
         raise HTTPException(status_code=400, detail="Invalid file path")
 
-    if not SAFE_CHECKPOINT_RE.fullmatch(file_input):
+    safe_name = os.path.basename(file_input)
+    if safe_name != file_input or not SAFE_CHECKPOINT_RE.fullmatch(safe_name):
         logger.warning(
             "Rejected checkpoint filename (fingerprint=%s)",
             _fingerprint(file_input),
@@ -48,17 +60,15 @@ def _resolve_checkpoint_target(file_input: str) -> Path:
         raise HTTPException(status_code=400, detail="Invalid file path")
 
     checkpoint_root = CHECKPOINT_DIR.resolve()
-    candidate = (checkpoint_root / file_input).resolve(strict=False)
+    catalog = _checkpoint_catalog(checkpoint_root)
 
-    if candidate.suffix not in {".json", ".bin"}:
-        raise HTTPException(status_code=400, detail="Invalid file type")
-
-    if candidate.parent != checkpoint_root:
+    candidate = catalog.get(safe_name)
+    if not candidate:
         logger.warning(
-            "Checkpoint outside allowed directory (fingerprint=%s)",
-            _fingerprint(str(candidate)),
+            "Checkpoint not present (fingerprint=%s)",
+            _fingerprint(safe_name),
         )
-        raise HTTPException(status_code=400, detail="Checkpoint outside allowed directory")
+        raise HTTPException(status_code=400, detail="Checkpoint not found")
 
     return candidate
 
@@ -173,13 +183,6 @@ async def rollback(
         # Validate file path if provided
         if file:
             target = _resolve_checkpoint_target(file)
-
-            if not target.exists():
-                logger.warning(
-                    "Requested checkpoint not found (fingerprint=%s)",
-                    _fingerprint(str(target)),
-                )
-                raise HTTPException(status_code=400, detail="Checkpoint not found")
         else:
             target = None
 

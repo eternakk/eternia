@@ -18,6 +18,7 @@ from ..schemas import CommandOut
 logger = logging.getLogger(__name__)
 CHECKPOINT_ROOT = CHECKPOINT_DIR.resolve()
 LOG_VALUE_MAX = 256
+SAFE_CHECKPOINT_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 
 
 def _fingerprint(value: str) -> str:
@@ -40,9 +41,9 @@ def _resolve_checkpoint_target(file_input: str) -> Path:
     if not file_input:
         raise HTTPException(status_code=400, detail="Invalid file path")
 
-    if Path(file_input).name != file_input or any(sep in file_input for sep in ("/", "\\")):
+    if not SAFE_CHECKPOINT_RE.fullmatch(file_input):
         logger.warning(
-            "Rejected checkpoint with path separators (fingerprint=%s)",
+            "Rejected checkpoint filename (fingerprint=%s)",
             _fingerprint(file_input),
         )
         raise HTTPException(status_code=400, detail="Invalid file path")
@@ -62,10 +63,9 @@ def _resolve_checkpoint_target(file_input: str) -> Path:
     return candidate
 
 
-def _log_safe_user(user: Union[str, User]) -> str:
-    if isinstance(user, User):
-        return _sanitize_for_log(user.username)
-    return _sanitize_for_log(user)
+def _user_fingerprint(user: Union[str, User]) -> str:
+    raw = user.username if isinstance(user, User) else str(user)
+    return _fingerprint(_sanitize_for_log(raw))
 
 # Set up rate limiting
 limiter = Limiter(key_func=get_remote_address)
@@ -162,7 +162,7 @@ async def rollback(
     if isinstance(current_user, User) and not current_user.has_permission(Permission.EXECUTE):
         logger.warning(
             "User %s attempted to rollback without permission",
-            _log_safe_user(current_user),
+            _user_fingerprint(current_user),
         )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -184,12 +184,18 @@ async def rollback(
             target = None
 
         # Log the user who performed the rollback
-        user_info = _log_safe_user(current_user)
+        user_info = _user_fingerprint(current_user)
 
         # Perform the rollback
         governor.rollback(target)
         target_label = target.name if target else "latest"
-        logger.info("System rolled back to %s by %s", target_label, user_info)
+        logger.info(
+            "System rolled back",
+            extra={
+                "target_fingerprint": _fingerprint(target_label),
+                "requested_by": user_info,
+            },
+        )
         return {"status": "rolled_back", "detail": target_label}
     except Exception as e:
         logger.error("Error during rollback: %s", _sanitize_for_log(e))
@@ -230,7 +236,7 @@ async def command(
     if isinstance(current_user, User) and not current_user.has_permission(Permission.EXECUTE):
         logger.warning(
             "User %s attempted to execute command without permission",
-            _log_safe_user(current_user),
+            _user_fingerprint(current_user),
         )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -241,11 +247,14 @@ async def command(
     valid_actions = ["pause", "resume", "shutdown", "step_reset", "emergency_stop", "step", "reset", "emergency_shutdown"]
     action = action.lower()
     if action not in valid_actions:
-        logger.warning("Invalid action attempted: %s", _sanitize_for_log(action))
+        logger.warning(
+            "Invalid action attempted",
+            extra={"action_fingerprint": _fingerprint(action)},
+        )
         raise HTTPException(status_code=404, detail="Unknown action")
 
     # Log the user who performed the command
-    user_info = _log_safe_user(current_user)
+    user_info = _user_fingerprint(current_user)
 
     # Initialize command_status variable to ensure it's always defined
     command_status = "unknown"
@@ -257,7 +266,7 @@ async def command(
                 # Save pause state immediately
                 save_governor_state(shutdown=False, paused=True)
                 command_status = "paused"
-                logger.info("System paused by %s", user_info)
+                logger.info("System paused", extra={"requested_by": user_info})
             case "resume":
                 # If the simulation was shutdown, we need to reset the shutdown flag
                 if governor.is_shutdown():
@@ -268,38 +277,40 @@ async def command(
                 # Clear both shutdown and pause states
                 save_governor_state(shutdown=False, paused=False)
                 command_status = "running"
-                logger.info("System resumed by %s", user_info)
+                logger.info("System resumed", extra={"requested_by": user_info})
             case "shutdown":
                 governor.shutdown("user request")
                 # Save shutdown state immediately
                 save_governor_state(shutdown=True, paused=False)
                 command_status = "shutdown"
-                logger.info("System shutdown initiated by %s", user_info)
+                logger.info("System shutdown initiated", extra={"requested_by": user_info})
                 return {"status": command_status, "detail": "server will stop world loop"}
             case "step_reset" | "step":
                 # Reset the cycle count to start from the beginning
                 world.eterna.runtime.cycle_count = 0
                 command_status = "step_reset"
-                logger.info("Step counter reset by %s", user_info)
+                logger.info("Step counter reset", extra={"requested_by": user_info})
             case "reset":
                 # Reset the cycle count to start from the beginning
                 world.eterna.runtime.cycle_count = 0
                 command_status = "reset"
-                logger.info("Step counter reset by %s", user_info)
+                logger.info("Step counter reset", extra={"requested_by": user_info})
             case "emergency_stop" | "emergency_shutdown":
                 governor.shutdown("emergency stop requested")
                 # Save shutdown state immediately
                 save_governor_state(shutdown=True, paused=False)
                 command_status = "emergency_stopped"
-                logger.info("Emergency stop initiated by %s", user_info)
+                logger.info("Emergency stop initiated", extra={"requested_by": user_info})
                 return {"status": command_status, "detail": "emergency stop initiated, server will stop world loop"}
 
         return {"status": command_status, "detail": None}
     except Exception as e:
         logger.error(
-            "Error executing command %s: %s",
-            _sanitize_for_log(action),
-            _sanitize_for_log(e),
+            "Error executing command",
+            extra={
+                "action_fingerprint": _fingerprint(action),
+                "error": _sanitize_for_log(e),
+            },
         )
         raise HTTPException(
             status_code=500, detail=f"Failed to execute command {action}"

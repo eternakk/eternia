@@ -35,8 +35,8 @@ describe("SceneRenderer", () => {
   it("uses scene defaults when overrides are not provided", () => {
     mockUseSceneRenderConfig.mockReturnValue({ frameloop: "demand", dpr: [1, 1.5] });
     mockUseSceneCamera.mockReturnValue({
-      position: [2, 4, 6],
-      target: [0, 1.25, 0],
+      position: [2, 4, 6] as [number, number, number],
+      target: [0, 1.25, 0] as [number, number, number],
       fov: 40,
       near: 0.1,
       far: 120,
@@ -60,7 +60,12 @@ describe("SceneRenderer", () => {
   });
 
   it("respects overrides for camera and render config", () => {
-    const customCamera = { position: [1, 1, 1], fov: 60, near: 0.5, far: 300 };
+    const customCamera = {
+      position: [1, 1, 1] as [number, number, number],
+      fov: 60,
+      near: 0.5,
+      far: 300,
+    };
     mockUseSceneRenderConfig.mockReturnValue({ frameloop: "demand", dpr: [1, 1.5] });
     mockUseSceneCamera.mockReturnValue({
       position: [0, 0, 0],

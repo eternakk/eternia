@@ -30,8 +30,9 @@ export function SceneRenderer({
 
   const resolvedCamera = useMemo<CanvasProps["camera"]>(() => {
     if (camera) return camera;
+    const [x, y, z] = cameraConfig.position;
     return {
-      position: cameraConfig.position,
+      position: [x, y, z] as [number, number, number],
       fov: cameraConfig.fov,
       near: cameraConfig.near,
       far: cameraConfig.far,

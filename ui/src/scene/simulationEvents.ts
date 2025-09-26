@@ -117,7 +117,11 @@ function toTimestamp(value: number | undefined): number {
 
 export function normalizeSimulationEvent(event: GovEvent): SimulationEvent {
   const timestamp = toTimestamp(event.t);
-  const payload = event.payload as Record<string, unknown> | null | undefined;
+  const rawPayload = event.payload;
+  const payload =
+    typeof rawPayload === "object" && rawPayload !== null
+      ? (rawPayload as Record<string, unknown>)
+      : null;
 
   switch (event.event) {
     case "zone_changed": {
@@ -162,7 +166,8 @@ export function normalizeSimulationEvent(event: GovEvent): SimulationEvent {
         kind: "governor.rollback_complete",
         timestamp,
         raw: event,
-        checkpoint: payload ? asString(payload) : asString(payload?.checkpoint) ?? null,
+        checkpoint:
+          typeof rawPayload === "string" ? rawPayload : asString(payload?.checkpoint) ?? null,
       };
     case "continuity_breach":
       return {
@@ -178,7 +183,7 @@ export function normalizeSimulationEvent(event: GovEvent): SimulationEvent {
         kind: "governor.checkpoint_saved",
         timestamp,
         raw: event,
-        path: payload ? asString(payload) : asString(payload?.path) ?? null,
+        path: typeof rawPayload === "string" ? rawPayload : asString(payload?.path) ?? null,
       };
     case "policy_violation":
       return {

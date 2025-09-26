@@ -1,4 +1,5 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 import ZoneEventOverlay from "../components/ZoneEventOverlay";
 
 const hoverEvent = (zone: string, tooltip?: string | null, modifiers: string[] = []) =>

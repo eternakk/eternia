@@ -26,7 +26,7 @@ describe("normalizeSimulationEvent", () => {
 
   it("returns unknown wrapper for unhandled events", () => {
     const raw: GovEvent = {
-      t: undefined,
+      t: Number.NaN,
       event: "mystery_event",
       payload: { mystery: true },
     };

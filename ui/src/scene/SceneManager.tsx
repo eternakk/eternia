@@ -218,15 +218,17 @@ export function SceneManagerProvider({ children, initialState }: SceneManagerPro
 
       if (!next) return prev;
 
-      if (next.activeZone && next.zones.has(next.activeZone)) {
-        return next;
+      const ensuredNext = next as SceneRealtimeState;
+
+      if (ensuredNext.activeZone && ensuredNext.zones.has(ensuredNext.activeZone)) {
+        return ensuredNext;
       }
 
       if (latestByKind.has("zone.changed")) {
-        next.activeZone = (latestByKind.get("zone.changed") as SimulationEvent & { kind: "zone.changed" }).zoneName;
+        ensuredNext.activeZone = (latestByKind.get("zone.changed") as SimulationEvent & { kind: "zone.changed" }).zoneName;
       }
 
-      return next;
+      return ensuredNext;
     });
   }, [events, latestByKind]);
 

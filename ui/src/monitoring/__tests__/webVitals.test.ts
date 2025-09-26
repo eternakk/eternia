@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { initWebVitals } from "../webVitals";
 
 class MockPerformanceObserver {

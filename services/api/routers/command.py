@@ -16,7 +16,6 @@ from ..schemas import CommandOut
 
 # Configure logging
 logger = logging.getLogger(__name__)
-CHECKPOINT_ROOT = CHECKPOINT_DIR.resolve()
 LOG_VALUE_MAX = 256
 SAFE_CHECKPOINT_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 
@@ -48,12 +47,13 @@ def _resolve_checkpoint_target(file_input: str) -> Path:
         )
         raise HTTPException(status_code=400, detail="Invalid file path")
 
-    candidate = CHECKPOINT_ROOT / file_input
+    checkpoint_root = CHECKPOINT_DIR.resolve()
+    candidate = (checkpoint_root / file_input).resolve(strict=False)
 
     if candidate.suffix not in {".json", ".bin"}:
         raise HTTPException(status_code=400, detail="Invalid file type")
 
-    if candidate.parent != CHECKPOINT_ROOT:
+    if candidate.parent != checkpoint_root:
         logger.warning(
             "Checkpoint outside allowed directory (fingerprint=%s)",
             _fingerprint(str(candidate)),
@@ -197,6 +197,8 @@ async def rollback(
             },
         )
         return {"status": "rolled_back", "detail": target_label}
+    except HTTPException as http_exc:
+        raise http_exc
     except Exception as e:
         logger.error("Error during rollback: %s", _sanitize_for_log(e))
         raise HTTPException(status_code=500, detail="Failed to roll back system state")

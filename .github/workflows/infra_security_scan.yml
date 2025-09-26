@@ -1,0 +1,46 @@
+name: Infrastructure Security Scans
+
+on:
+  push:
+    branches: [ main, master, develop ]
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/infra_security_scan.yml'
+  pull_request:
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/infra_security_scan.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tfsec:
+    name: tfsec (Terraform static analysis)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run tfsec
+        uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          working_directory: ./terraform
+          soft_fail: false
+          additional_args: --minimum-severity HIGH
+
+  checkov:
+    name: Checkov (Infrastructure as Code scan)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Checkov on terraform/
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: terraform
+          framework: terraform
+          quiet: true
+          output_format: cli

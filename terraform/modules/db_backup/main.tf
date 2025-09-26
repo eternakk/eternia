@@ -53,9 +53,71 @@ variable "use_rds" {
   default     = false
 }
 
+# Additional security/compliance variables
+variable "s3_log_bucket" {
+  description = "S3 bucket for access logs"
+  type        = string
+}
+
+variable "kms_key_id" {
+  description = "KMS key ID/ARN for S3 default encryption"
+  type        = string
+}
+
+variable "replication_role_arn" {
+  description = "IAM role ARN for S3 replication"
+  type        = string
+}
+
+variable "replication_destination_bucket_arn" {
+  description = "Destination bucket ARN for cross-region replication"
+  type        = string
+}
+
+variable "lambda_subnet_ids" {
+  description = "Private subnet IDs for Lambda VPC config"
+  type        = list(string)
+}
+
+variable "lambda_security_group_ids" {
+  description = "Security group IDs for Lambda VPC config"
+  type        = list(string)
+}
+
+variable "lambda_code_signing_config_arn" {
+  description = "Lambda code signing configuration ARN"
+  type        = string
+}
+
+variable "lambda_dlq_target_arn" {
+  description = "ARN of the DLQ (SNS/SQS) for Lambda"
+  type        = string
+}
+
+variable "lambda_reserved_concurrent_executions" {
+  description = "Reserved concurrency limit for Lambda"
+  type        = number
+  default     = 5
+}
+
+variable "lambda_env_kms_key_arn" {
+  description = "KMS key ARN for encrypting Lambda environment variables"
+  type        = string
+}
+
+variable "sns_kms_key_id" {
+  description = "KMS key ID/ARN for SNS topic encryption"
+  type        = string
+}
+
 # S3 bucket for database backups
 resource "aws_s3_bucket" "db_backup_bucket" {
   bucket = "${var.backup_bucket_name}-${var.environment}"
+
+  logging {
+    target_bucket = var.s3_log_bucket
+    target_prefix = "${var.app_name}/db-backups/"
+  }
 
   tags = {
     Name        = "Eternia Database Backups"
@@ -83,23 +145,30 @@ resource "aws_s3_bucket_lifecycle_configuration" "db_backup_lifecycle" {
     expiration {
       days = var.backup_retention_days
     }
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
   }
 }
 
-# S3 bucket server-side encryption
+# S3 bucket server-side encryption (KMS)
 resource "aws_s3_bucket_server_side_encryption_configuration" "db_backup_encryption" {
   bucket = aws_s3_bucket.db_backup_bucket.id
 
   rule {
+    bucket_key_enabled = true
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = var.kms_key_id
     }
   }
 }
 
 # SNS topic for backup notifications
 resource "aws_sns_topic" "db_backup_notifications" {
-  name = "${var.app_name}-db-backup-notifications-${var.environment}"
+  name              = "${var.app_name}-db-backup-notifications-${var.environment}"
+  kms_master_key_id = var.sns_kms_key_id
 }
 
 # SNS subscription for email notifications
@@ -161,7 +230,12 @@ resource "aws_iam_policy" "db_backup_lambda_policy" {
           "logs:PutLogEvents"
         ]
         Effect   = "Allow"
-        Resource = "arn:aws:logs:*:*:*"
+        Resource = [
+          aws_cloudwatch_log_group.db_backup_lambda_logs.arn,
+          "${aws_cloudwatch_log_group.db_backup_lambda_logs.arn}:*",
+          aws_cloudwatch_log_group.db_backup_verification_lambda_logs.arn,
+          "${aws_cloudwatch_log_group.db_backup_verification_lambda_logs.arn}:*"
+        ]
       }
     ]
   })
@@ -178,11 +252,28 @@ resource "aws_lambda_function" "db_backup_lambda" {
   function_name    = "${var.app_name}-db-backup-${var.environment}"
   role             = aws_iam_role.db_backup_lambda_role.arn
   handler          = "backup_handler.lambda_handler"
-  runtime          = "python3.9"
+  runtime          = "python3.12"
   timeout          = 300
   memory_size      = 512
   filename         = "${path.module}/lambda/db_backup_lambda.zip"
   source_code_hash = filebase64sha256("${path.module}/lambda/db_backup_lambda.zip")
+
+  tracing_config {
+    mode = "Active"
+  }
+
+  vpc_config {
+    subnet_ids         = var.lambda_subnet_ids
+    security_group_ids = var.lambda_security_group_ids
+  }
+
+  dead_letter_config {
+    target_arn = var.lambda_dlq_target_arn
+  }
+
+  reserved_concurrent_executions = var.lambda_reserved_concurrent_executions
+  code_signing_config_arn        = var.lambda_code_signing_config_arn
+  kms_key_arn                    = var.lambda_env_kms_key_arn
 
   environment {
     variables = {
@@ -225,11 +316,28 @@ resource "aws_lambda_function" "db_backup_verification_lambda" {
   function_name    = "${var.app_name}-db-backup-verification-${var.environment}"
   role             = aws_iam_role.db_backup_lambda_role.arn
   handler          = "verification_handler.lambda_handler"
-  runtime          = "python3.9"
+  runtime          = "python3.12"
   timeout          = 300
   memory_size      = 512
   filename         = "${path.module}/lambda/db_backup_verification_lambda.zip"
   source_code_hash = filebase64sha256("${path.module}/lambda/db_backup_verification_lambda.zip")
+
+  tracing_config {
+    mode = "Active"
+  }
+
+  vpc_config {
+    subnet_ids         = var.lambda_subnet_ids
+    security_group_ids = var.lambda_security_group_ids
+  }
+
+  dead_letter_config {
+    target_arn = var.lambda_dlq_target_arn
+  }
+
+  reserved_concurrent_executions = var.lambda_reserved_concurrent_executions
+  code_signing_config_arn        = var.lambda_code_signing_config_arn
+  kms_key_arn                    = var.lambda_env_kms_key_arn
 
   environment {
     variables = {
@@ -276,4 +384,118 @@ output "backup_sns_topic_arn" {
 output "backup_schedule" {
   description = "The schedule for database backups"
   value       = var.backup_schedule
+}
+# S3 public access block for the backup bucket
+resource "aws_s3_bucket_public_access_block" "db_backup_bucket_pab" {
+  bucket = aws_s3_bucket.db_backup_bucket.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# Enforce bucket owner as object owner to disable ACLs
+resource "aws_s3_bucket_ownership_controls" "db_backup_bucket_ownership" {
+  bucket = aws_s3_bucket.db_backup_bucket.id
+
+  rule {
+    object_ownership = "BucketOwnerEnforced"
+  }
+}
+
+# Require SSL for all requests to the backup bucket
+resource "aws_s3_bucket_policy" "db_backup_bucket_ssl_policy" {
+  bucket = aws_s3_bucket.db_backup_bucket.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid    = "DenyInsecureTransport",
+        Effect = "Deny",
+        Principal = "*",
+        Action   = "s3:*",
+        Resource = [
+          aws_s3_bucket.db_backup_bucket.arn,
+          "${aws_s3_bucket.db_backup_bucket.arn}/*"
+        ],
+        Condition = {
+          Bool = { "aws:SecureTransport" = "false" }
+        }
+      }
+    ]
+  })
+}
+
+# S3 bucket cross-region replication configuration
+resource "aws_s3_bucket_replication_configuration" "db_backup_replication" {
+  bucket = aws_s3_bucket.db_backup_bucket.id
+  role   = var.replication_role_arn
+
+  rule {
+    id     = "crr"
+    status = "Enabled"
+
+    destination {
+      bucket        = var.replication_destination_bucket_arn
+      storage_class = "STANDARD"
+    }
+  }
+}
+# CloudWatch Log Groups for Lambda functions
+resource "aws_cloudwatch_log_group" "db_backup_lambda_logs" {
+  name              = "/aws/lambda/${aws_lambda_function.db_backup_lambda.function_name}"
+  retention_in_days = 365
+  kms_key_id        = aws_kms_key.cloudwatch_logs.arn
+}
+
+resource "aws_cloudwatch_log_group" "db_backup_verification_lambda_logs" {
+  name              = "/aws/lambda/${aws_lambda_function.db_backup_verification_lambda.function_name}"
+  retention_in_days = 365
+  kms_key_id        = aws_kms_key.cloudwatch_logs.arn
+}
+
+# KMS key for encrypting CloudWatch Log Groups for DB backup Lambdas
+data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
+
+resource "aws_kms_key" "cloudwatch_logs" {
+  description         = "KMS key for encrypting CloudWatch Log Groups for DB backup Lambdas"
+  enable_key_rotation = true
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "AllowRootAccountAdministrators"
+        Effect    = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action   = "kms:*"
+        Resource = "*"
+      },
+      {
+        Sid    = "AllowCloudWatchLogs"
+        Effect = "Allow"
+        Principal = {
+          Service = "logs.${data.aws_region.current.name}.amazonaws.com"
+        }
+        Action = [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*",
+          "kms:DescribeKey"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+
+  tags = {
+    Name        = "${var.app_name}-cloudwatch-logs-kms-${var.environment}"
+    Environment = var.environment
+  }
 }

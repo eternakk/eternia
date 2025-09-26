@@ -131,13 +131,20 @@ def get_project_and_fields(client: httpx.Client, owner: str, owner_type: str, pr
     else:
         raise SystemExit("GH_OWNER_TYPE must be 'user' or 'org'")
 
+    # Choose project by title if provided and found; otherwise fall back to the first available project
     project = None
-    for n in nodes:
-        if n.get("title", "").strip().lower() == project_title.strip().lower():
-            project = n
-            break
+    title_norm = (project_title or "").strip().lower()
+    if title_norm:
+        for n in nodes:
+            if n.get("title", "").strip().lower() == title_norm:
+                project = n
+                break
     if not project:
-        raise SystemExit(f"Project titled '{project_title}' not found under {owner_type} '{owner}'.")
+        if nodes:
+            project = nodes[0]
+            print(f"[info] Project titled '{project_title}' not found or not provided; defaulting to first project: '{project.get('title')}' (# {project.get('number')}).")
+        else:
+            raise SystemExit(f"No Projects v2 found under {owner_type} '{owner}'.")
 
     # Find Status field and option map
     status_field = None
@@ -239,8 +246,12 @@ def main() -> int:
     dry_run = env_bool("DRY_RUN", False)
 
     if not token or not owner or not owner_type:
-        print("error: GH_TOKEN, GH_OWNER, GH_OWNER_TYPE are required in env.")
-        return 2
+        if env_bool("DRY_RUN", False):
+            print("[dry-run] GH_TOKEN/GH_OWNER/GH_OWNER_TYPE not set; proceeding without network calls.")
+        else:
+            print("error: GH_TOKEN, GH_OWNER, GH_OWNER_TYPE are required in env.")
+            return 2
+
 
     tasks = parse_markdown_tasks(files)
     # De-duplicate by title (keep last occurrence)
@@ -250,6 +261,24 @@ def main() -> int:
 
     if not task_map:
         print("No tasks found to sync.")
+        return 0
+
+    # If DRY_RUN, avoid any network calls and only print the plan
+    if dry_run:
+        todos = [t for t, d in task_map.items() if not d]
+        dones = [t for t, d in task_map.items() if d]
+        print("[dry-run] Parsed tasks from:")
+        for p in files:
+            print(f"  - {p}")
+        print(f"[dry-run] Would set {len(dones)} tasks to Done and {len(todos)} to To do")
+        if dones:
+            print("[dry-run] Done tasks:")
+            for t in dones:
+                print(f"  - {t}")
+        if todos:
+            print("[dry-run] To do tasks:")
+            for t in todos:
+                print(f"  - {t}")
         return 0
 
     headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
@@ -277,14 +306,13 @@ def main() -> int:
             if key in existing:
                 item_id = existing[key]
                 print(f"[update] {title} -> {'Done' if done else 'To do'}")
-                if not dry_run:
-                    set_status(client, project_id, item_id, status_field_id, desired_option)
+                set_status(client, project_id, item_id, status_field_id, desired_option)
                 updated += 1
             else:
                 print(f"[create] {title} -> {'Done' if done else 'To do'}")
-                if not dry_run:
-                    item_id = add_draft_item(client, project_id, title)
-                    set_status(client, project_id, item_id, status_field_id, desired_option)
+                item_id = add_draft_item(client, project_id, title)
+                set_status(client, project_id, item_id, status_field_id, desired_option)
+
                 created += 1
 
         print(f"Sync complete. Created: {created}, Updated: {updated}")

@@ -69,6 +69,10 @@ class User(BaseModel):
     is_active: bool = Field(default=True, description="Whether the user is active")
     created_at: datetime = Field(default_factory=datetime.utcnow, description="When the user was created")
     last_login: Optional[datetime] = Field(default=None, description="When the user last logged in")
+    two_factor_enabled: bool = Field(default=False, description="Whether two-factor auth is active")
+    two_factor_confirmed_at: Optional[datetime] = Field(default=None, description="When two-factor was confirmed")
+    two_factor_last_verified_at: Optional[datetime] = Field(default=None, description="Last successful TOTP verification")
+    two_factor_version: int = Field(default=0, description="Incremented when a new secret is enrolled")
 
     @field_validator("username")
     def validate_username(cls, v):
@@ -159,6 +163,7 @@ class UserUpdate(BaseModel):
     password: Optional[str] = Field(default=None, min_length=8, description="New password")
     role: Optional[UserRole] = Field(default=None, description="New role")
     is_active: Optional[bool] = Field(default=None, description="New active status")
+    two_factor_enabled: Optional[bool] = Field(default=None, description="Override two-factor flag (admin only)")
 
     @field_validator('password')
     def password_strength(cls, v):
@@ -175,6 +180,7 @@ class UserResponse(BaseModel):
     is_active: bool = Field(..., description="Whether the user is active")
     created_at: datetime = Field(..., description="When the user was created")
     last_login: Optional[datetime] = Field(default=None, description="When the user last logged in")
+    two_factor_enabled: bool = Field(default=False, description="Whether two-factor auth is active")
 
     @field_validator("created_at")
     def validate_created_at(cls, v):
@@ -189,3 +195,23 @@ class UserResponse(BaseModel):
         if v is not None and v > datetime.utcnow():
             raise ValueError("Last login time cannot be in the future")
         return v
+
+
+class TwoFactorSetupResponse(BaseModel):
+    secret: str = Field(..., min_length=16, description="Base32 encoded TOTP secret")
+    otpauth_url: str = Field(..., description="otpauth provisioning URI for authenticator apps")
+    version: int = Field(..., ge=1, description="Secret rotation version")
+
+
+class TwoFactorCodeRequest(BaseModel):
+    code: str = Field(..., min_length=6, max_length=8, description="One-time password from authenticator")
+
+
+class TwoFactorStatusResponse(BaseModel):
+    enabled: bool
+    status: str
+    version: int
+    pending: bool
+    last_verified_at: Optional[str] = None
+    created_at: Optional[str] = None
+    issuer: str = Field(default="Eternia Mission-Control", description="Issuer label for authenticator apps")

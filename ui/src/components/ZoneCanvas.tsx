@@ -1,15 +1,18 @@
-import {Canvas} from "@react-three/fiber";
-import {Environment, OrbitControls, useGLTF} from "@react-three/drei";
+import {Environment, OrbitControls, useCursor, useGLTF} from "@react-three/drei";
 import {memo, Suspense, useCallback, useEffect, useMemo, useRef, useState} from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
 import {Bloom, EffectComposer} from "@react-three/postprocessing";
 import {useErrorHandler} from "../utils/errorHandling";
 import {useCurrentZone, useWorldState, useZoneModifiers} from "../contexts/WorldStateContext";
 import {getZoneAssets} from "../api";
+import {SceneRenderer, useSceneLighting, useSceneManager, buildTooltip, getZoneAssetDefinition} from "../scene";
 
 // Define types for better type safety
 interface Assets {
     model?: string;
     skybox?: string;
+    tooltip?: string;
+    tags?: string[];
 }
 
 // Move Model component outside of Scene for better performance
@@ -24,12 +27,18 @@ const Scene = memo(({
                         assets,
                         emotion,
                         intensity,
-                        modifiers = []
+                        modifiers = [],
+                        ambientBase,
+                        onHoverChange,
+                        zoneName,
                     }: {
     assets: Assets;
     emotion: string | null;
     intensity: number;
     modifiers?: string[];
+    ambientBase: number;
+    onHoverChange?: (tooltip: string | null) => void;
+    zoneName: string | null;
 }) => {
     // Memoize the tint color calculation
     const tint = useMemo(() => {
@@ -81,11 +90,58 @@ const Scene = memo(({
         }
     }, [modifiers, visualEffects]);
 
+    const ambientIntensity = ambientBase + intensity * 0.05 + (visualEffects.luminousCascade ? 0.2 : 0);
+
+    const [hovered, setHovered] = useState(false);
+    useCursor(hovered);
+
+    const handlePointerOver = useCallback((event: ReactPointerEvent) => {
+        event.stopPropagation();
+        setHovered(true);
+        onHoverChange?.(assets.tooltip ?? null);
+        if (zoneName) {
+            window.dispatchEvent(new CustomEvent("eternia:zone-hover", {
+                detail: {
+                    zone: zoneName,
+                    modifiers,
+                    tooltip: assets.tooltip ?? null,
+                },
+            }));
+        }
+    }, [assets.tooltip, modifiers, onHoverChange, zoneName]);
+
+    const handlePointerOut = useCallback((event: ReactPointerEvent) => {
+        event.stopPropagation();
+        setHovered(false);
+        onHoverChange?.(null);
+        if (zoneName) {
+            window.dispatchEvent(new CustomEvent("eternia:zone-hover", {
+                detail: {
+                    zone: zoneName,
+                    modifiers,
+                    tooltip: null,
+                },
+            }));
+        }
+    }, [modifiers, onHoverChange, zoneName]);
+
+    const handlePointerDown = useCallback((event: ReactPointerEvent) => {
+        event.stopPropagation();
+        if (zoneName) {
+            window.dispatchEvent(new CustomEvent("eternia:zone-clicked", {
+                detail: {
+                    zone: zoneName,
+                    modifiers,
+                },
+            }));
+        }
+    }, [zoneName, modifiers]);
+
     return (
-        <>
+        <group onPointerOver={handlePointerOver} onPointerOut={handlePointerOut} onPointerDown={handlePointerDown}>
             {/* Base lighting adjusted by emotion and modifiers */}
             <ambientLight
-                intensity={0.4 + intensity * 0.05 + (visualEffects.luminousCascade ? 0.2 : 0)}
+                intensity={ambientIntensity}
                 color={tint}
             />
 
@@ -93,7 +149,7 @@ const Scene = memo(({
             {visualEffects.volcanicSurge && (
                 <directionalLight
                     position={[5, 5, 5]}
-                    intensity={1.5}
+                    intensity={1.5 + ambientBase * 0.2}
                     color="#ff4500"
                 />
             )}
@@ -102,7 +158,7 @@ const Scene = memo(({
             {visualEffects.harmonicResonance && (
                 <pointLight
                     position={[0, 2, 0]}
-                    intensity={1.2}
+                    intensity={1.2 + ambientBase * 0.3}
                     color="#7df9ff"
                     distance={10}
                 />
@@ -117,7 +173,7 @@ const Scene = memo(({
                 {assets.skybox && <Environment files={assets.skybox} background/>}
                 {assets.model && <Model modelUrl={assets.model}/>}
             </Suspense>
-        </>
+        </group>
     );
 });
 
@@ -202,12 +258,14 @@ const ZoneDetails = ({
                          zoneName,
                          modifiers,
                          emotion,
-                         onClose
+                         onClose,
+                         tooltip
                      }: {
     zoneName: string;
     modifiers: string[];
     emotion: string | null;
     onClose: () => void;
+    tooltip?: string;
 }) => {
     const [localEmotion, setLocalEmotion] = useState<string | null>(emotion);
 
@@ -263,6 +321,13 @@ const ZoneDetails = ({
                     <div><strong>Complexity</strong>: N/A</div>
                 </div>
 
+                {tooltip && (
+                    <div className="mb-4">
+                        <h3 className="font-semibold mb-2">Narrative Context</h3>
+                        <p className="text-gray-700 whitespace-pre-line text-sm">{tooltip}</p>
+                    </div>
+                )}
+
                 <div className="mb-4">
                     <h3 className="font-semibold mb-2">Emotion</h3>
                     <div
@@ -315,16 +380,24 @@ const ZoneCanvas = () => {
     const [assets, setAssets] = useState<Assets | null>(null);
     const errorHandlerResult = useErrorHandler();
     const handleApiError = errorHandlerResult?.handleApiError ?? ((error: unknown, message?: string) => console.error(message, error));
+    const { setActiveZone, realtime } = useSceneManager();
+    const lighting = useSceneLighting();
 
     // State for zone details modal
     const [showZoneDetails, setShowZoneDetails] = useState(false);
     const [lastMovedZone, setLastMovedZone] = useState<string | null>(null);
+    const [hoverTooltip, setHoverTooltip] = useState<string | null>(null);
 
     // Create a ref for the container element to attach click handler
     const containerRef = useRef<HTMLDivElement>(null);
 
     // Create a ref to store the cache
     const assetsCache = useRef<Record<string, Assets>>({});
+    const realtimeRef = useRef(realtime);
+
+    useEffect(() => {
+        realtimeRef.current = realtime;
+    }, [realtime]);
 
     // Store the previous zone to detect changes
     const prevZoneRef = useRef<string | null>(null);
@@ -368,13 +441,19 @@ const ZoneCanvas = () => {
         try {
             console.log(`Fetching assets for zone: ${zone}`);
             const zoneAssets = await getZoneAssets(zone);
-            if (zoneAssets) {
-                // Store the assets in the cache
-                assetsCache.current[zone] = zoneAssets;
-                setAssets(zoneAssets);
-            } else {
+            const manifest = getZoneAssetDefinition(zone);
+            const merged: Assets = {
+                model: zoneAssets?.model ?? manifest.model,
+                skybox: zoneAssets?.skybox ?? manifest.skybox,
+                tooltip: buildTooltip(zone, realtimeRef.current),
+                tags: manifest.tags,
+            };
+            if (!merged.model && !merged.skybox) {
                 throw new Error(`No assets found for zone: ${zone}`);
             }
+            // Store the assets in the cache
+            assetsCache.current[zone] = merged;
+            setAssets(merged);
         } catch (error) {
             handleApiError(error, `Failed to load assets for zone: ${zone}`);
             setAssets(null);
@@ -398,6 +477,25 @@ const ZoneCanvas = () => {
         }
     }, [currentZone, fetchAssets]);
 
+    useEffect(() => {
+        setActiveZone(currentZone ?? null);
+    }, [currentZone, setActiveZone]);
+
+    const realtimeZone = useMemo(() => {
+        if (currentZone && realtime.zones.has(currentZone)) {
+            return realtime.zones.get(currentZone) ?? undefined;
+        }
+        if (!currentZone && realtime.activeZone && realtime.zones.has(realtime.activeZone)) {
+            return realtime.zones.get(realtime.activeZone) ?? undefined;
+        }
+        return undefined;
+    }, [currentZone, realtime.activeZone, realtime.zones]);
+
+    const realtimeModifiers = useMemo(() => {
+        if (!realtimeZone) return [] as string[];
+        return Array.from(realtimeZone.modifiers);
+    }, [realtimeZone]);
+
     // Create a stable reference to emotion, identityScore, and modifiers
     const emotionRef = useRef(emotion);
     const identityScoreRef = useRef(identityScore);
@@ -412,16 +510,29 @@ const ZoneCanvas = () => {
         identityScoreRef.current = identityScore;
     }, [identityScore]);
 
-    // Update modifiers ref when currentZone changes
+    // Update modifiers ref when zone changes or realtime events arrive
     useEffect(() => {
-        if (currentZone) {
-            const zoneModifiers = getModifiersForZone(currentZone);
-            modifiersRef.current = zoneModifiers;
-            console.log(`ZoneCanvas: Updated modifiers for ${currentZone}:`, zoneModifiers);
-        } else {
-            modifiersRef.current = [];
+        const zoneKey = currentZone ?? realtimeZone?.name ?? null;
+        const staticModifiers = zoneKey ? getModifiersForZone(zoneKey) ?? [] : [];
+        const combined = Array.from(new Set([...(staticModifiers ?? []), ...realtimeModifiers]));
+        modifiersRef.current = combined;
+        if (zoneKey) {
+            console.log(`ZoneCanvas: Updated modifiers for ${zoneKey}:`, combined);
         }
-    }, [currentZone, getModifiersForZone]);
+    }, [currentZone, getModifiersForZone, realtimeModifiers, realtimeZone?.name]);
+
+    useEffect(() => {
+        const zoneKey = currentZone ?? realtimeZone?.name;
+        if (!zoneKey) return;
+        if (assetsCache.current[zoneKey]) {
+            const updatedTooltip = buildTooltip(zoneKey, realtime);
+            assetsCache.current[zoneKey] = {
+                ...assetsCache.current[zoneKey],
+                tooltip: updatedTooltip,
+            };
+            setAssets((prev) => (prev ? {...prev, tooltip: updatedTooltip} : prev));
+        }
+    }, [currentZone, realtime, realtimeZone?.name, realtimeModifiers]);
 
     // Listen for agent moved events to update overlay zone name
     useEffect(() => {
@@ -452,7 +563,7 @@ const ZoneCanvas = () => {
             const pending = localStorage.getItem('pending_move_to_zone');
             if (pending) return pending;
         } catch {}
-        return currentZone || 'Zone-α';
+        return currentZone || realtimeZone?.name || realtime.activeZone || 'Zone-α';
     })();
     const canvasComponent = useMemo(() => {
         if (!assets || !worldState) return null;
@@ -463,7 +574,7 @@ const ZoneCanvas = () => {
         const currentIdentityScore = identityScoreRef.current;
         const currentModifiers = modifiersRef.current;
 
-        const selectedZoneName = lastMovedZone || currentZone;
+        const selectedZoneName = lastMovedZone || currentZone || realtimeZone?.name || realtime.activeZone;
         return (
             <div
                 ref={containerRef}
@@ -480,23 +591,28 @@ const ZoneCanvas = () => {
                     }
                 }}
             >
-                <Canvas key={currentZone} className="h-full" frameloop="demand">
-                    <Suspense fallback={null}>
-                        <Scene
-                            assets={assets}
-                            emotion={currentEmotion}
-                            intensity={currentIdentityScore * 10}
-                            modifiers={currentModifiers}
+                <SceneRenderer
+                    canvasKey={selectedZoneName || "default"}
+                    className="h-full"
+                    frameloop="demand"
+                >
+                    <Scene
+                        assets={assets}
+                        emotion={currentEmotion}
+                        intensity={currentIdentityScore * 10}
+                        modifiers={currentModifiers}
+                        ambientBase={lighting.ambientIntensity}
+                        onHoverChange={setHoverTooltip}
+                        zoneName={selectedZoneName ?? null}
+                    />
+                    {/* emotion‑driven bloom */}
+                    <EffectComposer>
+                        <Bloom
+                            luminanceThreshold={0}
+                            luminanceSmoothing={0.9}
+                            intensity={(0.1 + currentIdentityScore * 0.8) * (lighting.exposure / 1.0)}
                         />
-                        {/* emotion‑driven bloom */}
-                        <EffectComposer>
-                            <Bloom
-                                luminanceThreshold={0}
-                                luminanceSmoothing={0.9}
-                                intensity={0.1 + currentIdentityScore * 0.8}
-                            />
-                        </EffectComposer>
-                    </Suspense>
+                    </EffectComposer>
 
                     <OrbitControls
                         enablePan={true}
@@ -506,10 +622,25 @@ const ZoneCanvas = () => {
                         minDistance={2}
                         maxDistance={10}
                     />
-                </Canvas>
+                </SceneRenderer>
 
                 {/* Overlay the legend */}
                 <ModifierLegend modifiers={currentModifiers}/>
+
+                {hoverTooltip && (
+                    <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-slate-900/80 text-white px-3 py-2 rounded text-xs max-w-md whitespace-pre-line shadow" data-testid="zone-hover-tooltip">
+                        {hoverTooltip}
+                    </div>
+                )}
+
+                {realtime.governor.isPaused && (
+                    <div
+                        className="absolute inset-x-0 top-4 mx-auto w-fit px-3 py-1 rounded bg-yellow-600/80 text-white text-sm shadow"
+                        data-testid="governor-paused-banner"
+                    >
+                        Governor pause engaged
+                    </div>
+                )}
 
                 {/* Clickable zone element overlay for tests */}
                 {selectedZoneName && (
@@ -551,12 +682,13 @@ const ZoneCanvas = () => {
                         zoneName={selectedZoneName}
                         modifiers={currentModifiers}
                         emotion={currentEmotion}
+                        tooltip={assets?.tooltip}
                         onClose={() => setShowZoneDetails(false)}
                     />
                 )}
             </div>
         );
-    }, [currentZone, assets, worldState, handleCanvasClick, lastMovedZone]);
+    }, [currentZone, assets, worldState, handleCanvasClick, lastMovedZone, lighting, realtime.activeZone, realtime.governor.isPaused, realtimeZone, hoverTooltip]);
 
     if (error) {
         return (
@@ -577,6 +709,7 @@ const ZoneCanvas = () => {
                         zoneName={selectedZoneName}
                         modifiers={modifiersRef.current}
                         emotion={emotionRef.current}
+                        tooltip={assets?.tooltip}
                         onClose={() => setShowZoneDetails(false)}
                     />
                 )}
@@ -618,6 +751,7 @@ const ZoneCanvas = () => {
                         zoneName={selectedZoneName}
                         modifiers={modifiersRef.current}
                         emotion={emotionRef.current}
+                        tooltip={assets?.tooltip}
                         onClose={() => setShowZoneDetails(false)}
                     />
                 )}
@@ -659,6 +793,7 @@ const ZoneCanvas = () => {
                         zoneName={selectedZoneName}
                         modifiers={modifiersRef.current}
                         emotion={emotionRef.current}
+                        tooltip={assets?.tooltip}
                         onClose={() => setShowZoneDetails(false)}
                     />
                 )}

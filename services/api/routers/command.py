@@ -9,6 +9,7 @@ from slowapi.util import get_remote_address
 
 from ..auth import get_current_active_user, Permission, User
 from ..deps import world, governor, save_governor_state, DEV_TOKEN
+from modules.governor import CHECKPOINT_DIR
 from ..schemas import CommandOut
 
 # Configure logging
@@ -178,10 +179,22 @@ async def rollback(
 
             # Ensure the file is in the checkpoints directory
             file_path = Path(file)
-            if not file_path.suffix == ".json":
+            if file_path.suffix not in {".json", ".bin"}:
                 raise HTTPException(status_code=400, detail="Invalid file type")
 
-            target = file_path
+            if not file_path.is_absolute():
+                target = CHECKPOINT_DIR / file_path.name
+            else:
+                try:
+                    file_path.relative_to(CHECKPOINT_DIR)
+                except ValueError:
+                    logger.warning(f"Checkpoint outside allowed directory: {file_path}")
+                    raise HTTPException(status_code=400, detail="Checkpoint outside allowed directory")
+                target = file_path
+
+            if not target.exists():
+                logger.warning(f"Requested checkpoint not found: {target}")
+                raise HTTPException(status_code=400, detail="Checkpoint not found")
         else:
             target = None
 

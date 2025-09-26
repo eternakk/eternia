@@ -4,15 +4,23 @@ Integration tests for the authentication flow.
 These tests verify the complete authentication process from token fetching to API access.
 """
 
-import pytest
-import time
 import logging
+import time
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pyotp
+import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
 
 from services.api.server import app
 from services.api.deps import DEV_TOKEN
-from services.api.auth.auth_service import verify_token, get_current_user
+from services.api.auth.auth_service import (
+    verify_token,
+    get_current_user,
+    get_user,
+    disable_two_factor,
+)
 
 # Define the test token that we're using for testing
 TEST_TOKEN = "test-token-for-authentication"
@@ -29,6 +37,18 @@ logger = logging.getLogger(__name__)
 def client():
     """Create a test client for the FastAPI app."""
     return TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def reset_two_factor_state():
+    """Ensure two-factor files do not leak between tests."""
+    admin = get_user("admin")
+    if admin:
+        disable_two_factor(admin)
+    vault_file = Path("artifacts/vault/totp_secrets.json.enc")
+    if vault_file.exists():
+        vault_file.unlink()
+    yield
 
 
 class TestAuthIntegration:
@@ -224,6 +244,69 @@ class TestAuthIntegration:
                 pass
 
         logger.info("WebSocket authentication test passed")
+
+    def test_two_factor_enrollment_flow(self, client):
+        """End-to-end two-factor enrollment, login, and disable flow."""
+
+        login_resp = client.post(
+            "/auth/token",
+            data={
+                "username": "admin",
+                "password": "Admin123!",
+                "grant_type": "password",
+            },
+        )
+        assert login_resp.status_code == 200, login_resp.text
+        jwt_token = login_resp.json()["access_token"]
+        auth_headers = {"Authorization": f"Bearer {jwt_token}"}
+
+        # Begin enrollment
+        setup_response = client.post("/auth/2fa/setup", headers=auth_headers)
+        assert setup_response.status_code == 200, setup_response.text
+        payload = setup_response.json()
+        assert "secret" in payload and "otpauth_url" in payload
+
+        totp = pyotp.TOTP(payload["secret"])
+
+        # Verify enrollment
+        verification_code = totp.now()
+        verify_response = client.post("/auth/2fa/verify", json={"code": verification_code}, headers=auth_headers)
+        assert verify_response.status_code == 200, verify_response.text
+
+        status_response = client.get("/auth/2fa/status", headers=auth_headers)
+        assert status_response.status_code == 200
+        status_payload = status_response.json()
+        assert status_payload["enabled"] is True
+
+        # Login without TOTP should fail
+        form_data = {
+            "username": "admin",
+            "password": "Admin123!",
+            "grant_type": "password",
+        }
+        login_without_totp = client.post("/auth/token", data=form_data)
+        assert login_without_totp.status_code == 401
+
+        # Login with TOTP should succeed
+        time.sleep(1)
+        login_with_totp = client.post(
+            "/auth/token",
+            data={**form_data, "totp_code": totp.now()},
+        )
+        assert login_with_totp.status_code == 200, login_with_totp.text
+
+        # Disable two-factor
+        time.sleep(1)
+        disable_response = client.post(
+            "/auth/2fa/disable",
+            json={"code": totp.now()},
+            headers=auth_headers,
+        )
+        assert disable_response.status_code == 200, disable_response.text
+
+        final_status = client.get("/auth/2fa/status", headers=auth_headers)
+        assert final_status.status_code == 200
+        assert final_status.json()["enabled"] is False
 
     def test_invalid_websocket_authentication(self, client):
         """Test WebSocket authentication with invalid token."""

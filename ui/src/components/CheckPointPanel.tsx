@@ -9,7 +9,7 @@ const CACHE_DURATION = 5 * 60 * 1000;
 
 // Helper function to parse checkpoint filename and extract information
 const parseCheckpointInfo = (filename: string) => {
-  // Example filename format: checkpoint_2023-05-15_14-30-45_0.85.json
+  // Example filename format: artifacts/checkpoints/ckpt_1758893367500.bin
   // Try to extract timestamp and continuity score from filename
   const parts = filename.split("/").pop()?.split("_") || [];
 
@@ -39,8 +39,8 @@ const parseCheckpointInfo = (filename: string) => {
   // Try to extract continuity score (usually a number between 0 and 1)
   // It might be in the last part before the extension
   if (parts.length >= 4) {
-    const lastPart = parts[parts.length - 1].split(".")[0]; // Remove file extension
-    const scoreValue = parseFloat(lastPart);
+    const extensionless = parts[parts.length - 1].split(".")[0];
+    const scoreValue = parseFloat(extensionless);
     if (!isNaN(scoreValue) && scoreValue >= 0 && scoreValue <= 1) {
       continuityScore = scoreValue;
     }

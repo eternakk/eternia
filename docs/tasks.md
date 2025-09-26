@@ -3,6 +3,110 @@
 This document contains a prioritized list of tasks for improving the Eternia project codebase. Each task is marked with
 a checkbox that can be checked off when completed.
 
+## Epic A – Immersive World Interface Subtasks
+
+### Story A1 – Render and edit Eternia in 3D
+- [x] A1.1 Review existing UI and websocket utilities to confirm integration points for the 3D scene.
+- [x] A1.2 Add Three.js/WebGL dependencies and initialize the renderer shell within the frontend build.
+- [x] A1.3 Scaffold a scene manager with default camera, lighting, and render loop bindings.
+- [x] A1.4 Implement a websocket client adapter that normalizes simulation stream payloads for scene updates.
+- [x] A1.5 Connect normalized simulation data to scene state updates and verify render loop syncing.
+- [x] A1.6 Capture implementation notes and setup steps for future implementers in project docs (extend `docs/notes_epic_a1_integration.md` with setup checklist, dependency versions, and required env vars).
+- [x] A1.7 Inventory zone, modifier, and ritual data models to map IDs to visual primitives (cross-reference `WorldStateProvider`, `useSimulationStream`, and backend schema to align realtime + REST fields).
+- [x] A1.8 Define and persist asset lookup tables for meshes, materials, and tooltip content.
+- [x] A1.9 Build geometry loaders with caching and hover detection tied to tooltip presenters.
+- [ ] A1.10 Validate overlays against sample simulation snapshots to ensure accuracy and performance.
+- [ ] A1.11 Document asset naming conventions and coordination points for the art pipeline.
+- [ ] A1.12 Map Alignment Governor REST mutations and auth requirements for terrain and physics edits.
+- [ ] A1.13 Design editor UI workflows that expose terrain sculpting and physics parameter controls safely.
+- [ ] A1.14 Implement optimistic mutation handling with rollback on governor denial responses.
+- [ ] A1.15 Add validation guards, error surfacing, and telemetry capture for editor interactions.
+- [ ] A1.16 Draft an editor usage handbook covering safety constraints and operational tips.
+- [ ] A1.17 Align snapshot schema with checkpoint storage to support undo/redo history.
+- [ ] A1.18 Create serializers that capture scene and governor references for history entries.
+- [ ] A1.19 Wire history stacks with batching/diff compaction plus UI controls for undo/redo flows.
+- [ ] A1.20 Ensure governor rollback events invalidate conflicting snapshots and add regression tests.
+
+### Story A2 – Choreograph narrative events visually
+- [ ] A2.1 Specify timeline data models covering events, emotions, and companion entrances.
+- [ ] A2.2 Design the timeline panel layout, zoom, and drag interactions for staging sequences.
+- [ ] A2.3 Implement draggable event blocks synced to simulation time and orchestration APIs.
+- [ ] A2.4 Add CRUD modals with validation for conflicting or unsafe schedules.
+- [ ] A2.5 Provide in-app guidance or tutorials that teach storytellers timeline best practices.
+- [ ] A2.6 Audit scenarios requiring cinematic overlays and define component architecture.
+- [ ] A2.7 Author style and accessibility guidelines for cinematic effects and overlays.
+- [ ] A2.8 Implement trigger listeners for overlays that respond to simulation and governor signals.
+- [ ] A2.9 Test overlays across responsive breakpoints and performance budgets, storing reusable presets.
+- [ ] A2.10 Decide storyboard export formats and metadata requirements for demo deliverables.
+- [ ] A2.11 Build capture pipelines that leverage timeline state and overlay compositions.
+- [ ] A2.12 Integrate recording controls with progress feedback and optional annotations.
+- [ ] A2.13 Generate template investor-ready exports and document storage plus limitations.
+
+## Epic B – Embodied Companion Movement
+
+### Story B1 – Enable believable companion traversal
+- [ ] B1.1 Extend backend models with position/velocity attributes and movement intents.
+- [ ] B1.2 Integrate pathfinding (navmesh/grid) and collision checks in the simulation loop.
+- [ ] B1.3 Broadcast movement updates through websocket channels with throttling.
+- [ ] B1.4 Visualize live routes and idle animations in the world interface.
+
+### Story B2 – Governor veto for unsafe movement
+- [ ] B2.1 Define safety constraints (restricted zones, hazardous modifiers) in config.
+- [ ] B2.2 Intercept movement intents, simulate outcomes, and issue allow/deny decisions.
+- [ ] B2.3 Surface governor judgments in the UI with actionable user prompts.
+
+## Epic C – Conversational Convergence
+
+### Story C1 – Unified conversation console
+- [ ] C1.1 Implement conversation bus service with persistence and rate limits.
+- [ ] C1.2 Build Mission Control chat UI supporting text, attachments, and commands.
+- [ ] C1.3 Integrate MCP agents, simulation companions, and human participants.
+
+### Story C2 – Control AI training data from conversations
+- [ ] C2.1 Capture transcripts with metadata (zone, emotional context, governor state).
+- [ ] C2.2 Add consent toggles and auditing workflow before logs enter training pipelines.
+- [ ] C2.3 Provide analytics on response latency, participation, and sentiment trends.
+
+## Epic D – Security & Trust Foundations
+
+### Story D1 – Secure realms with two-factor auth
+- [ ] D1.1 Implement TOTP enrollment/verification endpoints and UI.
+- [ ] D1.2 Store encrypted secrets in artifacts vault with rotation ceremonies.
+- [ ] D1.3 Update auth flows to respect governor shutdown/rollback states.
+
+### Story D2 – Trace sensitive actions end-to-end
+- [ ] D2.1 Introduce HMAC-signed request verification for privileged APIs.
+- [ ] D2.2 Emit structured audit logs to monitoring stack and retention policies.
+- [ ] D2.3 Add secure upload scanning with a ClamAV microservice and quarantine review queue.
+
+## Epic E – Data Intelligence & Analytics
+
+### Story E1 – Export and analyze Eternia journeys
+- [ ] E1.1 Ship data export APIs for checkpoints, conversations, and metrics.
+- [ ] E1.2 Implement validation schemas shared between backend and TypeScript clients.
+- [ ] E1.3 Stand up analytics pipeline (Kafka/Redis + Dagster/Prefect) for behavior insights.
+
+### Story E2 – Detect anomalies in real time
+- [ ] E2.1 Extend monitoring module with anomaly detection algorithms.
+- [ ] E2.2 Build Grafana dashboards and UI embeds for key metrics.
+- [ ] E2.3 Trigger governor pauses or alerts when thresholds breach narrative safety.
+
+## Epic F – Autonomic Development Enablement
+
+### Story F1 – Orchestrate MCP agents safely
+- [ ] F1.1 Package task manifests referencing `docs/tasks.md` IDs and new epics.
+- [ ] F1.2 Provide sandboxed tools (planner, implementer, security, doc writer) with revocation logic.
+- [ ] F1.3 Hook conversation bus events into planner retrospectives and backlog refinement.
+
+### Story F2 – Demo production readiness
+- [ ] F2.1 Curate demo scripts combining 3D world, conversations, and analytics dashboards.
+- [ ] F2.2 Produce funding-ready pitch materials summarizing feasibility milestones.
+- [ ] F2.3 Align deployment pipeline with security and analytics checkpoints for go-live.
+
+## GitHub Issue Backlog
+
+- [ ] Issue #12 – iklajdi issue (sample des)
+
 ## Completed Tasks
 
 [x] 4. Refactor the world_builder.py file to use a more modular approach
@@ -149,7 +253,8 @@ zone, and ritual endpoints)
 [x] 404. Set up distributed tracing across all services using OpenTelemetry
 [x] 405. Implement chaos engineering tests to verify system resilience (Completed 2025-09-23)
 [x] 406. Create runbooks for common operational tasks and incident response
-[x] 407. Implement cost optimization for cloud resources with automated reporting (scripts/cost_report.py) (Completed 2025-09-23)
+[x] 407. Implement cost optimization for cloud resources with automated reporting (scripts/cost_report.py) (Completed
+2025-09-23)
 [x] 408. Set up security scanning for dependencies and container images
 [x] 409. Implement automatic scaling based on load metrics (modules/autoscaling.py + unit tests) (Completed 2025-09-23)
 [x] 410. Set up disaster recovery procedures and regular testing (scripts/disaster_recovery.py) (Completed 2025-09-23)
@@ -172,7 +277,7 @@ zone, and ritual endpoints)
 [x] 601. Implement Content Security Policy (CSP) headers
 [x] 602. Add regular security penetration testing to CI/CD pipeline (Completed 2025-09-20)
 [x] 603. Implement JWT token rotation and revocation capabilities (Completed 2025-09-20)
-[ ] 604. Add two-factor authentication option for user accounts
+[x] 604. Add two-factor authentication option for user accounts
 [ ] 605. Implement API request signing for sensitive operations
 [ ] 606. Add comprehensive audit logging for security-relevant events
 [x] 607. Implement automated security scanning for infrastructure (Completed 2025-09-20)
@@ -182,7 +287,8 @@ zone, and ritual endpoints)
 
 ## Data Management and Analytics Tasks
 
-[x] 701. Implement data retention policies and automated cleanup (modules/retention.py + scripts/retention_job.py) (Completed 2025-09-23)
+[x] 701. Implement data retention policies and automated cleanup (modules/retention.py + scripts/retention_job.py) (
+Completed 2025-09-23)
 [ ] 702. Add data export functionality for user data
 [ ] 703. Implement analytics pipeline for user behavior tracking
 [ ] 704. Add anomaly detection for system metrics
@@ -193,43 +299,56 @@ zone, and ritual endpoints)
 [ ] 709. Implement data lineage tracking for compliance
 [ ] 710. Add machine learning pipeline for predictive analytics
 
-
 ## Next Sprint Candidates (Planning)
 
 Last updated: 2025-09-20
 
 - Infrastructure and DevOps:
-  - [x] 405. Implement chaos engineering tests to verify system resilience (Completed 2025-09-23)
-  - [x] 406. Create runbooks for common operational tasks and incident response (Completed 2025-09-17)
-  - [x] 409. Implement automatic scaling based on load metrics (Completed 2025-09-23)
-  - [x] 410. Set up disaster recovery procedures and regular testing (Completed 2025-09-23)
+    - [x] 
+        405. Implement chaos engineering tests to verify system resilience (Completed 2025-09-23)
+    - [x] 
+        406. Create runbooks for common operational tasks and incident response (Completed 2025-09-17)
+    - [x] 
+        409. Implement automatic scaling based on load metrics (Completed 2025-09-23)
+    - [x] 
+        410. Set up disaster recovery procedures and regular testing (Completed 2025-09-23)
 
 
 - Frontend:
-  - [x] 501. Implement comprehensive error boundary system with fallback UI components (Completed 2025-09-17)
-  - [x] 503. Implement performance monitoring for frontend with Core Web Vitals tracking (Completed 2025-09-17)
-  - [x] 506. Add skeleton loading states for all async data fetching components (Completed 2025-09-17)
-  - [x] 507. Implement client-side caching strategy for API responses (Completed 2025-09-17)
-  - [ ] 509. Implement dark mode and theme customization
+    - [x] 
+        501. Implement comprehensive error boundary system with fallback UI components (Completed 2025-09-17)
+    - [x] 
+        503. Implement performance monitoring for frontend with Core Web Vitals tracking (Completed 2025-09-17)
+    - [x] 
+        506. Add skeleton loading states for all async data fetching components (Completed 2025-09-17)
+    - [x] 
+        507. Implement client-side caching strategy for API responses (Completed 2025-09-17)
 
 - Security:
-  - [x] 601. Implement Content Security Policy (CSP) headers (Completed 2025-09-17)
-  - [x] 603. Implement JWT token rotation and revocation capabilities (Completed 2025-09-20)
-  - [x] 608. Add secure coding guidelines and training for developers (Completed 2025-09-19)
+    - [x] 
+        601. Implement Content Security Policy (CSP) headers (Completed 2025-09-17)
+    - [x] 
+        603. Implement JWT token rotation and revocation capabilities (Completed 2025-09-20)
+    - [x] 
+        608. Add secure coding guidelines and training for developers (Completed 2025-09-19)
 
 
 - Data & Analytics:
-  - [x] 701. Implement data retention policies and automated cleanup (Completed 2025-09-23)
-  - [ ] 706. Add data validation layer between frontend and backend
-  - [ ] 708. Add real-time analytics dashboard for key business metrics
+    - [x] 
+        701. Implement data retention policies and automated cleanup (Completed 2025-09-23)
+    - [ ] 
+        706. Add data validation layer between frontend and backend
+    - [ ] 
+        708. Add real-time analytics dashboard for key business metrics
 
 - Quantum Integration:
-  - See docs/quantum_tasks.md for detailed Sprint 2–3 roadmap.
-  - Near-term focus (Completed 2025-09-17):
-    - [x] Implement quantum_walk(params) producing adjacency/weights (see modules/quantum_service.py)
-    - [x] Add endpoints /api/quantum/quantum-walk and /api/quantum/qaoa-optimize (see services/api/routers/quantum.py)
-    - [x] Add metrics for quantum_requests_total, entropy avg, and timeouts (see modules/monitoring.py)
+    - See docs/quantum_tasks.md for detailed Sprint 2–3 roadmap.
+    - Near-term focus (Completed 2025-09-17):
+        - [x] Implement quantum_walk(params) producing adjacency/weights (see modules/quantum_service.py)
+        - [x] Add endpoints /api/quantum/quantum-walk and /api/quantum/qaoa-optimize (see
+          services/api/routers/quantum.py)
+        - [x] Add metrics for quantum_requests_total, entropy avg, and timeouts (see modules/monitoring.py)
 
 - Cross-references:
-  - UI implementation detail plans: docs/ui_pending_tasks.md
-  - Quantum overview: docs/quantum_overview.md
+    - UI implementation detail plans: docs/ui_pending_tasks.md
+    - Quantum overview: docs/quantum_overview.md

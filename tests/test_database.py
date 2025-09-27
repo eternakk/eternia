@@ -98,7 +98,19 @@ def sample_state_data():
             "Quantum Forest": ["luminous", {"type": "temporal", "effect": "slow"}],
             "Crystal Caves": ["resonant"]
         },
-        "checkpoints": ["checkpoint_1.bin", "checkpoint_2.bin"],
+        "checkpoints": [
+            {
+                "path": "artifacts/checkpoints/ckpt_1700000000000.bin",
+                "created_at": "2023-11-14T00:00:00Z",
+                "kind": "manual",
+                "label": "Initial terrain sculpt",
+            },
+            {
+                "path": "artifacts/checkpoints/ckpt_1700003600000.bin",
+                "created_at": "2023-11-14T01:00:00Z",
+                "kind": "auto",
+            },
+        ],
         "max_memories": 100,
         "max_discoveries": 50,
         "max_explored_zones": 20,

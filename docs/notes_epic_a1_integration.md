@@ -90,3 +90,96 @@ When introducing new zones or modifiers, update both the backend manifest and th
 - Record navigator CPU/GPU traces while triggering governor pause/resume and modifier storms; store snapshots under `artifacts/perf/overlays/<date>.md` with environment info (GPU, driver, browser).
 - Define target budgets: <16ms average frame, <50ms hover-to-tooltip latency, <200ms rollback overlay activation.
 - Before shipping new cinematic overlays, run the baseline checklist and note deviations in this file so we maintain the immersive feel without dropping frames in the simulated world.
+
+### Snapshot-driven Overlay Validation (A1.10)
+
+- Sample overlays now ship with deterministic fixtures in `ui/src/__tests__/fixtures/overlaySnapshots.ts`; each entry lists canonical zones and live modifiers sourced from recorded simulation snapshots.
+- The vitest suite `npm run test -- src/__tests__/ZoneEventOverlay.snapshot.test.tsx` dispatches `eternia:zone-hover` / `eternia:zone-clicked` events derived from those fixtures and asserts that tooltips, modifiers, and dismissal flows render correctly.
+- `buildTooltip` fidelity is verified end-to-end by constructing a synthetic `SceneRealtimeState` for every fixture and ensuring the overlay reflects governor lighting cues (pause dimming, modifier highlights, etc.).
+- Add new fixtures whenever backend snapshot schemas evolve; keep one-to-one parity with stored snapshots under `artifacts/perf/overlays/` so automated validation mirrors real operator scenarios.
+
+## Asset Naming & Art Pipeline Coordination (A1.11)
+
+- Meshes: name GLTF files `zone_<slug>.glb`, where `<slug>` matches the lowercase, dash-separated zone identifier used in backend `Zone.name` (e.g., `Quantum Forest` → `zone_quantum-forest.glb`). Auxiliary variants (night, ritual, damaged) append `_variant`, keeping primary mesh untouched.
+- Skyboxes/HDRIs: store as `sky_<slug>_<lighting>.hdr` with lighting keywords (`dawn`, `noon`, `storm`) to signal tone-mapping targets. Reference these keys from `zoneAssetCatalog.ts` to avoid hard-coded paths in scene components.
+- Materials & textures live under `assets/materials/<slug>/` with filenames mirroring mesh material slots. Coordinate updates with the art pipeline by logging changes in `docs/art_pipeline_changelog.md` (create entries per sprint) and tagging affected modifiers.
+- Tooltip copy and modifier highlight strings remain the contract between design and rendering; any change to naming must update both the asset manifest and the `MODIFIER_HIGHLIGHTS` dictionary to keep scene overlays aligned with the authored lore.
+- Review cycle: art pipeline submits asset manifests (mesh + skybox + thumbnails) via pull request, referencing the zone slug and modifier coverage. Scene integrators update `zoneAssetCatalog.ts` and rerun `npm run test -- src/__tests__/ZoneEventOverlay.snapshot.test.tsx` to confirm overlays surface the new art notes.
+
+## Alignment Governor Editor Surface (A1.12)
+
+- Mutations: terrain sculpting and physics tuning rely on the `POST /command/{action}` router. Relevant governor actions include `pause`, `resume`, `step`, `step_reset`, `reset`, `shutdown`, `emergency_stop`, and `rollback`. Terrain/physics edits must wrap their mutations between `pause` and `resume` to avoid conflicting with live simulation ticks.
+- State adjustments route through `POST /command/rollback` (rollback to checkpoints) and future editor-specific endpoints under `services/api/routers/state.py` (`POST /state/apply` pending). Ensure sculpt tools capture the checkpoint filename returned from `/command/rollback` for audit trails.
+- Authentication: all `/command/*` endpoints require bearer tokens issued via the auth service. Test tokens (`test-token-for-authentication`) unlock the pipeline in staging; production editors must hold users with the `EXECUTE` permission. Requests without `EXECUTE` raise a 403 and log a sanitized fingerprint of the caller.
+- Authorization flow: editor UI should call `/auth/session` (see `services/api/auth/auth_service.py`) to confirm token validity and surface warnings before enabling destructive controls. Governor responses (`governor.pause`, `governor.policy_violation`, `governor.rollback_complete`) stream over websockets and must be mirrored in editor state to provide immediate feedback on allowed/disallowed edits.
+- Safety checklist: every mutation must (1) save a checkpoint via `governor.rollback` helpers, (2) submit a diff summary to the Alignment Governor log channel (`services/api/routers/log.py`), and (3) re-run overlay validation to ensure new terrain/physics parameters still highlight correctly in `ZoneEventOverlay`.
+
+## Editor Workflow Design (A1.13)
+
+1. **Preparation Stage**
+   - Validate operator authentication (`/auth/session`) → lock editor controls until token + `EXECUTE` role confirmed.
+   - Display current governor status (`governor.isPaused`, `governor._rollback_active`) via `useSimulationStream`; block edits if rollback is active.
+2. **Sculpting Session**
+   - On “Enter Edit Mode” trigger: send `POST /command/pause`, then request a new checkpoint (`POST /command/rollback` with `file=null`) to capture the pre-edit state ID returned in the response (`detail` field).
+   - Terrain tools operate on a staged heightmap buffer; physics controls (gravity, damping, collision layers) expose sliders bound to a shadow copy of `world.eterna.config`. UI keeps a diff view (original vs staged) for review.
+   - Provide live overlays (wireframe mesh, collider outlines) toggled per tool; reuse `ZoneEventOverlay` hooks for tooltips explaining modifier impacts.
+3. **Review & Commit**
+   - Summarize edits (height delta metrics, physics parameter changes) in a side panel; require operator acknowledgment and an optional narrative note.
+   - On commit: POST staged payload to future `/state/apply` (plan) or existing admin endpoint, then `POST /command/resume`. If commit fails, UI automatically triggers `POST /command/rollback` with checkpoint filename.
+4. **Abort / Undo**
+   - Provide “Abort Edits” button that issues `POST /command/rollback` with the checkpoint captured at pause time and then resumes the governor.
+5. **Session Logging**
+   - Emit structured event to `/log/editor` (planned) or reuse `services/api/routers/log.py` to capture operator, checkpoint IDs, and diff summary for audit.
+
+### UI States
+- **Idle**: overlays hidden, edit controls disabled.
+- **Editing**: scene dimming applied, gizmos active, governor paused banner displayed.
+- **Pending Commit**: disable sculpt inputs, show spinner while mutation request is in-flight.
+- **Error**: highlight failed parameters, auto-offer rollback.
+
+## Optimistic Mutation Strategy (A1.14)
+
+- **Local Diff Buffer**: maintain an in-memory store (e.g., Zustand) capturing applied terrain deltas and physics tweaks. Render these immediately for responsive feedback while queuing mutation payloads.
+- **Mutation Pipeline**:
+  1. Serialize staged edits and post to editor API.
+  2. Assume success: refresh scene state from local buffer, mark diff as “committed”.
+  3. If API response returns error or `governor.policy_violation`, automatically revert buffer (apply checkpoint) and surface violation details in UI.
+- **Governor Feedback Loop**: listen for `governor.policy_violation` and `governor.rollback_complete` events mid-edit; if received, freeze controls and initiate rollback to last safe checkpoint.
+- **Offline/Latency Handling**: queue mutations when offline; require explicit user confirmation when reconnecting before replaying buffered edits.
+
+## Validation & Telemetry Requirements (A1.15)
+
+- **Guards**: enforce terrain delta thresholds (max elevation change, slope limits) before submit; block physics params outside configured min/max and show inline validation errors.
+- **Error Surfacing**: map backend error codes (400 invalid payload, 403 permission, 409 conflict) to human-readable banners. Provide “View Logs” link pointing to recent governor log entries.
+- **Telemetry**: instrument with `ui/src/utils/tracing.ts` to emit spans for `editor.pause`, `editor.apply`, `editor.rollback`. Attach attributes: checkpoint ID, duration, number_of_vertices_modified, physics_fields_changed.
+- **Metrics Export**: push event counts to `/monitoring/metrics` (planned) or local console for QA. Ensure test coverage via vitest (mocking tracing) to confirm instrumentation triggers once per action.
+
+## Editor Usage Handbook Scope (A1.16)
+
+- Document prerequisites (training checklist, required permissions, safety drills).
+- Outline the step-by-step workflow described above, including screenshots of each UI state.
+- Provide troubleshooting (e.g., “Rollback triggered automatically”, “Modifier conflicts detected”) along with escalation paths to Alignment Governor operators.
+- Include quick-reference tables for asset naming (linking back to this note) and governor command cheat sheet.
+- Host the handbook draft under `docs/editor_handbook.md` with versioned updates coordinated with art/design teams.
+## Snapshot Schema Alignment (A1.17)
+
+- Backend state snapshots now surface structured checkpoint metadata: each entry holds `path`, `label`, `kind`, `created_at`, optional `state_version`, `size_bytes`, and `continuity` score. The state tracker normalizes historical strings into this shape so legacy checkpoints remain consumable. Governor rollbacks append metadata describing the rollback target, keeping UI timelines lossless.
+- `/command/checkpoints` returns these enriched objects; the UI normalizes responses via `normalizeCheckpointRecords` before rendering. Consumers that still need raw strings can map over `.path`.
+- When adding new metadata fields, update `CheckpointRecord` in `ui/src/api.ts` and `modules/state_tracker.register_checkpoint` to ensure both directions stay in sync.
+
+## Scene History Serialization (A1.18)
+
+- `ui/src/scene/history/serializer.ts` converts `SceneState` + `SceneRealtimeState` snapshots into deterministic JSON payloads. Signatures use a stable JSON stringify so identical states collapse to the same hash, powering UI diffing.
+- Snapshots capture camera/render settings, zone modifier sets (sorted for determinism), and distilled governor events (pause/violation/rollback). Optional checkpoint metadata attaches directly from the normalized backend payload.
+- Serializer exports a `SceneHistoryEntry` shape consumed by history stacks, undo/redo tooling, or audit exports. Extend this module whenever new realtime fields arrive—keep serialization order consistent to avoid signature churn.
+
+## History Stack & Undo Workflow (A1.19)
+
+- `ui/src/scene/history/historyStack.ts` provides an in-memory ring buffer (default 50 entries) with undo/redo semantics. Dedupe mode prevents redundant entries when the serialized signature is unchanged.
+- Pushing a new entry after an undo truncates the future branch, mirroring standard editor workflows. Max size trimming drops the oldest entries while keeping pointer alignment sane.
+- Integrators can hydrate the stack with `serializeSceneState` outputs, letting UI glue expose “Undo terrain edit” or “Redo physics tweak” actions without bespoke bookkeeping.
+
+## Rollback Regression Coverage (A1.20)
+
+- State tracker checkpoint records now normalize both automatic and rollback-generated files, and governor events log the same metadata. `normalizeCheckpointRecords` guarantees UI components always receive structured fields even if API stubs or older services emit raw strings.
+- Vitest suites cover serializer determinism and history stack behavior; Python integration tests continue validating database persistence using the enriched checkpoint schema. When adding new rollback flows, assert that governor events include the checkpoint fingerprint and that `list_checkpoints` exposes matching metadata.

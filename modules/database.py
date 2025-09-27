@@ -13,9 +13,23 @@ import sqlite3
 import time
 from typing import List, Optional, Tuple
 
+from pathlib import Path
 from modules.migration_manager import MigrationManager
 
 logger = logging.getLogger(__name__)
+
+
+def _iso_from_timestamp(timestamp: float) -> str:
+    return datetime.datetime.fromtimestamp(timestamp, datetime.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _timestamp_from_iso(value: str) -> Optional[float]:
+    try:
+        if value.endswith("Z"):
+            value = value[:-1] + "+00:00"
+        return datetime.datetime.fromisoformat(value).timestamp()
+    except Exception:
+        return None
 
 
 class EternaDatabase:
@@ -402,12 +416,23 @@ class EternaDatabase:
 
     def _save_checkpoint(self, state_id, checkpoint):
         """Save a checkpoint to the database."""
+        path = checkpoint
+        timestamp = time.time()
+        if isinstance(checkpoint, dict):
+            path = checkpoint.get("path")
+            created_at = checkpoint.get("created_at")
+            if isinstance(created_at, str):
+                parsed = _timestamp_from_iso(created_at)
+                if parsed is not None:
+                    timestamp = parsed
+        if not path:
+            return
         self.cursor.execute(
             """
             INSERT INTO checkpoints (state_id, path, timestamp)
             VALUES (?, ?, ?)
             """,
-            (state_id, checkpoint, time.time()),
+            (state_id, str(path), timestamp),
         )
 
     def load_latest_state(self, lazy_load=False):
@@ -623,7 +648,7 @@ class EternaDatabase:
         """Load checkpoints for a state."""
         self.cursor.execute(
             """
-            SELECT path
+            SELECT path, timestamp
             FROM checkpoints
             WHERE state_id = ?
             ORDER BY timestamp
@@ -631,7 +656,19 @@ class EternaDatabase:
             (state_id,),
         )
 
-        return [row["path"] for row in self.cursor.fetchall()]
+        results = []
+        for row in self.cursor.fetchall():
+            path = row["path"]
+            ts = row["timestamp"]
+            created_at = _iso_from_timestamp(ts)
+            results.append({
+                    "path": path,
+                    "created_at": created_at,
+                    "kind": "auto",
+                    "label": Path(path).name or path,
+                    "target_path": path,
+                })
+        return results
 
     def close(self):
         """Close the database connection."""

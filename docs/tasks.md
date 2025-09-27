@@ -15,17 +15,17 @@ a checkbox that can be checked off when completed.
 - [x] A1.7 Inventory zone, modifier, and ritual data models to map IDs to visual primitives (cross-reference `WorldStateProvider`, `useSimulationStream`, and backend schema to align realtime + REST fields).
 - [x] A1.8 Define and persist asset lookup tables for meshes, materials, and tooltip content.
 - [x] A1.9 Build geometry loaders with caching and hover detection tied to tooltip presenters.
-- [ ] A1.10 Validate overlays against sample simulation snapshots to ensure accuracy and performance.
-- [ ] A1.11 Document asset naming conventions and coordination points for the art pipeline.
-- [ ] A1.12 Map Alignment Governor REST mutations and auth requirements for terrain and physics edits.
-- [ ] A1.13 Design editor UI workflows that expose terrain sculpting and physics parameter controls safely.
-- [ ] A1.14 Implement optimistic mutation handling with rollback on governor denial responses.
-- [ ] A1.15 Add validation guards, error surfacing, and telemetry capture for editor interactions.
-- [ ] A1.16 Draft an editor usage handbook covering safety constraints and operational tips.
-- [ ] A1.17 Align snapshot schema with checkpoint storage to support undo/redo history.
-- [ ] A1.18 Create serializers that capture scene and governor references for history entries.
-- [ ] A1.19 Wire history stacks with batching/diff compaction plus UI controls for undo/redo flows.
-- [ ] A1.20 Ensure governor rollback events invalidate conflicting snapshots and add regression tests.
+- [x] A1.10 Validate overlays against sample simulation snapshots to ensure accuracy and performance.
+- [x] A1.11 Document asset naming conventions and coordination points for the art pipeline.
+- [x] A1.12 Map Alignment Governor REST mutations and auth requirements for terrain and physics edits.
+- [x] A1.13 Design editor UI workflows that expose terrain sculpting and physics parameter controls safely.
+- [x] A1.14 Implement optimistic mutation handling with rollback on governor denial responses.
+- [x] A1.15 Add validation guards, error surfacing, and telemetry capture for editor interactions.
+- [x] A1.16 Draft an editor usage handbook covering safety constraints and operational tips.
+- [x] A1.17 Align snapshot schema with checkpoint storage to support undo/redo history.
+- [x] A1.18 Create serializers that capture scene and governor references for history entries.
+- [x] A1.19 Wire history stacks with batching/diff compaction plus UI controls for undo/redo flows.
+- [x] A1.20 Ensure governor rollback events invalidate conflicting snapshots and add regression tests.
 
 ### Story A2 – Choreograph narrative events visually
 - [ ] A2.1 Specify timeline data models covering events, emotions, and companion entrances.

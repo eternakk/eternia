@@ -4,13 +4,35 @@ import json
 import math
 import os
 import random
+import re
 import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, Deque
 from collections import deque
 
 from modules.interfaces import StateTrackerInterface
 from modules.utilities.file_utils import save_json, load_json
 from modules.database import EternaDatabase
+
+
+def _utc_now_iso() -> str:
+    """Return the current UTC timestamp in RFC3339 format."""
+    return datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _iso_from_timestamp(timestamp: float) -> str:
+    """Convert a UNIX timestamp (seconds) to an ISO-8601 string."""
+    return datetime.datetime.fromtimestamp(timestamp, datetime.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _timestamp_from_iso(value: str) -> Optional[float]:
+    """Parse an ISO-8601 timestamp into epoch seconds, returning None on failure."""
+    try:
+        if value.endswith("Z"):
+            value = value[:-1] + "+00:00"
+        return datetime.datetime.fromisoformat(value).timestamp()
+    except Exception:
+        return None
 
 
 class EternaStateTracker(StateTrackerInterface):
@@ -110,6 +132,10 @@ class EternaStateTracker(StateTrackerInterface):
         self._cache = {}
         self._cache_ttl = {}  # Time-to-live for cached items
         self._cache_default_ttl = 100  # Default TTL in ticks
+
+        # Versioning for snapshot alignment
+        self._state_version = 0
+        self._last_saved_state: Dict[str, Any] = {}
 
         # Lazy loading state
         self._lazy_state = None
@@ -536,7 +562,9 @@ class EternaStateTracker(StateTrackerInterface):
             self._rebuild_modifier_index()
         elif collection_name == "checkpoints":
             checkpoints = self.db.lazy_load_collection(self._lazy_state, "checkpoints")
-            self.checkpoints = deque(checkpoints, maxlen=self.max_checkpoints)
+            normalized = [self._normalize_checkpoint_entry(entry) for entry in checkpoints]
+            self.checkpoints = deque(normalized, maxlen=self.max_checkpoints)
+            self._last_saved_state["checkpoints"] = [copy.deepcopy(entry) for entry in self.checkpoints]
 
     def get_memories_by_emotion(self, emotional_quality):
         """
@@ -747,7 +775,7 @@ class EternaStateTracker(StateTrackerInterface):
             "max_explored_zones": self.max_explored_zones,
             "max_modifiers": self.max_modifiers,
             "max_checkpoints": self.max_checkpoints,
-            "checkpoints": list(self.checkpoints),
+            "checkpoints": [copy.deepcopy(entry) for entry in self.checkpoints],
         }
         # Store a copy of the current state for future incremental saves
         self._last_saved_state = {
@@ -799,7 +827,7 @@ class EternaStateTracker(StateTrackerInterface):
             changes["last_zone"] = self.last_zone
             self._last_saved_state["last_zone"] = self.last_zone
         # Always include checkpoints
-        changes["checkpoints"] = list(self.checkpoints)
+        changes["checkpoints"] = [copy.deepcopy(entry) for entry in self.checkpoints]
         return changes
 
     def _persist_snapshot(self, snapshot: Dict[str, Any], incremental: bool) -> None:
@@ -892,7 +920,9 @@ class EternaStateTracker(StateTrackerInterface):
             self.explored_zones = deque(snapshot.get("explored_zones", []), maxlen=self.max_explored_zones)
             self._zone_index = set(self.explored_zones)
         if "checkpoints" in snapshot:
-            self.checkpoints = deque(snapshot.get("checkpoints", []), maxlen=self.max_checkpoints)
+            raw_checkpoints = snapshot.get("checkpoints", [])
+            normalized = [self._normalize_checkpoint_entry(entry) for entry in raw_checkpoints]
+            self.checkpoints = deque(normalized, maxlen=self.max_checkpoints)
 
     def _apply_evolution_and_zone(self, snapshot: dict) -> None:
         if "evolution" in snapshot:
@@ -912,6 +942,7 @@ class EternaStateTracker(StateTrackerInterface):
             "explored_zones": [] if lazy_mode else list(getattr(self, "explored_zones", [])),
             "discoveries": [] if lazy_mode else list(getattr(self, "discoveries", [])),
             "last_zone": self.last_zone,
+            "checkpoints": [] if lazy_mode else [copy.deepcopy(entry) for entry in getattr(self, "checkpoints", [])],
         }
 
     def load(self):
@@ -942,7 +973,61 @@ class EternaStateTracker(StateTrackerInterface):
     # ------------------------------------------------------------------
     # Alignment‑Governor uses this to record saved checkpoints
     # ------------------------------------------------------------------
-    def register_checkpoint(self, path: str):
+    def _checkpoint_created_at_from_path(self, path: str) -> Optional[str]:
+        match = re.search(r"ckpt_(\d+)", path)
+        if match:
+            try:
+                millis = int(match.group(1))
+                return _iso_from_timestamp(millis / 1000)
+            except Exception:
+                return None
+        return None
+
+    def _normalize_checkpoint_entry(self, entry: Union[str, Path, Dict[str, Any]]) -> Dict[str, Any]:
+        if isinstance(entry, dict):
+            record = copy.deepcopy(entry)
+        else:
+            record = {"path": str(entry)}
+
+        # Normalize path and derive defaults
+        raw_path = record.get("path")
+        target_path = raw_path
+
+        if isinstance(raw_path, str) and raw_path.startswith("ROLLED_BACK→"):
+            target_path = raw_path.split("→", 1)[1]
+            record.setdefault("kind", "rollback")
+            record["target_path"] = target_path
+        record["path"] = str(target_path) if target_path is not None else ""
+
+        record.setdefault("label", Path(record["path"]).name or record["path"])
+        record.setdefault("kind", "auto")
+
+        created_at = record.get("created_at")
+        if isinstance(created_at, str):
+            parsed = _timestamp_from_iso(created_at)
+            record["created_at"] = _iso_from_timestamp(parsed) if parsed else _utc_now_iso()
+        else:
+            inferred = self._checkpoint_created_at_from_path(record["path"])
+            record["created_at"] = inferred or _utc_now_iso()
+
+        if "size_bytes" not in record or record.get("size_bytes") is None:
+            try:
+                record["size_bytes"] = Path(record["path"]).stat().st_size
+            except Exception:
+                record["size_bytes"] = None
+
+        if "state_version" not in record or record.get("state_version") is None:
+            record["state_version"] = getattr(self, "_state_version", None)
+
+        if "continuity" in record and record["continuity"] is not None:
+            try:
+                record["continuity"] = float(record["continuity"])
+            except (TypeError, ValueError):
+                record["continuity"] = None
+
+        return record
+
+    def register_checkpoint(self, checkpoint: Union[str, Path, Dict[str, Any]]) -> Dict[str, Any]:
         """
         Append a new checkpoint path to the internal deque so the UI and
         governor rollback logic can query available snapshots.
@@ -950,8 +1035,11 @@ class EternaStateTracker(StateTrackerInterface):
         Memory optimization: Uses a bounded deque that automatically removes
         the oldest checkpoints when the maximum size is reached.
         """
-        # The deque will automatically handle removing old items when maxlen is reached
-        self.checkpoints.append(str(path))
+        record = self._normalize_checkpoint_entry(checkpoint)
+        self.checkpoints.append(record)
+        self._last_saved_state.setdefault("checkpoints", [])
+        self._last_saved_state["checkpoints"] = [copy.deepcopy(entry) for entry in self.checkpoints]
+        return record
 
     def identity_continuity(self) -> float:
         """
@@ -1040,22 +1128,25 @@ class EternaStateTracker(StateTrackerInterface):
         Args:
             path: The path to the checkpoint that was rolled back to.
         """
-        self.checkpoints.append(f"ROLLED_BACK→{path}")
+        self.register_checkpoint({
+            "path": str(path),
+            "kind": "rollback",
+            "target_path": str(path),
+            "created_at": _utc_now_iso(),
+        })
         # optional: reset any per‑run counters
         if hasattr(self, "current_cycle"):
             self.current_cycle = 0
 
-    def list_checkpoints(self) -> List[str]:
+    def list_checkpoints(self) -> List[Dict[str, Any]]:
         """
-        Get a list of all registered checkpoint paths.
+        Get a list of all registered checkpoints with metadata.
 
         Returns:
-            List[str]: A list of checkpoint paths as strings.
+            List[Dict[str, Any]]: Normalized checkpoint records sorted by insertion order.
         """
-        # Ensure checkpoints are loaded if using lazy loading
         self._ensure_collection_loaded("checkpoints")
-
-        return list(self.checkpoints)
+        return [copy.deepcopy(entry) for entry in self.checkpoints]
 
     def backup_state(self, backup_path=None) -> Optional[str]:
         """

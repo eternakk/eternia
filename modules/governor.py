@@ -1,5 +1,6 @@
 # modules/governor.py
 import asyncio
+import datetime
 import json
 import re
 import time
@@ -18,6 +19,10 @@ from world_builder import EternaWorld
 from modules.state_tracker import EternaStateTracker
 
 CHECKPOINT_DIR = Path("artifacts/checkpoints")
+
+
+def _iso_from_timestamp(timestamp: float) -> str:
+    return datetime.datetime.fromtimestamp(timestamp, datetime.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 class AlignmentGovernor:
@@ -134,7 +139,15 @@ class AlignmentGovernor:
             self.state_tracker.mark_rollback(ckpt)
             # reset counters visible in UI
             self.world.eterna.runtime.cycle_count = 0
-            self._log_event("rollback_complete", str(ckpt))
+            self._log_event(
+                "rollback_complete",
+                {
+                    "path": str(ckpt),
+                    "kind": "rollback",
+                    "target_path": str(ckpt),
+                    "created_at": _iso_from_timestamp(time.time()),
+                },
+            )
         finally:
             self._rollback_active = False
 
@@ -283,13 +296,18 @@ class AlignmentGovernor:
         # Publish checkpoint_scheduled event (new mechanism)
         event_bus.publish(CheckpointScheduledEvent(time.time()))
 
-        ts = int(time.time() * 1000)
-        path = CHECKPOINT_DIR / f"ckpt_{ts}.bin"
+        ts = time.time()
+        path = CHECKPOINT_DIR / f"ckpt_{int(ts * 1000)}.bin"
         self.world.save_checkpoint(path)
-        self.state_tracker.register_checkpoint(path)  # already exists
+        checkpoint_record = self.state_tracker.register_checkpoint({
+            "path": str(path),
+            "kind": "auto",
+            "state_version": getattr(self.state_tracker, "_state_version", None),
+            "created_at": _iso_from_timestamp(ts),
+        })
 
         # Log checkpoint_saved event (this will also publish to the event bus)
-        self._log_event("checkpoint_saved", str(path))
+        self._log_event("checkpoint_saved", checkpoint_record)
 
         # prune old files
         cks = sorted(CHECKPOINT_DIR.glob("ckpt_*.bin"))
@@ -447,13 +465,17 @@ class AlignmentGovernor:
             case "shutdown":
                 event_bus.publish(ShutdownEvent(timestamp, payload))
             case "rollback_complete":
-                event_bus.publish(RollbackEvent(timestamp, Path(payload)))
+                rollback_path = payload.get("path") if isinstance(payload, dict) else payload
+                if rollback_path:
+                    event_bus.publish(RollbackEvent(timestamp, Path(rollback_path)))
             case "continuity_breach":
                 event_bus.publish(ContinuityBreachEvent(timestamp, payload))
             case "checkpoint_scheduled":
                 event_bus.publish(CheckpointScheduledEvent(timestamp))
             case "checkpoint_saved":
-                event_bus.publish(CheckpointSavedEvent(timestamp, Path(payload)))
+                checkpoint_path = payload.get("path") if isinstance(payload, dict) else payload
+                if checkpoint_path:
+                    event_bus.publish(CheckpointSavedEvent(timestamp, Path(checkpoint_path)))
             case _:
                 # For any other events, we don't have a specific event class
                 # but we can still log them for debugging

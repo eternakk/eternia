@@ -49,12 +49,20 @@ type ActionType =
 // Create the reducer function
 const worldStateReducer = (state: WorldState, action: ActionType): WorldState => {
   switch (action.type) {
-    case 'FETCH_STATE_START':
+    case 'FETCH_STATE_START': {
+      const shouldShowInitialSkeleton = state.worldState === null;
+      const nextLoading = shouldShowInitialSkeleton ? true : state.isLoading;
+
+      if (state.isLoading === nextLoading && state.error === null) {
+        return state;
+      }
+
       return {
         ...state,
-        isLoading: true,
+        isLoading: nextLoading,
         error: null,
       };
+    }
     case 'FETCH_STATE_SUCCESS':
       return {
         ...state,
@@ -72,6 +80,9 @@ const worldStateReducer = (state: WorldState, action: ActionType): WorldState =>
         error: action.payload,
       };
     case 'SET_LOADING':
+      if (state.isLoading === action.payload) {
+        return state;
+      }
       return {
         ...state,
         isLoading: action.payload,

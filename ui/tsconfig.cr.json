@@ -14,7 +14,12 @@
     "resolveJsonModule": true,
     "allowJs": true,
     "strict": false,
-    "isolatedModules": false
+    "isolatedModules": false,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@": ["src"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": [

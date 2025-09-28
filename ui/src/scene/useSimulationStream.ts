@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useGovEvents } from "../hooks/useGovEvents";
+import { useGovEvents } from "@/hooks/useGovEvents";
 import {
   normalizeSimulationEvent,
   SimulationEvent,

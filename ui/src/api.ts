@@ -720,9 +720,118 @@ const baseSendCommand = async (a: string) => {
     return api.post(`/command/${a}`);
 };
 
+export type CheckpointKind = "auto" | "manual" | "rollback" | "unknown";
+
+export interface CheckpointRecord {
+    path: string;
+    created_at: string;
+    kind: CheckpointKind;
+    label?: string;
+    size_bytes?: number | null;
+    state_version?: number | null;
+    target_path?: string;
+    continuity?: number | null;
+    metadata?: Record<string, unknown> | null;
+}
+
+const deriveIsoFromPath = (path: string): string | undefined => {
+    const match = /ckpt_(\d+)/.exec(path);
+    if (!match) return undefined;
+    const millis = Number(match[1]);
+    if (!Number.isFinite(millis)) return undefined;
+    try {
+        return new Date(millis).toISOString();
+    } catch {
+        return undefined;
+    }
+};
+
+const ensureIsoString = (value?: string | null, fallback?: string): string => {
+    if (value) {
+        const parsed = new Date(value);
+        if (!Number.isNaN(parsed.getTime())) {
+            return parsed.toISOString();
+        }
+    }
+    if (fallback) {
+        const parsed = new Date(fallback);
+        if (!Number.isNaN(parsed.getTime())) {
+            return parsed.toISOString();
+        }
+    }
+    return new Date().toISOString();
+};
+
+const normalizeCheckpointRecord = (entry: unknown): CheckpointRecord | null => {
+    if (typeof entry === "string") {
+        const iso = deriveIsoFromPath(entry) ?? new Date().toISOString();
+        return {
+            path: entry,
+            created_at: iso,
+            kind: "auto",
+            label: entry.split("/").pop() || entry,
+            target_path: entry,
+        };
+    }
+
+    if (typeof entry === "object" && entry !== null) {
+        const record = entry as Record<string, unknown>;
+        const rawPathValue = (record.path ?? record.target_path) as string | undefined;
+        if (!rawPathValue) return null;
+
+        const kindCandidate = typeof record.kind === "string" ? record.kind : undefined;
+        const normalizedKind: CheckpointKind = kindCandidate === "auto" || kindCandidate === "manual" || kindCandidate === "rollback"
+            ? kindCandidate
+            : "unknown";
+
+        const createdAt = ensureIsoString(
+            typeof record.created_at === "string" ? record.created_at : undefined,
+            deriveIsoFromPath(rawPathValue)
+        );
+
+        const label = typeof record.label === "string"
+            ? record.label
+            : rawPathValue.split("/").pop() || rawPathValue;
+
+        const sizeBytes = typeof record.size_bytes === "number" ? record.size_bytes : undefined;
+        const stateVersion = typeof record.state_version === "number" ? record.state_version : undefined;
+        const continuity = typeof record.continuity === "number" ? record.continuity : undefined;
+        const targetPath = typeof record.target_path === "string" ? record.target_path : rawPathValue;
+        const metadata = typeof record.metadata === "object" && record.metadata !== null
+            ? (record.metadata as Record<string, unknown>)
+            : null;
+
+        return {
+            path: rawPathValue,
+            created_at: createdAt,
+            kind: normalizedKind,
+            label,
+            size_bytes: sizeBytes ?? null,
+            state_version: stateVersion ?? null,
+            continuity: continuity ?? null,
+            target_path: targetPath,
+            metadata,
+        };
+    }
+
+    return null;
+};
+
+export const normalizeCheckpointRecords = (input: unknown): CheckpointRecord[] => {
+    if (Array.isArray(input)) {
+        return input
+            .map((entry) => normalizeCheckpointRecord(entry))
+            .filter((entry): entry is CheckpointRecord => Boolean(entry));
+    }
+
+    const single = normalizeCheckpointRecord(input);
+    return single ? [single] : [];
+};
+
 const baseGetCheckpoints = async () => {
     await ensureToken();
-    return cachedGet<string[]>("/checkpoints");
+    const raw = await cachedGet<unknown>("/checkpoints");
+    return normalizeCheckpointRecords(raw);
 };
 
 const baseRollbackTo = async (file?: string) => {

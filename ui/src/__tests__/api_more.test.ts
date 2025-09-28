@@ -11,6 +11,7 @@ import {
   fetchToken,
   cancelAllRequests,
   apiClient,
+  normalizeCheckpointRecords,
 } from '../api';
 import { createSafeApiCall } from '../utils/errorHandling';
 
@@ -57,7 +58,30 @@ describe('api additional coverage (stubbed in test env)', () => {
 
   it('gets checkpoints (stub returns an object)', async () => {
     const cps = await getCheckpoints();
-    expect(cps).toBeTruthy();
+    expect(Array.isArray(cps)).toBe(true);
+    if (Array.isArray(cps) && cps.length > 0) {
+      expect(typeof cps[0].path).toBe('string');
+    }
+  });
+
+  it('normalizes checkpoint objects into structured records', () => {
+    const iso = new Date().toISOString();
+    const records = normalizeCheckpointRecords([
+      {
+        path: '/var/checkpoints/ckpt_123.bin',
+        kind: 'manual',
+        created_at: iso,
+        size_bytes: 2048,
+      },
+      'legacy_ckpt_456.bin',
+    ]);
+
+    expect(records).toHaveLength(2);
+    expect(records[0].target_path).toBe('/var/checkpoints/ckpt_123.bin');
+    expect(records[0].label).toBe('ckpt_123.bin');
+    expect(records[0].kind).toBe('manual');
+    expect(records[1].target_path).toBe('legacy_ckpt_456.bin');
+    expect(records[1].kind).toBe('auto');
   });
 
   it('quantum API calls return defined payloads (stubbed)', async () => {

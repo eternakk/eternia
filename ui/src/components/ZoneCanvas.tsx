@@ -1,11 +1,11 @@
 import {Environment, OrbitControls, useCursor, useGLTF} from "@react-three/drei";
+import type {PointerEvent as ReactPointerEvent} from "react";
 import {memo, Suspense, useCallback, useEffect, useMemo, useRef, useState} from "react";
-import type { PointerEvent as ReactPointerEvent } from "react";
 import {Bloom, EffectComposer} from "@react-three/postprocessing";
 import {useErrorHandler} from "../utils/errorHandling";
 import {useCurrentZone, useWorldState, useZoneModifiers} from "../contexts/WorldStateContext";
 import {getZoneAssets} from "../api";
-import {SceneRenderer, useSceneLighting, useSceneManager, buildTooltip, getZoneAssetDefinition} from "../scene";
+import {buildTooltip, getZoneAssetDefinition, SceneRenderer, useSceneLighting, useSceneManager} from "../scene";
 
 // Define types for better type safety
 interface Assets {
@@ -298,7 +298,8 @@ const ZoneDetails = ({
     }
 
     return (
-        <div className="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-20" data-testid="zone-details">
+        <div className="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-20"
+             data-testid="zone-details">
             <div className="bg-white rounded-lg p-4 max-w-md w-full max-h-[80vh] overflow-y-auto">
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="text-xl font-bold">Zone Details</h2>
@@ -380,7 +381,7 @@ const ZoneCanvas = () => {
     const [assets, setAssets] = useState<Assets | null>(null);
     const errorHandlerResult = useErrorHandler();
     const handleApiError = errorHandlerResult?.handleApiError ?? ((error: unknown, message?: string) => console.error(message, error));
-    const { setActiveZone, realtime } = useSceneManager();
+    const {setActiveZone, realtime} = useSceneManager();
     const lighting = useSceneLighting();
 
     // State for zone details modal
@@ -546,14 +547,6 @@ const ZoneCanvas = () => {
         return () => window.removeEventListener('eternia:agent-moved', onAgentMoved as EventListener);
     }, []);
 
-    // Handle click on the canvas to show zone details
-    const handleCanvasClick = useCallback((e: React.MouseEvent) => {
-        // Only handle clicks on the canvas itself, not on the legend or other overlays
-        if (e.target === e.currentTarget || (e.target as HTMLElement).tagName === 'CANVAS') {
-            setShowZoneDetails(true);
-        }
-    }, []);
-
     // Memoize the entire Canvas component based only on zone and assets
     // This prevents re-renders when only emotion or identity score changes
     // which allows user interactions to persist between state updates
@@ -562,7 +555,8 @@ const ZoneCanvas = () => {
         try {
             const pending = localStorage.getItem('pending_move_to_zone');
             if (pending) return pending;
-        } catch {}
+        } catch {
+        }
         return currentZone || realtimeZone?.name || realtime.activeZone || 'Zone-α';
     })();
     const canvasComponent = useMemo(() => {
@@ -579,17 +573,7 @@ const ZoneCanvas = () => {
             <div
                 ref={containerRef}
                 className="relative h-64 sm:h-80 md:h-96"
-                onClick={handleCanvasClick}
-                role="button"
-                aria-label={`View details for zone ${selectedZoneName}`}
-                tabIndex={0}
                 data-testid="zone-canvas"
-                onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        setShowZoneDetails(true);
-                    }
-                }}
             >
                 <SceneRenderer
                     canvasKey={selectedZoneName || "default"}
@@ -628,7 +612,9 @@ const ZoneCanvas = () => {
                 <ModifierLegend modifiers={currentModifiers}/>
 
                 {hoverTooltip && (
-                    <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-slate-900/80 text-white px-3 py-2 rounded text-xs max-w-md whitespace-pre-line shadow" data-testid="zone-hover-tooltip">
+                    <div
+                        className="absolute top-4 left-1/2 -translate-x-1/2 bg-slate-900/80 text-white px-3 py-2 rounded text-xs max-w-md whitespace-pre-line shadow"
+                        data-testid="zone-hover-tooltip">
                         {hoverTooltip}
                     </div>
                 )}
@@ -648,7 +634,10 @@ const ZoneCanvas = () => {
                         type="button"
                         className="absolute top-4 right-4 bg-white/80 px-2 py-1 rounded text-sm shadow"
                         data-testid="zone-element"
-                        onClick={(e) => { e.stopPropagation(); setShowZoneDetails(true); }}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setShowZoneDetails(true);
+                        }}
                         aria-label={`Open details for ${selectedZoneName}`}
                     >
                         {selectedZoneName}
@@ -666,7 +655,8 @@ const ZoneCanvas = () => {
                         return !!localStorage.getItem('active_ritual');
                     }
                 })() && (
-                    <div className="absolute bottom-4 left-4 bg-green-600 text-white px-2 py-1 rounded text-xs shadow" data-testid="ritual-effect-indicator">
+                    <div className="absolute bottom-4 left-4 bg-green-600 text-white px-2 py-1 rounded text-xs shadow"
+                         data-testid="ritual-effect-indicator">
                         Ritual effect active
                     </div>
                 )}
@@ -688,18 +678,21 @@ const ZoneCanvas = () => {
                 )}
             </div>
         );
-    }, [currentZone, assets, worldState, handleCanvasClick, lastMovedZone, lighting, realtime.activeZone, realtime.governor.isPaused, realtimeZone, hoverTooltip]);
+    }, [currentZone, assets, worldState, lastMovedZone, lighting, realtime.activeZone, realtime.governor.isPaused, realtimeZone, hoverTooltip]);
 
     if (error) {
         return (
             <div className="h-96 bg-slate-300 flex items-center justify-center relative" data-testid="zone-canvas">
                 <div className="text-red-500">Error loading scene. Please try refreshing.</div>
-                {/* Test-friendly zone element even in error state */}
+                {/* Test-friendly zone element even in the error state */}
                 <button
                     type="button"
                     className="absolute top-4 right-4 bg-white/80 px-2 py-1 rounded text-sm shadow"
                     data-testid="zone-element"
-                    onClick={(e) => { e.stopPropagation(); setShowZoneDetails(true); }}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setShowZoneDetails(true);
+                    }}
                     aria-label={`Open details for ${selectedZoneName}`}
                 >
                     {selectedZoneName}
@@ -723,7 +716,8 @@ const ZoneCanvas = () => {
                         return !!localStorage.getItem('active_ritual');
                     }
                 })() && (
-                    <div className="absolute bottom-4 left-4 bg-green-600 text-white px-2 py-1 rounded text-xs shadow" data-testid="ritual-effect-indicator">
+                    <div className="absolute bottom-4 left-4 bg-green-600 text-white px-2 py-1 rounded text-xs shadow"
+                         data-testid="ritual-effect-indicator">
                         Ritual effect active
                     </div>
                 )}
@@ -741,7 +735,10 @@ const ZoneCanvas = () => {
                     type="button"
                     className="absolute top-4 right-4 bg-white/80 px-2 py-1 rounded text-sm shadow"
                     data-testid="zone-element"
-                    onClick={(e) => { e.stopPropagation(); setShowZoneDetails(true); }}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setShowZoneDetails(true);
+                    }}
                     aria-label={`Open details for ${selectedZoneName}`}
                 >
                     {selectedZoneName}
@@ -765,7 +762,8 @@ const ZoneCanvas = () => {
                         return !!localStorage.getItem('active_ritual');
                     }
                 })() && (
-                    <div className="absolute bottom-4 left-4 bg-green-600 text-white px-2 py-1 rounded text-xs shadow" data-testid="ritual-effect-indicator">
+                    <div className="absolute bottom-4 left-4 bg-green-600 text-white px-2 py-1 rounded text-xs shadow"
+                         data-testid="ritual-effect-indicator">
                         Ritual effect active
                     </div>
                 )}
@@ -783,7 +781,10 @@ const ZoneCanvas = () => {
                     type="button"
                     className="absolute top-4 right-4 bg-white/80 px-2 py-1 rounded text-sm shadow"
                     data-testid="zone-element"
-                    onClick={(e) => { e.stopPropagation(); setShowZoneDetails(true); }}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setShowZoneDetails(true);
+                    }}
                     aria-label={`Open details for ${selectedZoneName}`}
                 >
                     {selectedZoneName}
@@ -807,7 +808,8 @@ const ZoneCanvas = () => {
                         return !!localStorage.getItem('active_ritual');
                     }
                 })() && (
-                    <div className="absolute bottom-4 left-4 bg-green-600 text-white px-2 py-1 rounded text-xs shadow" data-testid="ritual-effect-indicator">
+                    <div className="absolute bottom-4 left-4 bg-green-600 text-white px-2 py-1 rounded text-xs shadow"
+                         data-testid="ritual-effect-indicator">
                         Ritual effect active
                     </div>
                 )}

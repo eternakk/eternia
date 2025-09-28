@@ -34,8 +34,8 @@ narrative goals.
 3. **Branch & Draft PR**: Supervisor creates branch + Draft PR; posts Planner output as first comment.
 4. **Sequential Roles**: Flow orchestrator triggers roles in order (Planner → Test Author → Implementer → Reviewer →
    Security → Doc Scribe). Each step leaves structured comments and commits.
-5. **Validation**: `agents/tools/run_tests.py` executes PyTest/unit suites; optional UI smoke (`run_ui.py`) and perf (
-   `k6.py`) workflows run in CI. Failures block progression.
+5. **Validation**: Until the automation helpers land, execute Python suites with `pytest -q` (planned hand-off to
+   `agents/tools/run_tests.py`) and gate UI/perf checks through existing CI jobs. Failures block progression.
 6. **Observability Checks**: After implementation, agents fetch `/metrics`, review logs, and update risk status.
    Persistent anomalies open follow-up issues labeled `alignment:review`.
 7. **Human Handoff**: On success, mark PR `ready for review`. On uncertainty or escalations, add `needs-human-review`,
@@ -60,7 +60,8 @@ narrative goals.
 - Prefer repo-local CLIs (poetry, npm scripts) over global binaries; run inside dedicated venv or Node environment.
 - Capture artifacts (test results, SBOM, preview URLs) under `artifacts/` or GitHub Action summaries; avoid committing
   generated binaries.
-- Use `scripts/repo_atlas.py` output for repository topology before large edits.
+- Use the forthcoming `scripts/repo_atlas.py` (not yet implemented) for repository topology once available; for now,
+  rely on `README.md` and `docs/module_map.md` when surveying structure.
 
 ## Issue & Label Conventions
 

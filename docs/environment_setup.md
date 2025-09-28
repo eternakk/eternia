@@ -176,9 +176,9 @@ The production environment is optimized for performance, security, and reliabili
    npm run build
    ```
 
-7. Apply database migrations manually:
+7. Apply database migrations manually using the current migration manager:
    ```bash
-   ./scripts/apply_migrations.py
+   python scripts/manage_migrations.py apply
    ```
 
 8. Start the API server using a process manager like Supervisor:

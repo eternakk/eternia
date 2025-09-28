@@ -100,7 +100,9 @@ Scope: Introduce a lightweight, deterministic agentic workflow to autonomously p
 - Supervisor respects red-mode: only allows fix tasks when red-mode active.
 
 ### A9. Nightly Repo Atlas
-- Script: `scripts/repo_atlas.py` → JSON map of symbols/deps/owners to `artifacts/repo_atlas.json` for agent retrieval.
+- Script: `repo_atlas.py` (planned under `scripts/`) → JSON map of symbols/deps/owners to
+  `artifacts/repo_atlas.json` for agent retrieval (TODO: script not yet committed; interim runs rely on manual topology
+  reviews).
 - Scheduled workflow nightly to refresh.
 
 ---
@@ -178,7 +180,7 @@ Scope: Introduce a lightweight, deterministic agentic workflow to autonomously p
   - sbom.yml
   - openapi_diff.yml
 - scripts/
-  - repo_atlas.py
+  - repo_atlas.py (planned; ensure this lands before enabling atlas-dependent workflows)
 - artifacts/
   - repo_atlas.json (generated)
 

@@ -34,6 +34,20 @@ docs/config/
 # Node.js
 node_modules/
 
+# Unreal Engine
+EterniaUE/Binaries/
+EterniaUE/Intermediate/
+EterniaUE/DerivedDataCache/
+EterniaUE/Saved/
+EterniaUE/.vs/
+EterniaUE/Build/
+*.sln
+*.suo
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.opendb
+
 # Test artifacts (Hypothesis)
 .hypothesis/
 tests/.hypothesis/

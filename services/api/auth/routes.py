@@ -47,7 +47,7 @@ TEST_TOKEN = "test-token-for-authentication"
 
 
 async def _get_user_from_any_token(
-        credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
 ) -> User:
     """Resolve a user from either the dev token or a JWT bearer token."""
 
@@ -62,9 +62,9 @@ async def _get_user_from_any_token(
 
     def _token_matches(candidate: str, reference: str) -> bool:
         return (
-                candidate == reference
-                or candidate.startswith(reference)
-                or reference in candidate
+            candidate == reference
+            or candidate.startswith(reference)
+            or reference in candidate
         )
 
     if _token_matches(token, TEST_TOKEN):
@@ -113,14 +113,14 @@ class OAuth2PasswordRequestFormTotp:
     """OAuth2 password form extended with optional TOTP code."""
 
     def __init__(
-            self,
-            grant_type: str | None = Form(default="password"),
-            username: str = Form(...),
-            password: str = Form(...),
-            scope: str = Form(default=""),
-            client_id: str | None = Form(default=None),
-            client_secret: str | None = Form(default=None),
-            totp_code: str | None = Form(default=None),
+        self,
+        grant_type: str | None = Form(default="password"),
+        username: str = Form(...),
+        password: str = Form(...),
+        scope: str = Form(default=""),
+        client_id: str | None = Form(default=None),
+        client_secret: str | None = Form(default=None),
+        totp_code: str | None = Form(default=None),
     ):
         if grant_type and grant_type.lower() not in {"password", ""}:
             raise HTTPException(
@@ -150,9 +150,9 @@ def _ensure_governor_permits_auth(user: User | None = None) -> None:
             detail="Authentication suspended while governor is in shutdown",
         )
     if (
-            getattr(governor, "is_rollback_active", None)
-            and governor.is_rollback_active()
-            and not admin_override()
+        getattr(governor, "is_rollback_active", None)
+        and governor.is_rollback_active()
+        and not admin_override()
     ):
         raise HTTPException(
             status_code=status.HTTP_423_LOCKED,
@@ -162,8 +162,8 @@ def _ensure_governor_permits_auth(user: User | None = None) -> None:
 
 @router.post("/token", response_model=Token)
 async def login_for_access_token(
-        request: Request,
-        form_data: OAuth2PasswordRequestFormTotp = Depends(),
+    request: Request,
+    form_data: OAuth2PasswordRequestFormTotp = Depends(),
 ):
     """
     OAuth2 compatible token login, get an access token for future requests.
@@ -236,8 +236,8 @@ async def setup_two_factor(current_user: User = Depends(_get_user_from_any_token
 
 @router.post("/2fa/verify")
 async def verify_two_factor(
-        payload: TwoFactorCodeRequest,
-        current_user: User = Depends(_get_user_from_any_token),
+    payload: TwoFactorCodeRequest,
+    current_user: User = Depends(_get_user_from_any_token),
 ):
     _ensure_governor_permits_auth(current_user)
     if not verify_two_factor_code(current_user, payload.code):
@@ -250,8 +250,8 @@ async def verify_two_factor(
 
 @router.post("/2fa/disable")
 async def disable_two_factor_endpoint(
-        payload: TwoFactorCodeRequest,
-        current_user: User = Depends(_get_user_from_any_token),
+    payload: TwoFactorCodeRequest,
+    current_user: User = Depends(_get_user_from_any_token),
 ):
     _ensure_governor_permits_auth(current_user)
     status_data = get_two_factor_status(current_user)
@@ -275,7 +275,7 @@ async def disable_two_factor_endpoint(
     dependencies=[Depends(check_permission(Permission.ADMIN))],
 )
 async def register_user(
-        user_create: UserCreate, current_user: User = Depends(get_current_active_user)
+    user_create: UserCreate, current_user: User = Depends(get_current_active_user)
 ):
     """
     Register a new user (admin only).
@@ -317,9 +317,9 @@ async def read_users(current_user: User = Depends(get_current_active_user)):
     dependencies=[Depends(check_permission(Permission.ADMIN))],
 )
 async def update_user_endpoint(
-        username: str,
-        user_update: UserUpdate,
-        current_user: User = Depends(get_current_active_user),
+    username: str,
+    user_update: UserUpdate,
+    current_user: User = Depends(get_current_active_user),
 ):
     """
     Update a user (admin only).
@@ -333,9 +333,9 @@ async def update_user_endpoint(
 
     # Prevent non-admin users from changing their role
     if (
-            user_update.role is not None
-            and username == current_user.username
-            and current_user.role != UserRole.ADMIN
+        user_update.role is not None
+        and username == current_user.username
+        and current_user.role != UserRole.ADMIN
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -358,7 +358,7 @@ async def update_user_endpoint(
     "/users/{username}", dependencies=[Depends(check_permission(Permission.ADMIN))]
 )
 async def delete_user_endpoint(
-        username: str, current_user: User = Depends(get_current_active_user)
+    username: str, current_user: User = Depends(get_current_active_user)
 ):
     """
     Delete a user (admin only).
@@ -376,7 +376,7 @@ async def delete_user_endpoint(
 
 @router.post("/users/me/password")
 async def change_password(
-        password: str, current_user: User = Depends(get_current_active_user)
+    password: str, current_user: User = Depends(get_current_active_user)
 ):
     """
     Change current user's password.

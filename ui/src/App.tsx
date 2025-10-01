@@ -21,6 +21,7 @@ import {SceneManagerProvider} from "./scene";
 // Lazy load components that are not immediately visible or are large
 const LazyLogConsole = createLazyComponent(() => import("./components/LogConsole"));
 const LazyZoneCanvas = createLazyComponent(() => import("./components/ZoneCanvas.tsx"));
+const LazyMiniVirtualWorld = createLazyComponent(() => import("./components/MiniVirtualWorld"));
 
 export default function App() {
     return (
@@ -43,6 +44,10 @@ export default function App() {
 
                                 <div className="md:col-span-3">
                                     <LazyZoneCanvas/>
+                                </div>
+
+                                <div className="md:col-span-3">
+                                    <LazyMiniVirtualWorld/>
                                 </div>
                                 <ZoneViewer/>
 

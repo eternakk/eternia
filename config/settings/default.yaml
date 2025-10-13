@@ -222,3 +222,18 @@ simulation:
 
   sensory_evolution:
     zone: "quantum_forest"
+
+# External integrations (placeholder values; override via env vars or env-specific YAML)
+integrations:
+  sloyd:
+    api_key: ""
+    base_url: "https://api.sloyd.ai"
+  inworld:
+    api_key: ""
+    base_url: "https://studio.inworld.ai"
+  scenario:
+    api_key: ""
+    base_url: "https://api.scenario.com"
+  marble:
+    api_token: ""
+    base_url: "https://api.worldlabs.ai"

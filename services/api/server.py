@@ -28,6 +28,7 @@ from .routers import (
     law_router,
     monitoring_router,
     quantum_router,
+    generation_router,
 )
 
 # Configure logging
@@ -151,6 +152,7 @@ app.include_router(log_router)
 app.include_router(law_router)
 app.include_router(monitoring_router)
 app.include_router(quantum_router)
+app.include_router(generation_router)
 
 # Configure CORS - allow necessary origins
 origins = [

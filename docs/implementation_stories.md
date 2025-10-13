@@ -1,84 +1,77 @@
 # Implementation Stories & Task Breakdown
 
-This document translates the design roadmap into narrative-style user stories with actionable task lists. Each story assumes alignment with the guiding principles in `docs/pending_implementation_design.md` and surfaces clear deliverables for team members or MCP agents.
+Derived from *Implementation Roadmap: Prompt-Based World Generation*. Each story below links the high-level intent to concrete success signals; see `docs/tasks.md` for the detailed checklist and owners.
 
-## Epic A – Immersive World Interface
+## Epic EP1 – Integrate Sloyd for Prompt-Based 3D Asset Generation
 
-### Story A1 – As a world architect, I can render and edit Eternia in 3D
-- Build WebGL/Three.js scene scaffolding that listens to simulation websocket streams.
-- Map zone geometries, modifiers, and ritual nodes to visual assets with hover/tooltips.
-- Implement terrain/physics editors backed by REST mutations guarded by the Alignment Governor.
-- Provide undo/redo snapshots tied to checkpoint system and governor rollbacks.
+### Story EP1-S1 – As a world builder, I can type a prompt and see the matching prop appear in the web client
+- Deliver a FastAPI → Sloyd pipeline that turns text prompts into cached GLB assets.
+- Broadcast spawn updates over WebSockets and render them in Three.js with loading states.
+- Provide a lightweight developer UI for prompts, error feedback, and iterative testing.
+- Route generated objects through the Alignment Governor so active laws can veto unsafe spawns before state mutation.
+- Acceptance: supported prompts render correctly positioned props within seconds across sessions.
 
-### Story A2 – As a storyteller, I can choreograph narrative events visually
-- Add timeline panel for staging events, emotions, and companion entrances.
-- Create cinematic overlays for governor interventions, mythic rituals, and zone transitions.
-- Export storyboards and recordings suitable for investor demos.
+### Story EP1-S2 – As a VR user, I see spawned props materialize inside the Unreal client in sync with the web view
+- Subscribe Unreal to the shared world-state channel and import GLB assets at runtime.
+- Spawn actors with working materials/collision and validate VR scale + stereo fidelity.
+- (Optional) expose in-headset tools for issuing prompts during development playtests.
+- Honour governor pause/rollback states so the VR client never instantiates assets that laws reject.
+- Acceptance: simultaneous prop generation displays in both clients without manual asset import.
 
-## Epic B – Embodied Companion Movement
+### Story EP1-S3 – As an autonomous agent, I can request objects that appear at my chosen location
+- Expose a backend hook so AI logic triggers the Sloyd flow without human UI.
+- Log and announce agent-driven spawns, applying placement rules tied to the agent’s context.
+- Add guardrails and toggles that let operators pause autonomous generation safely.
+- Evaluate agent prompts against law/policy allowlists and emit `PolicyViolationEvent` when blocked.
+- Acceptance: scripted agent demo spawns multiple valid props while preventing unsupported prompts.
 
-### Story B1 – As a companion, I can traverse space with believable motion
-- Extend backend models with position/velocity attributes and movement intents.
-- Integrate pathfinding (navmesh/grid) and collision checks in the simulation loop.
-- Broadcast movement updates through websocket channels with throttling.
-- Visualize live routes and idle animations in the world interface.
+## Epic EP2 – Intelligent NPCs with Inworld AI Integration
 
-### Story B2 – As the governor, I can veto unsafe movement
-- Define safety constraints (restricted zones, hazardous modifiers) in config.
-- Intercept movement intents, simulate outcomes, and issue allow/deny decisions.
-- Surface governor judgments in UI with actionable user prompts.
+### Story EP2-S1 – As a player, I hold a text conversation with an NPC that stays in character
+- Author Inworld personas and wire up a FastAPI relay that preserves session context.
+- Surface dialogue through chat UI or in-world bubbles with typing indicators and error fallbacks.
+- Calibrate personas/guardrails so responses stay lore-aligned and concise.
+- Funnel NPC-initiated world changes back through the governor so laws can approve or refuse them.
+- Acceptance: multi-turn conversations reference prior exchanges and respect persona constraints.
 
-## Epic C – Conversational Convergence
+### Story EP2-S2 – (Future) As a player, I hear voiced NPC replies and see their animations react
+- Layer TTS playback, spatial audio, and simple talk animations on top of Story EP2-S1.
+- Map emotion metadata to gestures or expressions; consider STT for player input.
+- Acceptance: demo conversation where NPC speech, animation, and audio timing remain in sync.
 
-### Story C1 – As a creator, I can chat with agents and companions in one console
-- Implement conversation bus service with persistence and rate limits.
-- Build Mission Control chat UI supporting text, attachments, and commands.
-- Integrate MCP agents, simulation companions, and human participants.
+## Epic EP3 – Asset Styling and Enhancement with Scenario AI
 
-### Story C2 – As a data steward, I control how conversations train AI
-- Capture transcripts with metadata (zone, emotional context, governor state).
-- Add consent toggles and auditing workflow before logs enter training pipelines.
-- Provide analytics on response latency, participation, and sentiment trends.
+### Story EP3-S1 – As an art director, I restyle generated props so they match Eternia’s visual language
+- Train or select a Scenario model representing the target art direction.
+- Pipeline Scenario outputs into runtime material swaps for web and Unreal clients.
+- Cache+monitor styling runs, allowing asynchronous updates when AI assets finish processing.
+- Notify the governor of styling-driven physics/material changes and respect any law vetoes.
+- Acceptance: before/after comparison shows consistent style application across at least three prop types.
 
-## Epic D – Security & Trust Foundations
+### Story EP3-S2 – As a content designer, I batch-produce themed decor and UI assets in one pass
+- Script Scenario batch prompts that yield coherent sets of images/textures.
+- Import curated outputs into placement tools or UI kits with minimal manual cleanup.
+- Document repeatable steps so non-engineers can regenerate sets as art direction evolves.
+- Demonstrate batch placement adheres to density/zone laws via recorded enforcement events.
+- Acceptance: populate a showcase area with a themed asset set generated in a single workflow.
 
-### Story D1 – As a user, I secure my realm with two-factor auth
-- Implement TOTP enrollment/verification endpoints and UI.
-- Store encrypted secrets in artifacts vault with rotation ceremonies.
-- Update auth flows to respect governor shutdown/rollback states.
+## Epic EP4 – Full Environment Generation with Marble (World Labs)
 
-### Story D2 – As a platform operator, I trace every sensitive action
-- Introduce HMAC-signed request verification for privileged APIs.
-- Emit structured audit logs to monitoring stack and retention policies.
-- Add secure upload scanning with ClamAV microservice and quarantine review queue.
+### Story EP4-S1 – As a developer, I explore a Marble-generated environment directly inside Eternia
+- Secure Marble access, collect splat outputs, and render them through Spark in the Three.js client.
+- Provide controls for prompting, loading, and navigating scenes; capture performance notes.
+- Outline Unreal integration research options (conversion, point cloud shaders, WebXR bridge).
+- Gate environment swaps through the governor, logging law approvals or rejections.
+- Acceptance: recorded walkthrough of two distinct Marble prompts rendered in the client with navigation.
 
-## Epic E – Data Intelligence & Analytics
-
-### Story E1 – As an explorer, I export and analyze my Eternia journey
-- Ship data export APIs for checkpoints, conversations, and metrics.
-- Implement validation schemas shared between backend and TypeScript clients.
-- Stand up analytics pipeline (Kafka/Redis + Dagster/Prefect) for behavior insights.
-
-### Story E2 – As an overseer, I detect anomalies in real time
-- Extend monitoring module with anomaly detection algorithms.
-- Build Grafana dashboards and UI embeds for key metrics.
-- Trigger governor pauses or alerts when thresholds breach narrative safety.
-
-## Epic F – Autonomic Development Enablement
-
-### Story F1 – As Mission Control, I orchestrate MCP agents safely
-- Package task manifests referencing docs/tasks.md IDs and new epics.
-- Provide sandboxed tools (planner, implementer, security, doc writer) with revocation logic.
-- Hook conversation bus events into planner retrospectives and backlog refinement.
-
-### Story F2 – As the organization, I demo production readiness to stakeholders
-- Curate demo scripts combining 3D world, conversations, analytics dashboards.
-- Produce funding-ready pitch materials summarizing feasibility milestones.
-- Align deployment pipeline with security and analytics checkpoints for go-live.
+### Story EP4-S2 – As a developer, I save standout AI worlds and reload them later
+- Persist Marble splat outputs with metadata, previews, and catalog browsing.
+- Rehydrate stored worlds on demand via Spark; plan Unreal parity as APIs mature.
+- Store law-compliance status with each world and prevent reloads once a governing rule disallows them.
+- Acceptance: demonstrate save/load cycle surviving server restarts for multiple generated environments.
 
 ---
 
-**Usage Tips**
-- Treat each story as a unit of work; break tasks further in issue trackers if needed.
-- Reference `docs/pending_implementation_design.md` for technical depth and acceptance metrics.
-- Update `docs/tasks.md` checkboxes when stories reach Definition of Done (tests, docs, security reviews).
+**Working agreements**
+- Stories remain definition-of-done only when related checkboxes in `docs/tasks.md` are complete and tests/docs are merged.
+- Capture deviations or blocked subtasks in `docs/implementation_notes.md` and raise follow-up issues tagged with the corresponding story code.

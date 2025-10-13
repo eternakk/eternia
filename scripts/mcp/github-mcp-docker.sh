@@ -18,7 +18,7 @@
 # - No repo path mount is strictly required by the server, but we mount the current project directory
 #   at /workspace (read-only) in case the server or tools reference local files in the future.
 # - If you don't want the mount, remove the -v line below.
-# - This wrapper auto-loads .junie/mcp/.env if present and uses GITHUB_TOKEN_RO as a fallback for GITHUB_TOKEN.
+# - This wrapper auto-loads .junie/mcp/.env and ~/.codex/mcp/{github,.}.env if present, and uses GITHUB_TOKEN_RO as a fallback for GITHUB_TOKEN.
 
 set -euo pipefail
 
@@ -26,14 +26,21 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-# Auto-load env from project .junie/mcp/.env if present
-ENV_FILE="${PROJECT_ROOT}/.junie/mcp/.env"
-if [[ -f "${ENV_FILE}" ]]; then
-  # shellcheck disable=SC1090
-  set -a
-  . "${ENV_FILE}"
-  set +a
-fi
+# Auto-load env from local Junie or Codex config if present
+ENV_FILES=(
+  "${PROJECT_ROOT}/.junie/mcp/.env"
+  "${HOME}/.codex/mcp/github.env"
+  "${HOME}/.codex/mcp/.env"
+)
+
+for env_file in "${ENV_FILES[@]}"; do
+  if [[ -f "${env_file}" ]]; then
+    # shellcheck disable=SC1090
+    set -a
+    . "${env_file}"
+    set +a
+  fi
+done
 
 IMAGE="${GITHUB_MCP_IMAGE:-ghcr.io/modelcontextprotocol/github-mcp:latest}"
 
@@ -45,7 +52,7 @@ fi
 # Validate token availability
 if [[ -z "${GITHUB_TOKEN:-}" ]]; then
   echo "[github-mcp-docker] ERROR: GITHUB_TOKEN is not set." >&2
-  echo "Provide it by either: (1) exporting GITHUB_TOKEN in your shell; or (2) setting GITHUB_TOKEN_RO in .junie/mcp/.env (auto-loaded)." >&2
+  echo "Provide it by either: (1) exporting GITHUB_TOKEN in your shell; or (2) setting it in .junie/mcp/.env or ~/.codex/mcp/github.env (both auto-loaded)." >&2
   echo "Ensure the token has appropriate scopes (read, write:issues, write:pull_requests if needed)." >&2
   exit 1
 fi

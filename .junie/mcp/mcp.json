@@ -1,18 +1,7 @@
 {
   "mcpServers": {
     "github": {
-      "command": "docker",
-      "args": [
-        "run",
-        "-i",
-        "--rm",
-        "-e",
-        "GITHUB_PERSONAL_ACCESS_TOKEN",
-        "ghcr.io/github/github-mcp-server"
-      ],
-      "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "env://GITHUB_TOKEN_RO"
-      }
+      "command": "/Users/klajdikolaj/PycharmProjects/Eternia/scripts/mcp/github-mcp.sh"
     },
     "sqlite": {
       "command": "docker",

@@ -1,50 +1,38 @@
 {
-  "13": {
-    "code": "A1",
-    "title": "Story A1 – Render and edit Eternia in 3D"
+  "101": {
+    "code": "EP1-S1",
+    "title": "Story EP1-S1 – Web prompt spawns Sloyd prop"
   },
-  "14": {
-    "code": "A2",
-    "title": "Story A2 – Choreograph narrative events visually"
+  "102": {
+    "code": "EP1-S2",
+    "title": "Story EP1-S2 – Unreal VR renders generated prop"
   },
-  "15": {
-    "code": "B1",
-    "title": "Story B1 – Enable believable companion traversal"
+  "103": {
+    "code": "EP1-S3",
+    "title": "Story EP1-S3 – AI agents spawn objects via prompts"
   },
-  "16": {
-    "code": "B2",
-    "title": "Story B2 – Governor veto for unsafe movement"
+  "104": {
+    "code": "EP2-S1",
+    "title": "Story EP2-S1 – NPC text chat via Inworld"
   },
-  "17": {
-    "code": "C1",
-    "title": "Story C1 – Unified conversation console"
+  "105": {
+    "code": "EP2-S2",
+    "title": "Story EP2-S2 – Voice and animation for AI NPCs"
   },
-  "18": {
-    "code": "C2",
-    "title": "Story C2 – Control AI training data from conversations"
+  "106": {
+    "code": "EP3-S1",
+    "title": "Story EP3-S1 – Style generated props with Scenario"
   },
-  "19": {
-    "code": "D1",
-    "title": "Story D1 – Secure realms with two-factor auth"
+  "107": {
+    "code": "EP3-S2",
+    "title": "Story EP3-S2 – Batch Scenario assets for themed sets"
   },
-  "20": {
-    "code": "D2",
-    "title": "Story D2 – Trace sensitive actions end-to-end"
+  "108": {
+    "code": "EP4-S1",
+    "title": "Story EP4-S1 – Explore Marble-generated environments"
   },
-  "21": {
-    "code": "E1",
-    "title": "Story E1 – Export and analyze Eternia journeys"
-  },
-  "22": {
-    "code": "E2",
-    "title": "Story E2 – Detect anomalies in real time"
-  },
-  "23": {
-    "code": "F1",
-    "title": "Story F1 – Orchestrate MCP agents safely"
-  },
-  "24": {
-    "code": "F2",
-    "title": "Story F2 – Demo production readiness"
+  "109": {
+    "code": "EP4-S2",
+    "title": "Story EP4-S2 – Save and reload AI-generated worlds"
   }
 }

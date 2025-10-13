@@ -69,12 +69,14 @@ The API listens on `http://localhost:8000`. World boot can take a few seconds on
 - Protobuf/OpenTelemetry instrumentation ships disabled by default; add env toggles before running telemetry-heavy tests.
 
 ## Documentation
-- Architecture: `docs/architecture.md`, `docs/architecture_v{2,3}.md`, and `docs/module_map.md`.
-- Operations: `docs/monitoring_and_alerting.md`, `docs/backup_and_recovery.md`, `docs/runbooks/`.
-- Simulation deep dives: `docs/runtime_cycle.md`, `docs/companion_ecology.md`, `docs/quantum_overview.md`.
-- Getting started: `docs/developer_onboarding.md`, `docs/environment_setup.md`, `docs/ui_development_guidelines.md`.
-- Planning aids: `docs/pending_implementation_design.md`, `docs/implementation_stories.md`.
-- Agent automation: `agents.md` details the multi-agent workflow, guardrails, and tooling expectations.
+- Start with `docs/README.md` for a categorized index spanning onboarding, system design, security, and runbooks.
+- Getting started: `docs/developer_onboarding.md`, `docs/environment_setup.md`, `docs/running_the_server.md`, and `docs/docker_setup.md`.
+- Architecture & systems: `docs/architecture_v3.md` (plus v1/v2 history), `docs/module_map.md`, `docs/state_management_and_data_flow.md`, `docs/event_system.md`.
+- Simulation & world mechanics: `docs/runtime_cycle.md`, `docs/companion_ecology.md`, `docs/evolution_logic.md`, `docs/genesis_valley_pcg.md`.
+- Platform & ops: `docs/api_documentation.md`, `docs/monitoring_and_alerting.md`, `docs/release_management.md`, and `docs/runbooks/`.
+- Security & governance: `docs/governor.md`, `docs/secure_coding_guidelines.md`, `docs/security_scanning.md`, `docs/backup_and_recovery.md`.
+- Agentic automation: `AGENTS.md` and `docs/agentic_orchestration_plan.md` detail the multi-role workflow.
+- Planning & tracking: `docs/tasks.md`, `docs/implementation_stories.md`, and `docs/issue_story_map.json`.
 
 ## Maintenance Notes
 - Align Docker base image with the preferred Python 3.12 toolchain.

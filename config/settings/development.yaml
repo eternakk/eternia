@@ -71,3 +71,14 @@ features:
     enabled: true
   performance_monitoring:
     enabled: true
+
+# External integrations for development (inject secrets via environment variables)
+integrations:
+  sloyd:
+    api_key: "${SLOYD_API_KEY:-}"
+  inworld:
+    api_key: "${INWORLD_API_KEY:-}"
+  scenario:
+    api_key: "${SCENARIO_API_KEY:-}"
+  marble:
+    api_token: "${MARBLE_API_TOKEN:-}"
